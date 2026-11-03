@@ -9,4 +9,6 @@ export default defineApplication({
   author: 'Just For Fun 360, S.L.',
   category: 'Sales',
   logo: 'public/logo.png',
+  websiteUrl: 'https://github.com/mikiguillamon/twenty-omnichannel-support',
+  issueReportUrl: 'https://github.com/mikiguillamon/twenty-omnichannel-support/issues',
 });

@@ -2,10 +2,10 @@
 
 Una aplicación privada, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
 
-**Versión:** `0.3.0-beta.2`  
+**Versión:** `0.3.0-beta.3`  
 **Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** beta privada. La versión anterior se publicó en el servidor. La actualización requiere CI verde y verificación de interfaz.  
-**Licencia:** no se conceden derechos de redistribución en esta fase (`UNLICENSED`); la licencia comercial/OSS se decidirá antes de publicar.
+**Estado:** beta privada; candidato de infraestructura de publicación npm, todavía NO publicado en npm. La versión de la app instalada se mantiene hasta que se apruebe un despliegue.  
+**Licencia:** `UNLICENSED`, reservados todos los derechos de momento. Elegir expresamente la licencia o condiciones antes de la primera distribución pública.
 
 ## Funciones incluidas en el código
 
@@ -26,7 +26,7 @@ Una aplicación privada, reutilizable y configurable por workspace. Convierte Tw
 
 El código lo despliega una sola vez el proveedor. Después, los usuarios autorizados de otros workspaces de **la misma instancia de Twenty** pueden instalar la versión privada desde un **enlace de distribución**: `Settings → Developers → Apps → My apps → Distribution → Copy share link`.
 
-Para comercialización pública, el proyecto incluye un workflow de publicación a npm/Marketplace que requiere una habilitación explícita y configuración inicial. **No se publica automáticamente**.
+Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **El candidato sigue con `private: true`: la publicación pública queda bloqueada hasta aprobar licencia y activarla.**
 
 Lee [PUBLICACION.md](docs/PUBLICACION.md) para la ruta de GitHub Actions y [INSTALACION.md](docs/INSTALACION.md) para el piloto. La mayoría de instalaciones por cliente se hacen desde la interfaz, no desde la consola.
 
@@ -41,7 +41,7 @@ corepack yarn check
 corepack yarn test
 ```
 
-`check` ejecuta verificaciones estructurales, el typecheck del SDK y el build. En este entorno de generación no se han descargado dependencias npm, por lo que **el typecheck/build con SDK real todavía no se ha ejecutado**. No publiques hasta que pase en GitHub Actions o en un entorno adecuado.
+`check` ejecuta verificaciones estructurales, el typecheck del SDK y el build. La beta anterior pasó el build real y las pruebas en GitHub Actions. Ejecuta siempre estos controles sobre el commit de cada versión; antes de publicar también se requiere `corepack yarn release:check` y la comprobación del artefacto.
 
 ## Documentación
 
@@ -62,3 +62,7 @@ Se toman de referencia su separación de estado técnico/resultado/evaluación, 
 ## Configurar canales por workspace
 
 Abre **Atención al cliente → Canales**. La pantalla permite crear, pausar, desactivar y marcar como activos los canales del cliente. El estado no activa o detiene n8n por sí solo. Lee [CONFIGURACION_CANALES.md](docs/CONFIGURACION_CANALES.md) antes de conectar tus automatizaciones.
+
+## Proceso de releases npm
+
+El procedimiento canónico está en `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n` del Second Brain. Para este repositorio consulta [PUBLICACION.md](docs/PUBLICACION.md): GitHub Release (`published`) activa `publish.yml`, sin `PUBLISH` manual y sin Environment npm obligatorio. El `private: true` actual evita una publicación accidental.

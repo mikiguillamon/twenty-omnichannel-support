@@ -1,0 +1,75 @@
+name: Publish Omnichannel Support to npm
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check Release prerelease flag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        shell: bash
+        run: |
+          case "$RELEASE_TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Expected a vX.Y.Z tag"; exit 1 ;;
+          esac
+          case "$RELEASE_TAG" in
+            *-*) test "$RELEASE_PRERELEASE" = "true" || { echo "Prerelease must be marked prerelease"; exit 1; } ;;
+            *) test "$RELEASE_PRERELEASE" = "false" || { echo "Stable cannot be marked prerelease"; exit 1; } ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require the release commit on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main || { echo "Release tag commit is not in main"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.5.0'
+          registry-url: https://registry.npmjs.org
+      - name: Install reproducible dependencies
+        run: |
+          corepack enable
+          corepack yarn install --immutable
+      - name: Validate public release metadata and tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/release-preflight.mjs --public --tag "$RELEASE_TAG"
+      - name: Tests, types and Twenty SDK build
+        run: |
+          corepack yarn check
+          corepack yarn test
+          corepack yarn twenty dev:build --tarball
+      - name: Inspect distribution
+        shell: bash
+        run: |
+          test -s .twenty/output/manifest.json
+          test -s .twenty/output/package.json
+          if find .twenty/output -type f | grep -E '/(\.env|\.npmrc|[^/]*\.pem|[^/]*\.key)$'; then
+            echo "Unexpected sensitive file in distribution"; exit 1
+          fi
+          echo "Twenty output manifest and package found"
+      - name: Install npm with OIDC support
+        run: npm install --global 'npm@^11.5.1'
+      - name: Publish beta to npm
+        if: github.event.release.prerelease == true
+        run: corepack yarn twenty app:publish --tag beta
+      - name: Publish stable to npm
+        if: github.event.release.prerelease == false
+        run: corepack yarn twenty app:publish

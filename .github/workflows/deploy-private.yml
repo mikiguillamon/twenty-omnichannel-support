@@ -29,7 +29,7 @@ jobs:
       - name: Enable Yarn and install dependencies
         run: |
           corepack enable
-          corepack yarn install
+          corepack yarn install --immutable
       - name: Validate app
         run: corepack yarn check && corepack yarn test
       - name: Configure deploy remote

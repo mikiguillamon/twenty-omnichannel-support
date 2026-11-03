@@ -1,56 +1,100 @@
-# Distribución sin consola para cada cliente
+# Publicación de Omnichannel Support — GitHub Releases, npm y Twenty
 
-El objetivo es crear una vez, publicar desde GitHub Actions y permitir que cada cliente instale Omnichannel Support desde la **interfaz de Twenty**. Hay dos rutas distintas.
+Este repositorio sigue la guía canónica del Second Brain: `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n.md`. El registro de decisiones de este proyecto vive aquí, no en la nota genérica de Knowledge.
 
-## Opción A — Privada, recomendada para el piloto
+## Estado del proyecto
 
-**Primera configuración de GitHub (una sola vez):**
+- Paquete npm candidato: `twenty-omnichannel-support`. **No hay publicación npm verificada todavía.**
+- Versión del código candidata: `0.3.0-beta.3`; la app instalada anteriormente puede tener otra versión.
+- Se conservan todos los identificadores universales de Twenty.
+- `private: true` y `UNLICENSED` bloquean intencionadamente la salida pública hasta aprobar la estrategia de comercialización.
+- El workflow privado `deploy-private.yml` es independiente de npm y requiere ejecutarse desde Actions con `DEPLOY`; no desinstala ni instala apps en otros workspaces.
+- El workflow público `.github/workflows/publish.yml` se dispara **solo al publicar una GitHub Release** y usa npm Trusted Publishing + OIDC, sin token npm ni Environment obligatorio.
+- No ejecutar el paso público hasta haber probado en un Twenty aislado la coexistencia/migración de la versión privada y la versión importada por catálogo npm: comparten `universalIdentifier`, por lo que pueden colisionar en la misma instancia.
 
-1. Crear un repositorio nuevo para el proyecto, por ejemplo `mikiguillamon/twenty-app-omnichannel-support`. **Mantener privado** durante el piloto.
-2. Subir el contenido descomprimido de este ZIP a la raíz del repo. Comprobar que `.github/workflows/` está incluido. Puedes utilizar el editor de GitHub o una sola carga inicial desde tu entorno de desarrollo.
-3. Elegir un **workspace propietario/desarrollador** controlado por tu empresa. Recomendable que no sea el de un cliente final. En un piloto puedes usar un workspace de pruebas controlado por ti y planificar la transferencia de propiedad antes de vender la app. No instales en `jff` sin querer.
-4. En ese workspace, crear una API key con los permisos necesarios para publicar apps. No utilizar la clave de Meta Lead Sync ni la de integración n8n.
-5. GitHub → repositorio → **Settings → Secrets and variables → Actions**:
-   - **Variable** `TWENTY_DEPLOY_URL`: URL completa del workspace propietario, por ejemplo `https://soporte-dev.space.justforfun.es` (solo un ejemplo, no crear ese dominio automáticamente).
-   - **Secret** `TWENTY_DEPLOY_API_KEY`: API key del workspace propietario.
-6. Opcional, recomendado: GitHub → Settings → Environments → crear `private-deployment` con aprobación previa.
-7. En **Actions → Deploy private app to Twenty → Run workflow** escribir `DEPLOY`. El workflow instala dependencias, valida el código y **publica el tarball en el servidor**. No instala la app automáticamente en los clientes.
+## Fase A. Publicación privada dentro de la misma instancia Twenty
 
-**Instalación por el cliente (sin Terminal):**
+1. Confirmar CI en verde sobre `main` y versión SemVer nueva.
+2. GitHub → Actions → **Deploy private app to Twenty** → seleccionar `main`, escribir `DEPLOY`.
+3. En el workspace propietario (JFF): `Settings → Developers → Apps → My apps → Omnichannel Support → Distribution`.
+4. Copiar enlace de instalación y abrirlo en el workspace de destino, con permisos para instalar apps.
+5. Actualizar desde `Settings → Applications` cuando aparezca una versión superior; **no desinstalar la versión anterior**.
+6. Validar siete objetos, canales, resumen, API y permisos en un workspace piloto antes de producción.
 
-1. En Twenty, dentro del workspace propietario: **Settings → Developers → Apps → My apps**.
-2. Abrir `Omnichannel Support` → pestaña **Distribution** → **Copy share link**.
-3. Abrir el enlace desde el workspace del cliente (la URL compartida utiliza el dominio base del servidor). La persona con permiso de administración instala la app mediante los controles de la UI de Twenty.
-4. Comprobar que aparece el menú `Atención al cliente` y los siete objetos.
-5. Generar una nueva API key del **cliente** para su integración con n8n. Nunca reutilizar la clave del desarrollador.
+## Fase B. Configuración para primera publicación en npm
 
-**Actualizaciones:** aumentar la versión (ej. `0.3.0-beta.1` a `0.3.0-beta.2`), lanzar de nuevo GitHub Actions y revisar actualizaciones en **Settings → Applications**. Se puede habilitar auto-upgrade si se han probado las migraciones.
+**Decisiones humanas pendientes:**
 
-**Importante:** una publicación privada **no aparece en el marketplace público**, aunque se instala mediante enlace/UI en otros workspaces del mismo servidor.
+1. Confirmar nombre npm definitivo `twenty-omnichannel-support` y que la cuenta npm posee o puede registrar ese nombre. La búsqueda web no garantiza disponibilidad; verificar con `npm view twenty-omnichannel-support version`.
+2. Decidir licencia y condiciones reales de redistribución. Para Marketplace público es necesario hacer público el paquete; no seleccionar MIT automáticamente si se quiere software propietario. `UNLICENSED` no es una estrategia comercial completa.
+3. Validar privacidad/retención, permisos, documentación en inglés, compatibilidad Twenty y capturas reales de la app.
+4. Probar instalación npm en **otra instancia limpia**, separado del registro privado de Twenty.
+5. Preparar npm Trusted Publishing: propietario GitHub `mikiguillamon`, repo `twenty-omnichannel-support`, workflow **`publish.yml`**, **Environment vacío**, permisos de publicación directa habilitados. No introducir `NPM_TOKEN` ni contraseñas en GitHub. Si el paquete aún no existe en npm, podría requerir un primer bootstrap autenticado o staged publishing; comprobar la opción disponible antes de hacerlo.
+6. Para OIDC/npm, publicación en runner alojado por GitHub. El workflow incluye `id-token: write`.
 
-## Opción B — Marketplace Twenty / npm
+**Requisitos técnicos que bloquean la primera salida pública:**
 
-Ruta posterior a la validación y revisión comercial:
+- Cambiar `private` a `false` en `package.json` solo cuando se apruebe el lanzamiento público.
+- Conservar `src/constants/ids.ts` y `src/application-config.ts` universalIdentifier.
+- Actualizar licencia, README y CHANGELOG con el modelo comercial elegido.
+- Conseguir CI verde, preflight público, build y revisión de `.twenty/output/manifest.json` y tarball.
+- No publicar ni sincronizar npm sobre el mismo registro privado de la instancia JFF hasta validar la transición.
 
-1. Decidir explícitamente licencia, política de privacidad, soporte, versión estable y si el repositorio será público. Este paquete está marcado `private: true` y `UNLICENSED`: **bloquea intencionadamente su publicación npm desde el workflow**.
-2. Para Marketplace con reclamación de propiedad mediante GitHub, el repositorio debe ser **público** y la versión de npm debe llevar procedencia verificable (*provenance*).
-3. Cambiar `package.json` a `private: false`, fijar nombre/version y crear una **GitHub Release** desde la interfaz con tag `vX.Y.Z` que coincida con la versión del paquete. Al crear el tag se dispara el workflow de publicación, sujeto a la aprobación del Environment `npm-publication`.
-4. Configurar en npm **Trusted Publisher** con tu repositorio y workflow `publish-marketplace.yml`. La publicación inicial puede requerir una habilitación/registro manual de propiedad del nombre de paquete.
-5. Al crear la Release, el workflow `Publish Twenty Marketplace package` se ejecuta automáticamente desde el tag (canal `beta` por defecto); también permite ejecución manual sobre un tag escribiendo `PUBLICAR`. El workflow usa el flujo oficial `twenty app:publish` y emite provenance cuando está disponible.
-6. Tras la sincronización del catálogo (normalmente horaria), la app será elegible para el Marketplace. Las comunitarias pueden requerir desactivar **Vetted only**.
-7. En el workspace propietario, completar **Settings → Developers → Apps → Claim an application → Claim with GitHub**. Para servidores self-hosted, este flujo puede requerir configurar en Twenty los OAuth `APP_CLAIM_GITHUB_CLIENT_ID` y `APP_CLAIM_GITHUB_CLIENT_SECRET` con callback bajo `SERVER_URL`. No introducir esos valores en este repositorio.
-8. A partir de ahí, los clientes podrán instalar desde **Settings → Applications → Marketplace**. La insignia *Vetted* depende de Twenty y no se obtiene automáticamente publicando.
+## Fase C. Publicar una GitHub Release
 
-No publicamos a npm en beta sin probar toda la app, las políticas de datos y el ciclo de actualización.
+Una vez **aprobada** la publicación y configurado Trusted Publisher:
 
-## Qué NO hacer
+```bash
+git switch main
+git fetch origin
+git pull --ff-only origin main
+corepack yarn install --immutable
+corepack yarn release:check
+corepack yarn check
+corepack yarn test
 
-- No publicar desde un workspace cliente sin decidir quién será propietario de la app.
-- No hacer un `npm publish` normal sobre la carpeta raíz: usar el workflow del SDK Twenty.
-- No compartir secretos en archivos, logs o documentación.
-- No establecer despliegue automático a producción en cada `git push`; el flujo de producción se ejecuta de forma explícita.
-- No exponer datos entre workspaces; la aplicación es multiinstancia, pero sus registros son locales a cada workspace.
+VERSION="$(node -p "require('./package.json').version")"
+TAG="v$VERSION"
+node scripts/release-preflight.mjs --public --tag "$TAG"
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+git diff --quiet && git diff --cached --quiet
 
-## Fuente oficial verificada
+git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null && {
+  echo "Ya existe esta etiqueta: revisa antes de continuar"; exit 1;
+}
+```
 
-Documentación Twenty SDK `2.50.0`: `packages/twenty-docs/developers/extend/apps/operations/publishing.mdx` en el tag `twenty/v2.50.0` del repositorio `twentyhq/twenty`.
+La Release se crea en una sola acción desde la terminal, sin etiquetar previamente:
+
+```bash
+SHA="$(git rev-parse HEAD)"
+gh release create "$TAG" --target "$SHA" --title "$TAG" --generate-notes --prerelease --latest=false
+```
+
+Para una versión estable, omitir `--prerelease --latest=false`, después de validar versión y política de soporte. No reutilizar etiquetas de versiones publicadas.
+
+**Publicar la Release inicia automáticamente `publish.yml`**, que verifica tag, rama, preflight, build y distribuye con `corepack yarn twenty app:publish --tag beta` para prereleases o sin tag para versiones estables. Usa el CLI de Twenty para empaquetar la app; **no usar `npm publish` desde la raíz**.
+
+## Fase D. Verificar en npm y Twenty
+
+```bash
+gh run list --workflow publish.yml --limit 5
+npm view twenty-omnichannel-support versions --json
+npm view twenty-omnichannel-support dist-tags --json
+```
+
+Confirmar provenance y que el paquete publicado tiene manifiesto, funciones y frontend esperados. En Twenty el catálogo se sincroniza aproximadamente cada hora; las apps comunitarias pueden requerir desactivar `Vetted only`. La reclamación de la app en el workspace propietario se hace en `Settings → Developers → Apps → Claim an application → Claim with GitHub` con procedencia GitHub. En servidores self-hosted puede requerir credenciales OAuth para la reclamación. No tocar todavía el registro privado de producción.
+
+## Si algo falla
+
+- `PUBLICATION BLOCKED: private=true`: intencional, falta autorizar modelo de distribución.
+- `ENEEDAUTH` o error OIDC: comprobar correspondencia owner, repo y `publish.yml`, ausencia de Environment a ambos lados, publicación directa permitida y estado de Trusted Publisher.
+- `version already exists`: nunca sobrescribir una versión npm ni duplicar una release; consultar dist-tags y registros antes de modificar nada.
+- `Marketplace no muestra la app`: comprobar keyword `twenty-app`, compatibilidad `engines.twenty`, catalog sync, filtros y propiedad.
+- Error de instalación en instancia con tarball privado: no desinstalar datos; reproducir en instancia aislada y preparar transición específica de identidad.
+
+## Referencias
+
+- Guía canónica del vault: `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n.md`
+- Twenty: https://docs.twenty.com/developers/extend/apps/operations/publishing
+- npm: https://docs.npmjs.com/trusted-publishers/

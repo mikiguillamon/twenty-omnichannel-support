@@ -1,6 +1,6 @@
 {
-  "name": "twenty-app-omnichannel-support-jff",
-  "version": "0.3.0-beta.2",
+  "name": "twenty-omnichannel-support",
+  "version": "0.3.0-beta.3",
   "private": true,
   "description": "Native workspace-scoped support console for Twenty CRM: cases, messages, FAQs, channels, QA and dashboards",
   "license": "UNLICENSED",
@@ -16,7 +16,8 @@
     "build": "twenty dev:build",
     "check": "node scripts/check-schema.mjs && yarn typecheck && yarn build",
     "check:schema": "node scripts/check-schema.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "release:check": "node scripts/release-preflight.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.7.2",
@@ -40,5 +41,16 @@
   "frontComponentSharedDependencies": [
     "react",
     "react-dom/client"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikiguillamon/twenty-omnichannel-support.git"
+  },
+  "homepage": "https://github.com/mikiguillamon/twenty-omnichannel-support#readme",
+  "bugs": {
+    "url": "https://github.com/mikiguillamon/twenty-omnichannel-support/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
