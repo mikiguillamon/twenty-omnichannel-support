@@ -20,3 +20,12 @@ jobs:
         run: corepack yarn install --immutable
       - name: Run tests, types and SDK build
         run: corepack yarn release:check && corepack yarn check && corepack yarn test
+      - name: Verify MIT license in distributable tarball
+        shell: bash
+        run: |
+          corepack yarn twenty dev:build --tarball
+          test -s .twenty/output/LICENSE
+          cmp -s LICENSE .twenty/output/LICENSE
+          TARBALL=$(find .twenty/output -maxdepth 1 -type f -name '*.tgz' -print -quit)
+          test -n "$TARBALL"
+          tar -tzf "$TARBALL" | grep -Fx 'package/LICENSE'

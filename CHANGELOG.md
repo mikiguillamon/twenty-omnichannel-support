@@ -1,10 +1,17 @@
 # Changelog
 
-## 0.3.0-beta.4 — candidata para publicación automática (pendiente de npm)
+## 0.3.0-beta.5 — MIT license in npm package (candidate)
+
+- Preserve the canonical MIT `LICENSE` in the generated npm distribution using the Twenty CLI packaging lifecycle.
+- CI and public release workflow now inspect the actual tarball and fail if `package/LICENSE` is absent or differs from the source file.
+- GitHub Actions publication of `0.3.0-beta.4` succeeded with signed npm provenance. No runtime changes to Twenty objects, IDs or workflows.
+
+
+## 0.3.0-beta.4 — publicada en npm con OIDC y provenance
 
 - Nueva versión prerelease para probar GitHub Release → GitHub Actions → npm Trusted Publishing con OIDC y provenance.
 - Sin cambios funcionales: conserva los identificadores universales y el modelo de datos de Twenty.
-- No publicar la Release hasta verificar que la beta.3 ya se registró y que Trusted Publishing está configurado con `publish.yml` y Environment vacío.
+- Publicación de npm `beta` verificada mediante GitHub Actions; el artefacto de esta versión no incluía el texto `LICENSE`, corregido en beta.5.
 
 
 ## Public MIT licensing — 2026-11-03

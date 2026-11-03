@@ -61,6 +61,11 @@ jobs:
         run: |
           test -s .twenty/output/manifest.json
           test -s .twenty/output/package.json
+          test -s .twenty/output/LICENSE
+          cmp -s LICENSE .twenty/output/LICENSE
+          TARBALL=$(find .twenty/output -maxdepth 1 -type f -name '*.tgz' -print -quit)
+          test -n "$TARBALL"
+          tar -tzf "$TARBALL" | grep -Fx 'package/LICENSE'
           if find .twenty/output -type f | grep -E '/(\.env|\.npmrc|[^/]*\.pem|[^/]*\.key)$'; then
             echo "Unexpected sensitive file in distribution"; exit 1
           fi
