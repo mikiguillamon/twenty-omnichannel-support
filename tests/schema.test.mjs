@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-test('app is explicitly private during pilot phase',()=>{
+test('app is publicly distributable under MIT',()=>{
   const pkg=JSON.parse(read('package.json'));
-  assert.equal(pkg.private,true);
+  assert.notEqual(pkg.private,true);
+  assert.equal(pkg.license,'MIT');
+  assert.equal(pkg.name,'twenty-omnichannel-support');
   assert(pkg.keywords.includes('twenty-app'));
   assert(pkg.engines.twenty.includes('2.50.0'));
 });

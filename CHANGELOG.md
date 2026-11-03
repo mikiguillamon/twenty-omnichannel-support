@@ -1,5 +1,13 @@
 # Changelog
 
+## Public MIT licensing — 2026-11-03
+
+- Approved open-source distribution: MIT License and full copyright notice for Just For Fun 360, S.L.
+- Set `package.json` to `private: false` and `license: MIT`, preserving version `0.3.0-beta.3` as the first public candidate.
+- Updated release preflight tests to require MIT for npm releases.
+- Does not automatically publish to npm or modify existing Twenty installations.
+
+
 ## 0.3.0-beta.3 — candidato de distribución (no publicado)
 
 - Preparar nombre público `twenty-omnichannel-support` y metadata de repositorio y soporte; conservar los UUID internos de la app.

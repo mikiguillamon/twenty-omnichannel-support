@@ -4,10 +4,10 @@ Este repositorio sigue la guía canónica del Second Brain: `50 Knowledge/Develo
 
 ## Estado del proyecto
 
-- Paquete npm candidato: `twenty-omnichannel-support`. **No hay publicación npm verificada todavía.**
+- Paquete npm elegido: `twenty-omnichannel-support`. **No hay publicación npm verificada todavía.**
 - Versión del código candidata: `0.3.0-beta.3`; la app instalada anteriormente puede tener otra versión.
 - Se conservan todos los identificadores universales de Twenty.
-- `private: true` y `UNLICENSED` bloquean intencionadamente la salida pública hasta aprobar la estrategia de comercialización.
+- Licencia MIT aprobada: `private: false`, `license: MIT` y `LICENSE`. Publicar una GitHub Release sigue requiriendo configurar la autenticación npm.
 - El workflow privado `deploy-private.yml` es independiente de npm y requiere ejecutarse desde Actions con `DEPLOY`; no desinstala ni instala apps en otros workspaces.
 - El workflow público `.github/workflows/publish.yml` se dispara **solo al publicar una GitHub Release** y usa npm Trusted Publishing + OIDC, sin token npm ni Environment obligatorio.
 - No ejecutar el paso público hasta haber probado en un Twenty aislado la coexistencia/migración de la versión privada y la versión importada por catálogo npm: comparten `universalIdentifier`, por lo que pueden colisionar en la misma instancia.
@@ -23,20 +23,20 @@ Este repositorio sigue la guía canónica del Second Brain: `50 Knowledge/Develo
 
 ## Fase B. Configuración para primera publicación en npm
 
-**Decisiones humanas pendientes:**
+**Pendiente en npm y en las pruebas de distribución:**
 
 1. Confirmar nombre npm definitivo `twenty-omnichannel-support` y que la cuenta npm posee o puede registrar ese nombre. La búsqueda web no garantiza disponibilidad; verificar con `npm view twenty-omnichannel-support version`.
-2. Decidir licencia y condiciones reales de redistribución. Para Marketplace público es necesario hacer público el paquete; no seleccionar MIT automáticamente si se quiere software propietario. `UNLICENSED` no es una estrategia comercial completa.
+2. Licencia aprobada: **MIT**, que permite uso comercial, modificación y redistribución con su aviso de copyright.
 3. Validar privacidad/retención, permisos, documentación en inglés, compatibilidad Twenty y capturas reales de la app.
 4. Probar instalación npm en **otra instancia limpia**, separado del registro privado de Twenty.
 5. Preparar npm Trusted Publishing: propietario GitHub `mikiguillamon`, repo `twenty-omnichannel-support`, workflow **`publish.yml`**, **Environment vacío**, permisos de publicación directa habilitados. No introducir `NPM_TOKEN` ni contraseñas en GitHub. Si el paquete aún no existe en npm, podría requerir un primer bootstrap autenticado o staged publishing; comprobar la opción disponible antes de hacerlo.
 6. Para OIDC/npm, publicación en runner alojado por GitHub. El workflow incluye `id-token: write`.
 
-**Requisitos técnicos que bloquean la primera salida pública:**
+**Requisitos técnicos de la primera salida pública:**
 
-- Cambiar `private` a `false` en `package.json` solo cuando se apruebe el lanzamiento público.
+- Completado: `private: false` y `license: MIT`.
 - Conservar `src/constants/ids.ts` y `src/application-config.ts` universalIdentifier.
-- Actualizar licencia, README y CHANGELOG con el modelo comercial elegido.
+- Completado: licencia MIT, README y CHANGELOG actualizados.
 - Conseguir CI verde, preflight público, build y revisión de `.twenty/output/manifest.json` y tarball.
 - No publicar ni sincronizar npm sobre el mismo registro privado de la instancia JFF hasta validar la transición.
 
@@ -87,7 +87,7 @@ Confirmar provenance y que el paquete publicado tiene manifiesto, funciones y fr
 
 ## Si algo falla
 
-- `PUBLICATION BLOCKED: private=true`: intencional, falta autorizar modelo de distribución.
+- `PUBLICATION BLOCKED: private=true`: revisar un cambio accidental que haya revertido el paquete a privado.
 - `ENEEDAUTH` o error OIDC: comprobar correspondencia owner, repo y `publish.yml`, ausencia de Environment a ambos lados, publicación directa permitida y estado de Trusted Publisher.
 - `version already exists`: nunca sobrescribir una versión npm ni duplicar una release; consultar dist-tags y registros antes de modificar nada.
 - `Marketplace no muestra la app`: comprobar keyword `twenty-app`, compatibilidad `engines.twenty`, catalog sync, filtros y propiedad.
@@ -98,3 +98,16 @@ Confirmar provenance y que el paquete publicado tiene manifiesto, funciones y fr
 - Guía canónica del vault: `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n.md`
 - Twenty: https://docs.twenty.com/developers/extend/apps/operations/publishing
 - npm: https://docs.npmjs.com/trusted-publishers/
+
+## Primer bootstrap de la publicación (npm)
+
+La primera publicación requiere una sesión npm con permisos sobre `twenty-omnichannel-support`. El portal Trusted Publishing puede no mostrar la configuración para un nombre todavía no registrado.
+
+- Comprueba con `npm view twenty-omnichannel-support version` si existe. Un 404 puede indicar que el nombre está libre, pero solo una publicación exitosa confirma la titularidad.
+- Revisa el paquete generado por el SDK, su manifiesto y que no incluya secretos, datos de personas ni configuración privada.
+- Si npm permite staged publishing de una primera versión, sigue el flujo oficial desde npm con 2FA. Si no, el bootstrap excepcional puede hacerse con sesión interactiva y el empaquetador correcto de Twenty: `corepack yarn twenty app:publish --tag beta`. No uses `npm publish` desde la raíz del repositorio.
+- La versión `0.3.0-beta.3` solo debe publicarse una vez. Si el bootstrap ya la publicó, la siguiente Release de GitHub debe usar una versión nueva (p. ej. `0.3.0-beta.4`), nunca reutilizar el mismo número.
+- Configura npm **Trusted Publishing** con GitHub owner `mikiguillamon`, repo `twenty-omnichannel-support`, workflow `publish.yml`, **Environment vacío**, y permite publicación directa (`npm publish`). Comprueba la primera publicación con provenance antes de restringir los tokens tradicionales.
+- No sustituyas ni desinstales el paquete privado existente dentro de Twenty: primero prueba la versión del catálogo npm en una instancia separada.
+
+**Licencia:** MIT, © 2026 Just For Fun 360, S.L.; el uso, la modificación y la comercialización del código están permitidos bajo sus condiciones.

@@ -22,7 +22,8 @@ export function releaseProblems(pkg,{publicRelease=false,tag}={}){
   if(!['MIT','UNLICENSED'].includes(pkg.license))errors.push('Choose and document license: MIT or UNLICENSED');
   if(tag!==undefined && tag!=='v'+pkg.version)errors.push('GitHub Release tag must be v'+pkg.version);
   if(publicRelease){
-    if(pkg.private===true)errors.push('PUBLICATION BLOCKED: private=true. Require explicit release approval.');
+    if(pkg.private===true)errors.push('PUBLICATION BLOCKED: private=true.');
+    if(pkg.license!=='MIT')errors.push('PUBLICATION BLOCKED: MIT license required.');
     if(pkg.publishConfig?.access!=='public')errors.push('PUBLICATION BLOCKED: publishConfig.access must be public.');
     if(pkg.name.endsWith('-jff'))errors.push('PUBLICATION BLOCKED: remove instance-specific package suffix.');
   }

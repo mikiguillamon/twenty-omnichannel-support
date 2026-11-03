@@ -1,11 +1,19 @@
+# Omnichannel Support for Twenty CRM
+
+**Open-source support console for Twenty CRM (MIT).** Cases, messages, FAQs, channels, human evaluations and dashboards are stored per workspace and accessible via Twenty's native REST/GraphQL API. Email/WhatsApp delivery and AI bots remain external integrations such as n8n.
+
+**Status:** beta source available; npm and Marketplace distribution require the initial package registration and verified release. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
+
+---
+
 # Omnichannel Support para Twenty CRM
 
-Una aplicación privada, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
+Una aplicación open source con licencia MIT, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
 
 **Versión:** `0.3.0-beta.3`  
 **Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** beta privada; candidato de infraestructura de publicación npm, todavía NO publicado en npm. La versión de la app instalada se mantiene hasta que se apruebe un despliegue.  
-**Licencia:** `UNLICENSED`, reservados todos los derechos de momento. Elegir expresamente la licencia o condiciones antes de la primera distribución pública.
+**Estado:** beta open source lista para la primera publicación npm (aún no registrada en npm). Las instalaciones privadas de Twenty no cambian automáticamente.  
+**Licencia:** [MIT](LICENSE) — © 2026 Just For Fun 360, S.L.
 
 ## Funciones incluidas en el código
 
@@ -26,7 +34,7 @@ Una aplicación privada, reutilizable y configurable por workspace. Convierte Tw
 
 El código lo despliega una sola vez el proveedor. Después, los usuarios autorizados de otros workspaces de **la misma instancia de Twenty** pueden instalar la versión privada desde un **enlace de distribución**: `Settings → Developers → Apps → My apps → Distribution → Copy share link`.
 
-Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **El candidato sigue con `private: true`: la publicación pública queda bloqueada hasta aprobar licencia y activarla.**
+Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **El paquete está marcado como público, pero ninguna versión llega a npm hasta realizar la primera publicación con tu cuenta o lanzar una GitHub Release con npm Trusted Publishing configurado.**
 
 Lee [PUBLICACION.md](docs/PUBLICACION.md) para la ruta de GitHub Actions y [INSTALACION.md](docs/INSTALACION.md) para el piloto. La mayoría de instalaciones por cliente se hacen desde la interfaz, no desde la consola.
 
@@ -65,4 +73,4 @@ Abre **Atención al cliente → Canales**. La pantalla permite crear, pausar, de
 
 ## Proceso de releases npm
 
-El procedimiento canónico está en `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n` del Second Brain. Para este repositorio consulta [PUBLICACION.md](docs/PUBLICACION.md): GitHub Release (`published`) activa `publish.yml`, sin `PUBLISH` manual y sin Environment npm obligatorio. El `private: true` actual evita una publicación accidental.
+El procedimiento canónico está en `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n` del Second Brain. Para este repositorio consulta [PUBLICACION.md](docs/PUBLICACION.md): GitHub Release (`published`) activa `publish.yml`, sin `PUBLISH` manual y sin Environment npm obligatorio. Un push en GitHub no publica en npm: hace falta una GitHub Release y autenticación npm configurada.
