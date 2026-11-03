@@ -1,6 +1,6 @@
 {
   "name": "twenty-app-omnichannel-support-jff",
-  "version": "0.3.0-beta.1",
+  "version": "0.3.0-beta.2",
   "private": true,
   "description": "Native workspace-scoped support console for Twenty CRM: cases, messages, FAQs, channels, QA and dashboards",
   "license": "UNLICENSED",

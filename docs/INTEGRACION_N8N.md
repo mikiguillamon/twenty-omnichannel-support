@@ -90,3 +90,7 @@ Los ajustes `staleAfterMinutes` se pueden cambiar por cliente, pero **su efecto 
 - Filtrar por `status=PUBLISHED` antes de entregar FAQs al bot.
 - No completar o aprobar acciones en nombre del cliente sin autorización.
 - Establecer retención y supresión antes de producir con datos personales.
+
+## Estado configurable (beta.2)
+
+Desde la nueva página **Canales**, cada workspace puede marcar un canal ACTIVE/PAUSED/DISABLED. Es un dato operativo: **no modifica n8n**. Para aplicarlo realmente, el workflow externo debe consultar el Canal por `code` y no procesar o enviar respuestas automáticas salvo que `status === ACTIVE`. No guardar secretos en Twenty.

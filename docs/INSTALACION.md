@@ -1,4 +1,4 @@
-# Instalación piloto — Omnichannel Support 0.3.0-beta.1
+# Instalación piloto — Omnichannel Support 0.3.0-beta.2
 
 ## Requisitos
 
@@ -52,3 +52,7 @@ No cambiar ni activar flujos n8n existentes sin revisar antes la correspondencia
 - Confirmado rollback (publicar parche de versión o desinstalar en piloto sin borrar registros en producción).
 
 Antes de dar acceso a un cliente real, aplicar políticas de privacidad y retención.
+
+## Actualización de beta.1
+
+Confirma CI verde y ejecuta el workflow **Deploy private app to Twenty** con `DEPLOY`. Después actualiza desde **Settings → Applications** en cada workspace. No desinstales la versión anterior. Verifica la nueva página **Canales**, las vistas que se conservan dentro de **Consultas** y los mensajes previos.
