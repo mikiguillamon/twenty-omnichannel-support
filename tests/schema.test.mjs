@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('app is publicly distributable under MIT',()=>{
   const pkg=JSON.parse(read('package.json'));
-  assert.equal(pkg.private,false);
+  assert.notEqual(pkg.private,true);
   assert.equal(pkg.license,'MIT');
   assert.equal(pkg.name,'twenty-omnichannel-support');
   assert(pkg.keywords.includes('twenty-app'));

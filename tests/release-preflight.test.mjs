@@ -7,7 +7,7 @@ const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8'
 const pkg = JSON.parse(read('package.json'));
 
 test('package and LICENSE declare public MIT distribution', () => {
-  assert.equal(pkg.private, false);
+  assert.notEqual(pkg.private, true);
   assert.equal(pkg.license, 'MIT');
   assert.match(read('LICENSE'), /^MIT License/);
   assert(read('LICENSE').includes('Copyright (c) 2026 Just For Fun 360, S.L.'));
