@@ -27,3 +27,9 @@ test('wrong tag or repository is rejected', () => {
   assert(releaseProblems(pkg, { tag: 'v0.0.0' }).some(x => x.includes('tag')));
   assert(releaseProblems({ ...pkg, repository: { url: 'git+https://github.com/elsewhere/repo.git' } }).some(x => x.includes('Repository')));
 });
+
+test('npm prepack embeds the complete MIT license via the Twenty build output', () => {
+  assert.match(pkg.scripts.prepack, /\.twenty/);
+  assert.match(pkg.scripts.prepack, /copyFileSync/);
+  assert.match(pkg.scripts.prepack, /LICENSE/);
+});

@@ -2,7 +2,7 @@
 
 **Open-source support console for Twenty CRM (MIT).** Cases, messages, FAQs, channels, human evaluations and dashboards are stored per workspace and accessible via Twenty's native REST/GraphQL API. Email/WhatsApp delivery and AI bots remain external integrations such as n8n.
 
-**Status:** public beta release candidate for GitHub Actions + npm Trusted Publishing. npm publication must be verified separately. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
+**Status:** beta.4 successfully published on npm via GitHub Actions with provenance; beta.5 prepares to include the complete MIT LICENSE in the distribution. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
 
 ---
 
@@ -10,9 +10,9 @@
 
 Una aplicación open source con licencia MIT, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
 
-**Versión:** `0.3.0-beta.4`  
+**Versión:** `0.3.0-beta.5`  
 **Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** candidato beta para probar publicación automática con Trusted Publishing. La presencia real en npm debe verificarse; las instalaciones privadas de Twenty no cambian automáticamente.  
+**Estado:** publicación automática npm validada con beta.4 y provenance. La beta.5 incorpora la licencia MIT en el tarball. No modifica las instalaciones privadas de Twenty.  
 **Licencia:** [MIT](LICENSE) — © 2026 Just For Fun 360, S.L.
 
 ## Funciones incluidas en el código
@@ -34,7 +34,7 @@ Una aplicación open source con licencia MIT, reutilizable y configurable por wo
 
 El código lo despliega una sola vez el proveedor. Después, los usuarios autorizados de otros workspaces de **la misma instancia de Twenty** pueden instalar la versión privada desde un **enlace de distribución**: `Settings → Developers → Apps → My apps → Distribution → Copy share link`.
 
-Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **El paquete está marcado como público, pero ninguna versión llega a npm hasta realizar la primera publicación con tu cuenta o lanzar una GitHub Release con npm Trusted Publishing configurado.**
+Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **Las nuevas versiones se publican desde una GitHub Release**, con npm Trusted Publishing y provenance, en el canal beta o latest según el tipo de versión.
 
 Lee [PUBLICACION.md](docs/PUBLICACION.md) para la ruta de GitHub Actions y [INSTALACION.md](docs/INSTALACION.md) para el piloto. La mayoría de instalaciones por cliente se hacen desde la interfaz, no desde la consola.
 
@@ -74,3 +74,7 @@ Abre **Atención al cliente → Canales**. La pantalla permite crear, pausar, de
 ## Proceso de releases npm
 
 El procedimiento canónico está en `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n` del Second Brain. Para este repositorio consulta [PUBLICACION.md](docs/PUBLICACION.md): GitHub Release (`published`) activa `publish.yml`, sin `PUBLISH` manual y sin Environment npm obligatorio. Un push en GitHub no publica en npm: hace falta una GitHub Release y autenticación npm configurada.
+
+## MIT license inside npm distribution
+
+Twenty SDK 2.50 builds from `.twenty/output`. The `prepack` hook copies the repository's MIT `LICENSE` into that folder before npm packs or publishes the application. Both GitHub CI and the release workflow verify the actual distributable tarball contains `package/LICENSE`. Do not publish from the source directory with plain `npm publish`.

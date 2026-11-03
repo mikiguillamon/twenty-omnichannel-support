@@ -120,3 +120,11 @@ La primera publicación requiere una sesión npm con permisos sobre `twenty-omni
 4. Desde el repositorio local sincronizado, crear la GitHub Release `v0.3.0-beta.4` marcada como **prerelease**, usando los comandos de arriba. **No crear la Release si el paso 1 o 2 no está verificado.**
 5. Comprobar que el workflow `publish.yml` termina en verde, npm anuncia `0.3.0-beta.4` bajo dist-tag `beta` y la versión tiene provenance. `latest` no debe apuntar a una beta.
 6. No sustituir la app instalada por tarball privado sin probar la identidad en una instalación de Twenty limpia.
+
+## Segunda publicación verificada (beta.4) y corrección MIT (beta.5)
+
+- GitHub Release `v0.3.0-beta.4` activó `publish.yml` correctamente y el CLI confirmó npm `twenty-omnichannel-support@0.3.0-beta.4`, con dist-tag `beta` y provenance firmada.
+- El empaquetador Twenty SDK 2.50 copia `README.md`, pero no incorpora por defecto `LICENSE`. Se incorpora un `prepack` en `package.json` que, desde `.twenty/output`, copia el archivo MIT original sin publicarlo desde la raíz del repositorio.
+- Desde beta.5, CI y el workflow de Release comprueban `package/LICENSE` dentro del tarball. La publicación falla si la licencia está ausente, vacía o no coincide con el repositorio.
+- Una nueva publicación requiere una versión nueva, CI verde en main, revisión del artefacto y una GitHub Release con `--prerelease --latest=false`. No se reutiliza `v0.3.0-beta.4`.
+- La transición de una instalación privada a una app publicada por catálogo npm requiere pruebas en otra instancia. No desinstalar ni sobrescribir la app existente en JFF.
