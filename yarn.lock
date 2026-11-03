@@ -1889,7 +1889,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"twenty-app-omnichannel-support-jff@workspace:.":
+"twenty-omnichannel-support@workspace:.":
   version: 0.0.0-use.local
   resolution: "twenty-app-omnichannel-support-jff@workspace:."
   dependencies:

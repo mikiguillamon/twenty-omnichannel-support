@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0-beta.3 — candidato de distribución (no publicado)
+
+- Preparar nombre público `twenty-omnichannel-support` y metadata de repositorio y soporte; conservar los UUID internos de la app.
+- Unificar publicación npm con la guía de Knowledge: GitHub Release (published) → `publish.yml` → npm Trusted Publishing/OIDC y provenance.
+- Bloquear la publicación pública mientras `private: true` y licencias/validaciones no estén aprobadas.
+- Añadir preflight y pruebas de release, instalaciones inmutables con Yarn y documentación de bootstrap.
+- Retirar el antiguo workflow con formulario manual y Environment `npm-publication`. No elimina el Environment de GitHub usado por otros procesos.
+- Sin cambios funcionales ni migraciones de datos en Twenty o n8n.
+
+
 ## 0.3.0-beta.2 — Configuración de canales por workspace
 
 - Nueva pantalla de Canales, con creación y cambio de estado dentro de Twenty.
