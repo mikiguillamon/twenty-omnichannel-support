@@ -1,0 +1,39 @@
+name: Deploy private app to Twenty
+on:
+  workflow_dispatch:
+    inputs:
+      release_acknowledged:
+        description: 'Write DEPLOY to upload the version of this branch (no workspace auto-install)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  deploy:
+    if: ${{ inputs.release_acknowledged == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    environment: private-deployment
+    env:
+      TWENTY_DEPLOY_URL: ${{ vars.TWENTY_DEPLOY_URL }}
+      TWENTY_DEPLOY_API_KEY: ${{ secrets.TWENTY_DEPLOY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.5.0'
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          test -n "$TWENTY_DEPLOY_URL" || { echo 'Missing Actions variable TWENTY_DEPLOY_URL'; exit 1; }
+          test -n "$TWENTY_DEPLOY_API_KEY" || { echo 'Missing secret TWENTY_DEPLOY_API_KEY'; exit 1; }
+      - name: Enable Yarn and install dependencies
+        run: |
+          corepack enable
+          corepack yarn install
+      - name: Validate app
+        run: corepack yarn check && corepack yarn test
+      - name: Configure deploy remote
+        shell: bash
+        run: corepack yarn twenty remote:add --url "$TWENTY_DEPLOY_URL" --api-key "$TWENTY_DEPLOY_API_KEY" --as deployment
+      - name: Publish privately (does not auto-install)
+        run: corepack yarn twenty app:publish --private --remote deployment

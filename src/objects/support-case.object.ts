@@ -1,0 +1,40 @@
+import { defineObject, FieldType } from 'twenty-sdk/define';
+import { IDS } from '../constants/ids.ts';
+
+export default defineObject({
+  universalIdentifier: IDS.CASE_OBJECT,
+  nameSingular: 'supportCase',
+  namePlural: 'supportCases',
+  labelSingular: 'Consulta',
+  labelPlural: 'Consultas',
+  description: 'Casos y conversaciones multicanal asociados a Personas.',
+  icon: 'IconInbox',
+  fields: [
+    { universalIdentifier: IDS.CASE_SUBJECT, name: "subject", label: "Asunto", type: FieldType.TEXT, icon: "IconFileText" },
+    { universalIdentifier: IDS.CASE_EXTERNALKEY, name: "externalKey", label: "Clave externa", type: FieldType.TEXT, icon: "IconHash", description: "Clave de conversación estable canal:proveedor:threadId; debe ser única" },
+    { universalIdentifier: IDS.CASE_CHANNEL, name: "channel", label: "Canal", type: FieldType.SELECT, icon: "IconMessages", options: [{ value: "EMAIL", label: "Email", position: 0, color: "gray" }, { value: "WHATSAPP", label: "WhatsApp", position: 1, color: "blue" }] },
+    { universalIdentifier: IDS.CASE_STATUS, name: "status", label: "Estado", type: FieldType.SELECT, icon: "IconStatusChange", options: [{ value: "NEW", label: "Nueva", position: 0, color: "gray" }, { value: "IN_PROGRESS", label: "En curso", position: 1, color: "blue" }, { value: "WAITING_CUSTOMER", label: "Esperando cliente", position: 2, color: "green" }, { value: "HUMAN_REQUIRED", label: "Pendiente humano", position: 3, color: "orange" }, { value: "RESOLVED", label: "Resuelta", position: 4, color: "green" }, { value: "CLOSED", label: "Cerrada", position: 5, color: "gray" }], defaultValue: "'NEW'" },
+    { universalIdentifier: IDS.CASE_RESOLUTION, name: "resolution", label: "Resultado", type: FieldType.SELECT, icon: "IconCircleCheck", options: [{ value: "PENDING", label: "Pendiente", position: 0, color: "gray" }, { value: "SOLVED", label: "Resuelta", position: 1, color: "green" }, { value: "UNSOLVED", label: "No resuelta", position: 2, color: "red" }, { value: "NOT_APPLICABLE", label: "No aplica", position: 3, color: "orange" }], defaultValue: "'PENDING'" },
+    { universalIdentifier: IDS.CASE_AUTOMATION, name: "automation", label: "Automatización", type: FieldType.SELECT, icon: "IconRobot", options: [{ value: "PENDING", label: "Pendiente", position: 0, color: "gray" }, { value: "FULL", label: "Total", position: 1, color: "blue" }, { value: "PARTIAL", label: "Parcial", position: 2, color: "green" }, { value: "NONE", label: "Ninguna", position: 3, color: "orange" }], defaultValue: "'PENDING'" },
+    { universalIdentifier: IDS.CASE_TAGS, name: "tags", label: "Etiquetas", type: FieldType.MULTI_SELECT, icon: "IconTags", options: [{ value: "URGENT", label: "Urgente", position: 0, color: "gray" }, { value: "REPEAT", label: "Repetida", position: 1, color: "blue" }, { value: "VIP", label: "VIP", position: 2, color: "green" }, { value: "ESCALATED", label: "Escalada", position: 3, color: "orange" }, { value: "FOLLOWUP", label: "Seguimiento", position: 4, color: "red" }] },
+    { universalIdentifier: IDS.CASE_ASSIGNEDTO, name: "assignedTo", label: "Responsable", type: FieldType.TEXT, icon: "IconUser", description: "Nombre o identificador del agente asignado" },
+    { universalIdentifier: IDS.CASE_ORIGINEMAIL, name: "originEmail", label: "Email de origen", type: FieldType.TEXT, icon: "IconMail" },
+    { universalIdentifier: IDS.CASE_ORIGINPHONE, name: "originPhone", label: "Teléfono de origen", type: FieldType.TEXT, icon: "IconPhone" },
+    { universalIdentifier: IDS.CASE_FIRSTMESSAGEAT, name: "firstMessageAt", label: "Primer mensaje", type: FieldType.DATE_TIME, icon: "IconCalendar" },
+    { universalIdentifier: IDS.CASE_LASTMESSAGEAT, name: "lastMessageAt", label: "Último mensaje", type: FieldType.DATE_TIME, icon: "IconCalendar" },
+    { universalIdentifier: IDS.CASE_RESOLVEDAT, name: "resolvedAt", label: "Fecha de resolución", type: FieldType.DATE_TIME, icon: "IconCalendarCheck" },
+    { universalIdentifier: IDS.CASE_SUMMARY, name: "summary", label: "Resumen interno", type: FieldType.TEXT, icon: "IconNotes" },
+    { universalIdentifier: IDS.CASE_N8NEXECUTIONID, name: "n8nExecutionId", label: "Ejecución n8n", type: FieldType.TEXT, icon: "IconTerminal2" },
+    { universalIdentifier: IDS.CASE_TECHNICAL_STATUS, name: 'technicalStatus', label: 'Estado técnico del bot', type: FieldType.SELECT, icon: 'IconActivity', defaultValue: "'UNKNOWN'", options: [
+      { value: 'UNKNOWN', label: 'Sin información', position: 0, color: 'gray' },
+      { value: 'PENDING', label: 'Pendiente', position: 1, color: 'blue' },
+      { value: 'SUCCESS', label: 'Correcto', position: 2, color: 'green' },
+      { value: 'RETRYING', label: 'Reintentando', position: 3, color: 'orange' },
+      { value: 'ERROR', label: 'Error técnico', position: 4, color: 'red' },
+    ]},
+    { universalIdentifier: IDS.CASE_AUTOMATIONLASTAT, name: 'lastAutomationAt', label: 'Última automatización', type: FieldType.DATE_TIME, icon: 'IconClock' },
+    { universalIdentifier: IDS.CASE_ESCALATEDAT, name: 'escalatedAt', label: 'Fecha de escalado', type: FieldType.DATE_TIME, icon: 'IconAlertTriangle' },
+    { universalIdentifier: IDS.CASE_RESPONSECOUNT, name: 'responseCount', label: 'Respuestas registradas', type: FieldType.NUMBER, icon: 'IconMessage' },
+    { universalIdentifier:IDS.CASE_CUSTOM_TAGS, name:'customTags', label:'Etiquetas propias', type:FieldType.ARRAY, icon:'IconTags', description:'Etiquetas de texto específicas del cliente, además de los tags compartidos.' },
+  ],
+});

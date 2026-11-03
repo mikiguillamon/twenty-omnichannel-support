@@ -1,0 +1,36 @@
+import { defineObject, FieldType } from 'twenty-sdk/define';
+import { IDS } from '../constants/ids.ts';
+
+export default defineObject({
+  universalIdentifier: IDS.MESSAGE_OBJECT,
+  nameSingular: 'supportMessage',
+  namePlural: 'supportMessages',
+  labelSingular: 'Mensaje',
+  labelPlural: 'Mensajes',
+  description: 'Mensajes individuales recibidos y emitidos en cada consulta.',
+  icon: 'IconMessage',
+  fields: [
+    { universalIdentifier: IDS.MESSAGE_EXTERNALKEY, name: "externalKey", label: "Clave externa", type: FieldType.TEXT, icon: "IconHash", description: "Identificador único canal:proveedor:messageId" },
+    { universalIdentifier: IDS.MESSAGE_DIRECTION, name: "direction", label: "Dirección", type: FieldType.SELECT, icon: "IconArrowsLeftRight", options: [{ value: "INBOUND", label: "Entrante", position: 0, color: "gray" }, { value: "OUTBOUND", label: "Saliente", position: 1, color: "blue" }] },
+    { universalIdentifier: IDS.MESSAGE_SENDERTYPE, name: "senderType", label: "Emisor", type: FieldType.SELECT, icon: "IconUserCircle", options: [{ value: "CUSTOMER", label: "Cliente", position: 0, color: "gray" }, { value: "BOT", label: "Bot", position: 1, color: "blue" }, { value: "AGENT", label: "Agente", position: 2, color: "green" }] },
+    { universalIdentifier: IDS.MESSAGE_FROMADDRESS, name: "fromAddress", label: "Remitente", type: FieldType.TEXT, icon: "IconAt" },
+    { universalIdentifier: IDS.MESSAGE_TOADDRESS, name: "toAddress", label: "Destinatario", type: FieldType.TEXT, icon: "IconAt" },
+    { universalIdentifier: IDS.MESSAGE_SUBJECT, name: "subject", label: "Asunto", type: FieldType.TEXT, icon: "IconMail" },
+    { universalIdentifier: IDS.MESSAGE_BODY, name: "body", label: "Contenido", type: FieldType.TEXT, icon: "IconMessage2" },
+    { universalIdentifier: IDS.MESSAGE_OCCURREDAT, name: "occurredAt", label: "Fecha del mensaje", type: FieldType.DATE_TIME, icon: "IconCalendarTime" },
+    { universalIdentifier: IDS.MESSAGE_DELIVERYSTATUS, name: "deliveryStatus", label: "Estado del envío", type: FieldType.SELECT, icon: "IconSend", options: [{ value: "RECEIVED", label: "Recibido", position: 0, color: "gray" }, { value: "PENDING", label: "Pendiente", position: 1, color: "blue" }, { value: "SENT", label: "Enviado", position: 2, color: "green" }, { value: "DELIVERED", label: "Entregado", position: 3, color: "orange" }, { value: "FAILED", label: "Fallido", position: 4, color: "red" }] },
+    { universalIdentifier: IDS.MESSAGE_PROVIDER, name: "provider", label: "Proveedor", type: FieldType.TEXT, icon: "IconPlug" },
+    { universalIdentifier: IDS.MESSAGE_N8NEXECUTIONID, name: "n8nExecutionId", label: "Ejecución n8n", type: FieldType.TEXT, icon: "IconTerminal2" },
+    { universalIdentifier: IDS.MESSAGE_DECISION, name: 'replyDecision', label: 'Decisión del bot', type: FieldType.SELECT, icon: 'IconRobot', options: [
+      {value:'REPLY',label:'Responder',position:0,color:'green'},
+      {value:'SKIP',label:'No responder',position:1,color:'gray'},
+      {value:'ESCALATE',label:'Escalar',position:2,color:'orange'},
+      {value:'PENDING_REVIEW',label:'Esperar aprobación',position:3,color:'blue'},
+    ]},
+    { universalIdentifier: IDS.MESSAGE_DRAFT_BODY, name: 'draftBody', label: 'Respuesta generada (borrador)', type: FieldType.TEXT, icon: 'IconPencil', description: 'No equivale a un envío; el contenido finalmente enviado va en body.' },
+    { universalIdentifier: IDS.MESSAGE_SENTAT, name: 'sentAt', label: 'Fecha de envío confirmado', type: FieldType.DATE_TIME, icon: 'IconSend' },
+    { universalIdentifier: IDS.MESSAGE_DELIVEREDAT, name: 'deliveredAt', label: 'Fecha de entrega confirmada', type: FieldType.DATE_TIME, icon: 'IconCheck' },
+    { universalIdentifier: IDS.MESSAGE_BOT_CONFIDENCE, name: 'botConfidence', label: 'Confianza del bot (0-1)', type: FieldType.NUMBER, icon: 'IconGauge' },
+    { universalIdentifier: IDS.MESSAGE_REPLYTO_EXTERNALKEY, name: 'replyToExternalKey', label: 'Respuesta a mensaje externo', type: FieldType.TEXT, icon: 'IconArrowBackUp' },
+  ],
+});

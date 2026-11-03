@@ -1,0 +1,10 @@
+node_modules/
+.twenty/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+*.tgz
+.DS_Store
+.env
+.env.*
+!.env.example

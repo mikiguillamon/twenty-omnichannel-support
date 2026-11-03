@@ -1,0 +1,22 @@
+name: Verify Omnichannel Support
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.5.0'
+      - name: Enable Yarn
+        run: corepack enable
+      - name: Install dependencies
+        run: corepack yarn install
+      - name: Run tests, types and SDK build
+        run: corepack yarn check && corepack yarn test

@@ -1,0 +1,44 @@
+{
+  "name": "twenty-app-omnichannel-support-jff",
+  "version": "0.3.0-beta.1",
+  "private": true,
+  "description": "Native workspace-scoped support console for Twenty CRM: cases, messages, FAQs, channels, QA and dashboards",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "yarn@4.13.0",
+  "engines": {
+    "node": "^24.5.0",
+    "twenty": ">=2.50.0 <2.51.0"
+  },
+  "scripts": {
+    "twenty": "twenty",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "twenty dev:build",
+    "check": "node scripts/check-schema.mjs && yarn typecheck && yarn build",
+    "check:schema": "node scripts/check-schema.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "twenty-client-sdk": "2.50.0",
+    "twenty-sdk": "2.50.0",
+    "typescript": "^5.9.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "keywords": [
+    "twenty-app",
+    "omnichannel",
+    "customer-support",
+    "whatsapp",
+    "email",
+    "crm",
+    "twenty"
+  ],
+  "frontComponentSharedDependencies": [
+    "react",
+    "react-dom/client"
+  ]
+}

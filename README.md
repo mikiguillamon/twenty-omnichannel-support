@@ -1,0 +1,60 @@
+# Omnichannel Support para Twenty CRM
+
+Una aplicación privada, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
+
+**Versión:** `0.3.0-beta.1`  
+**Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
+**Estado:** candidato para **compilación y pruebas piloto**. No publicado, instalado ni verificado contra un servidor de producción.  
+**Licencia:** no se conceden derechos de redistribución en esta fase (`UNLICENSED`); la licencia comercial/OSS se decidirá antes de publicar.
+
+## Funciones incluidas en el código
+
+- **Siete objetos:** FAQs, Categorías, Consultas, Mensajes, Ajustes de soporte, Canales y Evaluaciones.
+- **Personas nativas de Twenty:** una persona puede tener muchas consultas; cada consulta tiene mensajes y evaluaciones.
+- **Canales configurables:** cada buzón de correo o número de WhatsApp es una instancia independiente, con estado, salud técnica, último evento y heartbeat.
+- **Calidad:** evaluación de una consulta o mensaje, corrección propuesta y seguimiento vinculado opcionalmente a una tarea nativa.
+- **Resultados independientes:** estado técnico del bot, resultado operativo de la consulta y evaluación humana.
+- **Deduplicación:** índices únicos sobre claves externas de consultas y mensajes, códigos de canales y categorías y claves de ajustes.
+- **Vistas y menú propios:** Resumen, Consultas, Email, WhatsApp, Pendientes de agente, Errores técnicos, Canales, Evaluaciones, Respuestas incorrectas, FAQs y configuración.
+- **Página de consulta:** pestaña de detalles, visor cronológico de mensajes y listado de evaluaciones.
+- **Resumen:** indicadores y tablas nativas de pendientes/errores en una página de Twenty.
+- **API:** los registros siguen siendo objetos estándar de la API REST/GraphQL de Twenty. No es necesaria una base de datos intermedia.
+
+**Lo que NO hace automáticamente:** conectar proveedores de email, enviar mensajes, registrar llamadas o modificar workflows de n8n. Son integraciones externas; este paquete crea el destino y la experiencia de trabajo. Los indicadores y el visor dependen de que la API REST/GraphQL del workspace tenga los nombres y permisos esperados: deben probarse en el piloto.
+
+## Instalación para clientes, sin Terminal
+
+El código lo despliega una sola vez el proveedor. Después, los usuarios autorizados de otros workspaces de **la misma instancia de Twenty** pueden instalar la versión privada desde un **enlace de distribución**: `Settings → Developers → Apps → My apps → Distribution → Copy share link`.
+
+Para comercialización pública, el proyecto incluye un workflow de publicación a npm/Marketplace que requiere una habilitación explícita y configuración inicial. **No se publica automáticamente**.
+
+Lee [PUBLICACION.md](docs/PUBLICACION.md) para la ruta de GitHub Actions y [INSTALACION.md](docs/INSTALACION.md) para el piloto. La mayoría de instalaciones por cliente se hacen desde la interfaz, no desde la consola.
+
+## Primeros pasos para el desarrollador
+
+Necesitas Node.js `24.5+`, Yarn `4.13`, acceso a npm y un workspace de prueba en Twenty 2.50.x.
+
+```bash
+corepack enable
+corepack yarn install
+corepack yarn check
+corepack yarn test
+```
+
+`check` ejecuta verificaciones estructurales, el typecheck del SDK y el build. En este entorno de generación no se han descargado dependencias npm, por lo que **el typecheck/build con SDK real todavía no se ha ejecutado**. No publiques hasta que pase en GitHub Actions o en un entorno adecuado.
+
+## Documentación
+
+- [Publicación e instalación desde UI/Marketplace](docs/PUBLICACION.md)
+- [Instalación piloto](docs/INSTALACION.md)
+- [Contrato API / n8n](docs/INTEGRACION_N8N.md)
+- [Modelo y arquitectura](docs/ARQUITECTURA.md)
+- [Operativa diaria](docs/OPERATIVA.md)
+- [Dashboard nativo](docs/DASHBOARD.md)
+- [Seguridad y privacidad](docs/SEGURIDAD.md)
+- [Checklist de validación](docs/CHECKLIST_PILOTO.md)
+
+## Referencia de producto
+
+Captia Dashboard: https://github.com/mikiguillamon/captia-dashboard  
+Se toman de referencia su separación de estado técnico/resultado/evaluación, supervisión y drill-down; no se copia su stack Rails ni su sistema multitenant o autenticación.
