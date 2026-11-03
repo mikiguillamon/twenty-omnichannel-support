@@ -2,7 +2,7 @@
 
 **Open-source support console for Twenty CRM (MIT).** Cases, messages, FAQs, channels, human evaluations and dashboards are stored per workspace and accessible via Twenty's native REST/GraphQL API. Email/WhatsApp delivery and AI bots remain external integrations such as n8n.
 
-**Status:** beta source available; npm and Marketplace distribution require the initial package registration and verified release. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
+**Status:** public beta release candidate for GitHub Actions + npm Trusted Publishing. npm publication must be verified separately. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
 
 ---
 
@@ -10,9 +10,9 @@
 
 Una aplicación open source con licencia MIT, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
 
-**Versión:** `0.3.0-beta.3`  
+**Versión:** `0.3.0-beta.4`  
 **Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** beta open source lista para la primera publicación npm (aún no registrada en npm). Las instalaciones privadas de Twenty no cambian automáticamente.  
+**Estado:** candidato beta para probar publicación automática con Trusted Publishing. La presencia real en npm debe verificarse; las instalaciones privadas de Twenty no cambian automáticamente.  
 **Licencia:** [MIT](LICENSE) — © 2026 Just For Fun 360, S.L.
 
 ## Funciones incluidas en el código

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0-beta.4 — candidata para publicación automática (pendiente de npm)
+
+- Nueva versión prerelease para probar GitHub Release → GitHub Actions → npm Trusted Publishing con OIDC y provenance.
+- Sin cambios funcionales: conserva los identificadores universales y el modelo de datos de Twenty.
+- No publicar la Release hasta verificar que la beta.3 ya se registró y que Trusted Publishing está configurado con `publish.yml` y Environment vacío.
+
+
 ## Public MIT licensing — 2026-11-03
 
 - Approved open-source distribution: MIT License and full copyright notice for Just For Fun 360, S.L.
