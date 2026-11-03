@@ -2,20 +2,20 @@
 
 Una aplicación privada, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
 
-**Versión:** `0.3.0-beta.1`  
+**Versión:** `0.3.0-beta.2`  
 **Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** candidato para **compilación y pruebas piloto**. No publicado, instalado ni verificado contra un servidor de producción.  
+**Estado:** beta privada. La versión anterior se publicó en el servidor. La actualización requiere CI verde y verificación de interfaz.  
 **Licencia:** no se conceden derechos de redistribución en esta fase (`UNLICENSED`); la licencia comercial/OSS se decidirá antes de publicar.
 
 ## Funciones incluidas en el código
 
 - **Siete objetos:** FAQs, Categorías, Consultas, Mensajes, Ajustes de soporte, Canales y Evaluaciones.
 - **Personas nativas de Twenty:** una persona puede tener muchas consultas; cada consulta tiene mensajes y evaluaciones.
-- **Canales configurables:** cada buzón de correo o número de WhatsApp es una instancia independiente, con estado, salud técnica, último evento y heartbeat.
+- **Canales configurables:** cada buzón o número es una instancia independiente. Configuración y activación en Twenty; los nuevos canales empiezan desactivados.
 - **Calidad:** evaluación de una consulta o mensaje, corrección propuesta y seguimiento vinculado opcionalmente a una tarea nativa.
 - **Resultados independientes:** estado técnico del bot, resultado operativo de la consulta y evaluación humana.
 - **Deduplicación:** índices únicos sobre claves externas de consultas y mensajes, códigos de canales y categorías y claves de ajustes.
-- **Vistas y menú propios:** Resumen, Consultas, Email, WhatsApp, Pendientes de agente, Errores técnicos, Canales, Evaluaciones, Respuestas incorrectas, FAQs y configuración.
+- **Menú simplificado:** Resumen, Consultas, Canales, FAQs, Categorías, Evaluaciones y Configuración. Email, WhatsApp, Pendientes, Errores y Respuestas incorrectas son vistas guardadas, sin accesos fijos en la barra lateral.
 - **Página de consulta:** pestaña de detalles, visor cronológico de mensajes y listado de evaluaciones.
 - **Resumen:** indicadores y tablas nativas de pendientes/errores en una página de Twenty.
 - **API:** los registros siguen siendo objetos estándar de la API REST/GraphQL de Twenty. No es necesaria una base de datos intermedia.
@@ -58,3 +58,7 @@ corepack yarn test
 
 Captia Dashboard: https://github.com/mikiguillamon/captia-dashboard  
 Se toman de referencia su separación de estado técnico/resultado/evaluación, supervisión y drill-down; no se copia su stack Rails ni su sistema multitenant o autenticación.
+
+## Configurar canales por workspace
+
+Abre **Atención al cliente → Canales**. La pantalla permite crear, pausar, desactivar y marcar como activos los canales del cliente. El estado no activa o detiene n8n por sí solo. Lee [CONFIGURACION_CANALES.md](docs/CONFIGURACION_CANALES.md) antes de conectar tus automatizaciones.

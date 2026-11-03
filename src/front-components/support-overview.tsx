@@ -3,6 +3,8 @@ import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { useColorScheme } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
+import { getChannels } from '../lib/support-channels.ts';
+import type { SupportChannel } from '../lib/support-channels.ts';
 
 type Totals = {total:number|null; pendingHuman:number|null; technicalError:number|null; incorrect:number|null};
 const graphql = `query OmnichannelSupportOverview {
@@ -16,6 +18,8 @@ function Overview() {
   const [totals,setTotals]=useState<Totals>({total:null,pendingHuman:null,technicalError:null,incorrect:null});
   const [error,setError]=useState('');
   const [refresh,setRefresh]=useState(0);
+  const [channels,setChannels]=useState<SupportChannel[]|null>(null);
+  const [channelsError,setChannelsError]=useState(false);
   useEffect(()=>{
     let active=true;
     setError('');
@@ -32,6 +36,12 @@ function Overview() {
     }).catch(()=>{if(active)setError('Métricas no disponibles: comprueba los permisos y los campos GraphQL del workspace.');});
     return()=>{active=false;};
   },[refresh]);
+  useEffect(()=>{
+    let live=true;setChannelsError(false);
+    getChannels().then(data=>{if(live)setChannels(data);}).catch(()=>{if(live){setChannels(null);setChannelsError(true);}});
+    return()=>{live=false;};
+  },[refresh]);
+  const activeChannels=(channels||[]).filter(c=>c.status==='ACTIVE');
   const items=[
     {title:'Consultas registradas',value:totals.total},
     {title:'Necesitan atención humana',value:totals.pendingHuman},
@@ -50,7 +60,18 @@ function Overview() {
           <strong style={{fontSize:'28px'}}>{error?'—':item.value===null?'…':item.value}</strong>
         </section>)}
       </div>
-      <p style={{fontSize:'12px',color:dark?'#CBD5E1':'#64748B'}}>Valores acumulados. Los periodos y tendencias se configuran en los dashboards nativos de Twenty.</p>
+      <section style={{border:dark?'1px solid #475569':'1px solid #CBD5E1',borderRadius:'10px',padding:14}}>
+        <strong>Canales activos del workspace</strong>
+        {channelsError && <p role="alert">No se pudieron cargar los canales. Comprueba permisos.</p>}
+        {!channelsError && channels===null && <p>Cargando canales…</p>}
+        {!channelsError && channels!==null && activeChannels.length===0 && <p>No hay canales activos. Configúralos desde «Canales».</p>}
+        {!channelsError && activeChannels.map(channel=>
+          <p key={channel.id} style={{fontSize:13}}>{channel.channelType==='WHATSAPP'?'WhatsApp':'Email'} · {channel.name||channel.code||'Sin nombre'}</p>)}
+        {!channelsError && channels!==null && <p style={{fontSize:12,color:dark?'#CBD5E1':'#64748B'}}>
+          {activeChannels.length} activo(s) de {channels.length}. El estado no indica que el proveedor esté funcionando.
+        </p>}
+      </section>
+      <p style={{fontSize:'12px',color:dark?'#CBD5E1':'#64748B'}}>Valores acumulados, incluidos los canales desactivados. Los periodos y tendencias se configuran en los dashboards nativos de Twenty.</p>
     </div>
   );
 }

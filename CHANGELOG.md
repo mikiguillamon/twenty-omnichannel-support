@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0-beta.2 — Configuración de canales por workspace
+
+- Nueva pantalla de Canales, con creación y cambio de estado dentro de Twenty.
+- Nuevas instancias en DISABLED para evitar activaciones accidentales.
+- Eliminados los accesos fijos del menú a Email, WhatsApp y vistas técnicas; vistas y registros conservados.
+- Resumen con canales activos del workspace; los contadores históricos permanecen sin filtros.
+- Guía de configuración integrada y documentación de API/n8n.
+- Sin eliminación de objetos ni modificaciones de workflows externos.
+
+
 ## 0.3.0-beta.1 — Piloto privado
 
 - Modelo de siete objetos: FAQs, Categorías, Consultas, Mensajes, Ajustes de soporte, Canales y Evaluaciones.

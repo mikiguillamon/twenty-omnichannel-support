@@ -33,3 +33,9 @@ Las categorías son registros de Twenty y cada cliente las configura. Las FAQs p
 ## Evaluaciones
 
 Puedes evaluar una Consulta completa o un Mensaje. Elige targetScope y relaciona el registro correcto. Escribe comentario y, si procede, proposedCorrection; usar followupStatus para seguimiento. Los campos vinculados al mensaje y la consulta no se validan de forma cruzada automáticamente en esta beta: la integración debe evitar evaluar un mensaje de otra consulta.
+
+## Configuración por workspace (beta.2)
+
+Desde **Atención al cliente → Canales**, crea los buzones o números reales que utiliza el cliente. Cada uno se crea desactivado. Los estados ACTIVE/PAUSED/DISABLED se gestionan desde esa pantalla, pero deben ser respetados por las automatizaciones externas: por sí solos no encienden ni detienen n8n. Consulta [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md).
+
+Las vistas Email, WhatsApp, Pendientes y Errores siguen disponibles en **Consultas**. Los mensajes se consultan desde la conversación; no necesitas un acceso independiente a todos los mensajes.

@@ -47,3 +47,7 @@ No se deben presentar datos sin fecha como si fueran del último mes ni asumir c
 ## Próximo módulo analítico
 
 Para comparaciones arbitrarias de periodo, tasas calculadas y drill-down automático desde un KPI al histórico filtrado, desarrollar un widget específico después de medir las limitaciones reales del dashboard nativo. El dato fuente seguirá siendo Twenty y su API.
+
+## Canales activos (beta.2)
+
+El Resumen lista los canales con estado `ACTIVE` en el workspace actual. Los indicadores de Consultas permanecen acumulados y conservan el histórico de canales pausados o desactivados. No confundas estado operativo con salud técnica.

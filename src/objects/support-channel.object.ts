@@ -15,7 +15,7 @@ export default defineObject({
     ]},
     { universalIdentifier: IDS.CHANNEL_PROVIDER, name: 'provider', label: 'Proveedor', type: FieldType.TEXT, icon: 'IconPlug' },
     { universalIdentifier: IDS.CHANNEL_EXTERNALID, name: 'externalIdentifier', label: 'Identificador externo', type: FieldType.TEXT, icon: 'IconAt' },
-    { universalIdentifier: IDS.CHANNEL_STATUS, name: 'status', label: 'Estado operativo', type: FieldType.SELECT, icon: 'IconCircleCheck', defaultValue:"'ACTIVE'", options: [
+    { universalIdentifier: IDS.CHANNEL_STATUS, name: 'status', label: 'Estado operativo', type: FieldType.SELECT, icon: 'IconCircleCheck', defaultValue:"'DISABLED'", options: [
       {value:'ACTIVE',label:'Activo',position:0,color:'green'},
       {value:'PAUSED',label:'En pausa',position:1,color:'orange'},
       {value:'DISABLED',label:'Desactivado',position:2,color:'gray'},
