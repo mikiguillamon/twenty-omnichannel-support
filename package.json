@@ -1,6 +1,6 @@
 {
   "name": "twenty-omnichannel-support",
-  "version": "0.3.0-beta.3",
+  "version": "0.3.0-beta.4",
   "private": false,
   "description": "Native workspace-scoped support console for Twenty CRM: cases, messages, FAQs, channels, QA and dashboards",
   "license": "MIT",

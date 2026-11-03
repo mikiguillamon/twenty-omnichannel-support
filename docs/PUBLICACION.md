@@ -111,3 +111,12 @@ La primera publicación requiere una sesión npm con permisos sobre `twenty-omni
 - No sustituyas ni desinstales el paquete privado existente dentro de Twenty: primero prueba la versión del catálogo npm en una instancia separada.
 
 **Licencia:** MIT, © 2026 Just For Fun 360, S.L.; el uso, la modificación y la comercialización del código están permitidos bajo sus condiciones.
+
+## Primera publicación automatizada desde GitHub (beta.4)
+
+1. Confirmar mediante `npm view twenty-omnichannel-support versions --json` que existe `0.3.0-beta.3` y que pertenece a la cuenta correcta.
+2. En npm → Settings → Trusted Publishing, la identidad debe ser GitHub Actions / owner `mikiguillamon` / repo `twenty-omnichannel-support` / workflow `publish.yml` / Environment vacío. Debe permitir **npm publish** (no solo staged publishing).
+3. Verificar CI verde del commit de `main` y revisar el tarball para no incluir credenciales ni datos personales.
+4. Desde el repositorio local sincronizado, crear la GitHub Release `v0.3.0-beta.4` marcada como **prerelease**, usando los comandos de arriba. **No crear la Release si el paso 1 o 2 no está verificado.**
+5. Comprobar que el workflow `publish.yml` termina en verde, npm anuncia `0.3.0-beta.4` bajo dist-tag `beta` y la versión tiene provenance. `latest` no debe apuntar a una beta.
+6. No sustituir la app instalada por tarball privado sin probar la identidad en una instalación de Twenty limpia.
