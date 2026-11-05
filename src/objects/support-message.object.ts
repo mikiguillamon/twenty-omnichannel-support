@@ -32,5 +32,9 @@ export default defineObject({
     { universalIdentifier: IDS.MESSAGE_DELIVEREDAT, name: 'deliveredAt', label: 'Fecha de entrega confirmada', type: FieldType.DATE_TIME, icon: 'IconCheck' },
     { universalIdentifier: IDS.MESSAGE_BOT_CONFIDENCE, name: 'botConfidence', label: 'Confianza del bot (0-1)', type: FieldType.NUMBER, icon: 'IconGauge' },
     { universalIdentifier: IDS.MESSAGE_REPLYTO_EXTERNALKEY, name: 'replyToExternalKey', label: 'Respuesta a mensaje externo', type: FieldType.TEXT, icon: 'IconArrowBackUp' },
+    { universalIdentifier: IDS.MESSAGE_PROVIDER_CHATID, name: 'providerChatId', label: 'Chat ID del evento', type: FieldType.TEXT, icon: 'IconAt', description: 'Identificador remoto original (remoteJid). No utilizar por sí solo como clave de Persona o Consulta.' },
+    { universalIdentifier: IDS.MESSAGE_PROVIDER_CHATID_ALT, name: 'providerChatIdAlt', label: 'Chat ID alternativo', type: FieldType.TEXT, icon: 'IconLink', description: 'Identificador alternativo original (remoteJidAlt), si el proveedor lo entrega.' },
+    { universalIdentifier: IDS.MESSAGE_PROVIDER_ADDRESSING_MODE, name: 'providerAddressingMode', label: 'Tipo de direccionamiento', type: FieldType.TEXT, icon: 'IconFingerprint', description: 'Contexto para distinguir PN, LID u otros formatos; valor informativo del proveedor.' },
+    { universalIdentifier: IDS.MESSAGE_PROVIDER_MESSAGE_ID, name: 'providerMessageId', label: 'ID de mensaje del proveedor', type: FieldType.TEXT, icon: 'IconHash', description: 'ID de mensaje, independiente del JID/LID y de la clave de Consulta.' },
   ],
 });
