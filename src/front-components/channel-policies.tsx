@@ -8,9 +8,6 @@ import type { ChannelPolicy, ChannelType, SupportChannel } from '../lib/support-
 const channelLabel:Record<ChannelType,string> = {
   EMAIL:'Email',WHATSAPP:'WhatsApp',INSTAGRAM:'Instagram',TELEGRAM:'Telegram',
 };
-const groupLabel:Record<ChannelPolicy['groupingMode'],string> = {
-  THREAD:'Por hilo',MESSAGE:'Por mensaje entrante',HYBRID:'Inteligente',SESSION:'Por actividad',MANUAL:'Manual',
-};
 
 function ChannelPolicies() {
   const dark=useColorScheme()==='dark';
