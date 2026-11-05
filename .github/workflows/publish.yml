@@ -2,6 +2,12 @@ name: Publish Omnichannel Support to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing npm version to promote to latest (for example 0.3.0-beta.8)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,6 +19,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -71,10 +78,48 @@ jobs:
           fi
           echo "Twenty output manifest and package found"
       - name: Install npm with OIDC support
-        run: npm install --global 'npm@^11.5.1'
+        run: npm install --global 'npm@^11.21.0'
       - name: Publish beta to npm
         if: github.event.release.prerelease == true
         run: corepack yarn twenty app:publish --tag beta
       - name: Publish stable to npm
         if: github.event.release.prerelease == false
         run: corepack yarn twenty app:publish
+
+      - name: Promote released beta to npm latest
+        if: github.event.release.prerelease == true
+        id: promote_latest
+        continue-on-error: true
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          npm dist-tag add "twenty-omnichannel-support@${RELEASE_TAG#v}" latest
+          npm dist-tag ls twenty-omnichannel-support
+      - name: Warn if npm latest promotion failed
+        if: steps.promote_latest.outcome == 'failure'
+        run: |
+          echo "::warning title=npm latest not updated::Beta was published, but moving latest failed. Enable 'Allow npm dist-tag' on npm Trusted Publishing for publish.yml, or promote this version manually."
+
+  promote_existing:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.5.0'
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with dist-tag OIDC support
+        run: npm install --global 'npm@^11.21.0'
+      - name: Promote an existing published version
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Expected a valid published version (for example 0.3.0-beta.8)"
+            exit 1
+          fi
+          npm dist-tag add "twenty-omnichannel-support@$PACKAGE_VERSION" latest
+          npm dist-tag ls twenty-omnichannel-support
