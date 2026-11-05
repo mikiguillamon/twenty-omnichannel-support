@@ -97,3 +97,9 @@ Actualizar la salud de cada Canal solamente con hechos observados: `lastEventAt`
 La aplicación no tiene compositor de salida propio, no almacena archivos adjuntos en una relación específica de Mensajes, y el visor cronológico muestra como máximo 100 Mensajes. El manejo de HTML, multimedia y conversaciones largas requiere un procedimiento complementario. Las actualizaciones de esquema y del nodo Twenty deben comprobarse en un entorno de pruebas.
 
 Consulta [ARQUITECTURA.md](ARQUITECTURA.md), [OPERATIVA.md](OPERATIVA.md), [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md).
+
+## Políticas e identidades externas
+
+Antes de buscar la Persona, obtener el Canal por `code` con **Record → Get Many** y leer su política de agrupación. Resolver `supportExternalIdentities` por `externalKey` de alcance proveedor+cuenta+usuario, crear el registro si falta y vincularlo a Persona solo si existe evidencia fiable. Las Consultas nuevas pueden incluir `externalIdentityId` aunque no haya una Persona identificada. En el esquema actual, Canal y Consulta admiten EMAIL, WHATSAPP, INSTAGRAM y TELEGRAM.
+
+Para email, usar el `groupingMode=THREAD` por defecto y las cabeceras/ID de hilo, conservando respuestas dentro de la misma Consulta. Para chats, aplicar `HYBRID` o el modo seleccionado; un clasificador opcional se ejecuta en n8n, nunca dentro de Twenty. `ambiguousAction=REVIEW` exige persistir el mensaje y crear una revisión segura. Las políticas de los Canales antiguos pueden ser nulas hasta que se guarden desde la interfaz. [Procedimiento completo](POLITICAS_CONVERSACION.md).
