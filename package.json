@@ -1,8 +1,8 @@
 {
   "name": "twenty-omnichannel-support",
-  "version": "0.3.0-beta.7",
+  "version": "0.3.0-beta.8",
   "private": false,
-  "description": "Native workspace-scoped support console for Twenty CRM: cases, messages, FAQs, channels, QA and dashboards",
+  "description": "Customer support cases, conversations and channel policies for Twenty CRM",
   "license": "MIT",
   "type": "module",
   "packageManager": "yarn@4.13.0",
@@ -37,7 +37,9 @@
     "whatsapp",
     "email",
     "crm",
-    "twenty"
+    "twenty",
+    "instagram",
+    "telegram"
   ],
   "frontComponentSharedDependencies": [
     "react",

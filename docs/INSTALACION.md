@@ -6,7 +6,7 @@
 - Permisos para instalar aplicaciones en el workspace de destino.
 - Una versión publicada y disponible de la aplicación, o un enlace de distribución privada proporcionado por su propietario.
 - Un workspace de pruebas separado de los datos reales para validar la actualización o la primera instalación.
-- Para integrar n8n, una API key independiente del workspace y un nodo Twenty cuya compatibilidad con objetos personalizados se haya comprobado.
+- Para integrar n8n, una API key independiente del workspace y un nodo Twenty cuya compatibilidad con objetos personalizados se haya comprobado. La app por sí sola no sincroniza comunicaciones.
 
 No es necesario instalar Node.js o Yarn en el equipo de cada usuario de Twenty. Son herramientas de desarrollo y empaquetado.
 
@@ -27,7 +27,7 @@ No es necesario instalar Node.js o Yarn en el equipo de cada usuario de Twenty. 
 
 1. Configurar una credencial Twenty en n8n con permisos mínimos para el workspace.
 2. Comprobar que el nodo Twenty admite las operaciones necesarias sobre los objetos personalizados y sus relaciones. El API Playground de Twenty permite verificar el esquema.
-3. Configurar triggers y proveedores de Email o WhatsApp, y el subworkflow de búsqueda/creación de Persona, Consulta y Mensaje.
+3. Configurar el proveedor del Canal y un flujo que resuelva identidad externa y sus alias, Persona (si procede), Consulta y Mensaje con las reglas del Canal. Para email, mantener las respuestas dentro del hilo correspondiente.
 4. Probar deduplicación, confirmaciones, ecos, pausas, reintentos y escalados con datos ficticios.
 5. Activar el Canal desde Twenty después de las pruebas; el workflow debe respetar el estado y comprobarlo otra vez antes de cada envío.
 

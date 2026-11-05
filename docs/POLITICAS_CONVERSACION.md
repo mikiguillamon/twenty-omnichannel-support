@@ -53,9 +53,9 @@ Los identificadores del interlocutor se guardan en objetos separados para no con
 
 | Campo | Uso |
 |---|---|
-| `externalKey` | Clave única compuesta por tipo, proveedor, cuenta e ID externo |
+| `externalKey` | Clave estable y única de la identidad lógica en el ámbito de proveedor y cuenta; no sustituirla cuando cambie un JID |
 | `provider` | Proveedor del evento |
-| `externalUserId` | JID/LID de WhatsApp, ID de Instagram, ID de usuario de Telegram o email |
+| `externalUserId` | Identificador principal informativo, que puede mantenerse aunque existan varios alias |
 | `externalAccountId` | Número/cuenta/bot de origen |
 | `channelInstanceId` | Relación a Canal |
 | `personId` | Relación opcional a Persona nativa |
@@ -65,13 +65,15 @@ Los identificadores del interlocutor se guardan en objetos separados para no con
 
 `supportCases.externalIdentityId` permite localizar las Consultas de una identidad, aunque todavía no se haya reconocido con confianza a una Persona.
 
+Los alias se guardan por separado en `supportIdentityAliases` con `externalKey`, `aliasValue`, `aliasType`, `externalIdentityId`, `evidence` y `lastSeenAt`.
+
 En WhatsApp, `remoteJid` y `remoteJidAlt` pueden intercambiar el orden PN/LID. Buscar ambos alias y resolver el mismo `externalIdentityId`; no asumir que el PN siempre es el principal. Ante un conflicto de dos identidades, solicitar revisión. Consultar [IDENTIFICADORES_WHATSAPP.md](IDENTIFICADORES_WHATSAPP.md).
 
 La identidad no debe identificarse solamente por el teléfono: los proveedores pueden usar IDs de alcance restringido, aliases o LIDs. Dos identidades solo se vinculan a la misma Persona cuando existe una coincidencia fiable. Mantener el identificador original, el de la cuenta receptora y la procedencia. En Telegram, preferir el ID estable de usuario al nombre de usuario editable; identificar el chat individual, sin confundir usuario, bot y grupo.
 
 ## Pasos con el nodo Twenty CRM de n8n
 
-1. Recibir el evento desde el proveedor, descartar duplicados y ecos propios, y normalizar `provider`, `channelCode`, `externalUserId`, `externalMessageId`, `threadId`, fecha y dirección.
+1. Recibir el evento desde el proveedor, descartar duplicados y ecos propios, y normalizar `provider`, `channelCode`, los identificadores de interlocutor, `externalMessageId`, `threadId`, fecha y dirección.
 2. **Record → Get Many** sobre `supportChannels`, filtrando por `code`. Leer su política. Aplicar valores predeterminados cuando los campos estén vacíos.
 3. **Record → Get Many** sobre `supportIdentityAliases` buscando todos los alias que entregue el proveedor, después recuperar la `supportExternalIdentity` relacionada. Si no existe ninguna, **Record → Create** una identidad lógica y sus alias. Si existe solo un alias, añadir los otros únicamente cuando se observe una correlación fiable. Si dos alias están vinculados a identidades distintas, parar para revisión. Vincular `personId` únicamente cuando la Persona sea identificable con seguridad.
 4. Consultar Consultas por `externalIdentityId` y `channelInstanceId`, comenzando por las elegibles más recientes. Buscar primero referencias explícitas a un mensaje/caso conocido.

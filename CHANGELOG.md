@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0-beta.8 - Marketplace copy and documentation
+
+- Rework the README for Marketplace visitors, with a concise explanation of customer support workflows and working links to the guides.
+- Move developer setup, verification and release details to `CONTRIBUTING.md` and the dedicated documentation.
+- Set the Marketplace category to Communication and clarify the application's short description.
+- Correct outdated references in the n8n integration, channel policies, identity aliasing and installation guides. No CRM objects, fields or workflow behavior change.
+
+
 ## 0.3.0-beta.7 — WhatsApp PN JID / LID handling
 
 - Add `supportIdentityAliases` to associate a WhatsApp phone JID and LID with one logical external identity, scoped to the provider and receiving account.

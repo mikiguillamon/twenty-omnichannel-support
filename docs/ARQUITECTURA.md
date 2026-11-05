@@ -22,7 +22,8 @@ Twenty Person ──1:N── Support Case ──1:N── Support Message
 
 Support Channel (1) ── (N) External Identity ── (N:1) Twenty Person
                                  │
-                                 └──── (1:N) Support Case
+                                 ├──── (1:N) Support Case
+                                 └──── (1:N) Identity Alias
 
 Support Setting: claves/valores por workspace, sin secretos.
 ```
@@ -41,11 +42,11 @@ Support Setting: claves/valores por workspace, sin secretos.
 | `supportCategories` | Categorías configurables | name, code, enabled, description |
 | `supportSettings` | Configuración no secreta | key, valueType, valueText/valueNumber/valueBoolean, enabled |
 
-**Claves externas únicas:** permiten reintentos idempotentes. Deben identificar los eventos por proveedor, canal y workspace: `EMAIL:gmail:thread-123`, `WHATSAPP:evolution:msg-456`.
+**Claves externas únicas:** los índices de Consultas, Mensajes, identidades y alias ayudan a resolver reintentos y concurrencia. Cada tipo de registro necesita su propia clave. Una Consulta de email puede utilizar una clave de hilo del proveedor; una Consulta de chat necesita un identificador estable por asunto. Los Mensajes usan el ID original del proveedor y el Canal. Nunca usar el JID o LID de un cliente como clave permanente de una Consulta.
 
 **Doble dimensión de canal:** `supportCases.channel` es un SELECT común para filtros y gráficos nativos; `channelInstance` es la relación al buzón/número concreto. El integrador debe escribir ambos de forma coherente. No se modifica el valor directamente desde la UI sin revisar su instancia.
 
-Las etiquetas predeterminadas `MULTI_SELECT` son compartidas; `customTags` es un ARRAY de textos para etiquetas propias por cliente. Las categorías y ajustes se mantienen como registros editables. Una selección gráfica de etiquetas configurables, con sinónimos y reglas, puede desarrollarse más adelante.
+Las etiquetas predeterminadas `MULTI_SELECT` son compartidas; `customTags` es un ARRAY de textos para etiquetas propias por cliente. Las categorías y ajustes se mantienen como registros editables. Las etiquetas libres se escriben en `customTags`; los valores de `tags` son opciones definidas en el esquema.
 
 ## Páginas
 
@@ -56,7 +57,7 @@ Las etiquetas predeterminadas `MULTI_SELECT` son compartidas; `customTags` es un
 - `Canales`: estado y última actividad por integración; pestaña Gestión de consultas para editar las políticas independientes de cada Canal.
 - `Identidades externas`: relación entre usuario de plataforma, Persona, Canal y Consultas.
 
-Los dashboards nativos adicionales de Twenty se configuran por separado (ver `DASHBOARD.md`) hasta que validemos completamente la reproducción portable por manifest de los widgets nativos.
+Los dashboards nativos adicionales de Twenty se configuran por separado (ver [Dashboards](DASHBOARD.md)).
 
 ## Trabajo por API
 
