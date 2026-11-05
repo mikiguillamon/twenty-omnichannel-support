@@ -5,7 +5,7 @@ Esta guía describe un proceso repetible para distribuir la app a través de Twe
 ## Preparación
 
 1. Comprobar la compatibilidad declarada en `package.json` (`engines.twenty`) y conservar los identificadores universales de la app.
-2. Revisar licencia MIT, `README.md`, `LICENSE`, `CHANGELOG.md`, metadatos y capturas.
+2. Revisar licencia MIT, `README.md`, `CONTRIBUTING.md`, `LICENSE`, `CHANGELOG.md`, metadatos y capturas. El README se publica como descripción del Marketplace: debe estar dirigido a usuarios y contener URLs absolutas que funcionen también fuera de GitHub.
 3. Instalar dependencias con `corepack yarn install --immutable`.
 4. Ejecutar `corepack yarn release:check`, `corepack yarn check` y `corepack yarn test`.
 5. Inspeccionar `.twenty/output/manifest.json`, el tarball y el contenido del paquete. Comprobar que incluye `LICENSE` y que excluye secretos y datos privados.
@@ -63,13 +63,13 @@ npm view <NOMBRE_PAQUETE> versions --json
 npm view <NOMBRE_PAQUETE> dist-tags --json
 ```
 
-Sustituir `<NOMBRE_PAQUETE>` por el identificador npm real. Confirmar procedencia (provenance), integridad del tarball, etiqueta `beta` o `latest`, visibilidad en el catálogo según los criterios de Twenty y una instalación de prueba. Un paquete publicado en npm no aparece necesariamente inmediatamente en todos los catálogos.
+Sustituir `<NOMBRE_PAQUETE>` por el identificador npm real. Confirmar procedencia (provenance), integridad del tarball, etiqueta `beta` o `latest`, visibilidad en el catálogo según los criterios de Twenty y una instalación de prueba. Un paquete publicado en npm no aparece necesariamente inmediatamente en todos los catálogos. Las versiones preliminares se publican con el dist-tag `beta`, mientras que npm y algunos catálogos priorizan `latest`. No mover una beta a `latest` sin decidir expresamente que debe ser la versión predeterminada para todos los usuarios. La sincronización automática de Twenty 2.50 se programa cada hora; para adelantarla, usar el comando del CLI con un remoto válido o el comando del servidor `yarn command:prod marketplace:catalog-sync` desde el directorio de `twenty-server` cuando se tenga acceso administrativo.
 
 ## Errores habituales
 
 - **Error OIDC o de autenticación:** revisar nombre de owner, repositorio, workflow, Environment y permisos del Trusted Publisher.
 - **Versión ya existente:** npm no permite sobrescribir versiones publicadas. Comprobar tags y usar una versión nueva después de diagnosticar.
-- **No aparece en Marketplace:** comprobar `twenty-app`, `engines.twenty`, sincronización del catálogo, filtros y propiedad.
+- **No aparece en Marketplace:** comprobar `twenty-app`, `engines.twenty`, sincronización del catálogo, filtros, dist-tags npm (`beta` frente a `latest`) y propiedad. Un HTTP 503 al ejecutar `dev:catalog-sync --remote` indica una indisponibilidad de la petición remota; no repetir la publicación npm por ese motivo.
 - **Falta LICENSE:** comprobar el artefacto real, no solo el árbol fuente. El empaquetado Twenty puede necesitar un paso específico que copie la licencia a `.twenty/output`.
 - **Colisión entre instalación privada y pública:** reproducir en instancia aislada y preparar migración; no desinstalar una app con registros activos como primera reacción.
 
