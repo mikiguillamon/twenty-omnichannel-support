@@ -20,6 +20,7 @@ export default defineApplicationRole({
     { objectUniversalIdentifier: IDS.FAQ_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.CASE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.CHANNEL_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
+    { objectUniversalIdentifier: IDS.EXT_IDENTITY_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.EVALUATION_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.MESSAGE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
   ],

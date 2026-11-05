@@ -68,6 +68,8 @@ function ChannelSetup() {
         <label>Código único<input style={field} value={code} placeholder="email-informacion" onChange={e=>setCode(e.target.value.toLowerCase())}/></label>
         <label>Tipo<select style={field} value={kind} onChange={e=>setKind(e.target.value as ChannelType)}>
           <option value="EMAIL">Email</option><option value="WHATSAPP">WhatsApp</option>
+          <option value="INSTAGRAM">Instagram</option>
+          <option value="TELEGRAM">Telegram</option>
         </select></label>
         <label>Proveedor<input style={field} value={provider} placeholder="Gmail, Microsoft 365, Evolution API" onChange={e=>setProvider(e.target.value)}/></label>
         <label>Identificador externo<input style={field} value={identifier} placeholder="Buzón o ID de instancia" onChange={e=>setIdentifier(e.target.value)}/></label>
@@ -88,7 +90,7 @@ function ChannelSetup() {
         <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
           <div><strong>{row.name||row.code||'Sin nombre'}</strong>
             <p style={{fontSize:12,color:muted,margin:'5px 0'}}>
-              {row.channelType==='WHATSAPP'?'WhatsApp':'Email'} · {row.code||'Sin código'} · {row.provider||'Proveedor no definido'}
+              {row.channelType==='WHATSAPP'?'WhatsApp':row.channelType==='INSTAGRAM'?'Instagram':row.channelType==='TELEGRAM'?'Telegram':'Email'} · {row.code||'Sin código'} · {row.provider||'Proveedor no definido'}
             </p></div>
           <div style={{fontSize:12}}>{row.status||'DISABLED'} · Salud: {row.health||'UNKNOWN'}</div>
         </div>
@@ -112,9 +114,9 @@ function ChannelSetup() {
       <ol style={{paddingLeft:22,display:'flex',flexDirection:'column',gap:6,fontSize:13}}>
         <li>Crea solo los buzones o números que utiliza este cliente. El estado inicial es Desactivado.</li>
         <li>Configura Gmail, Microsoft 365 o Evolution API por separado en n8n.</li>
-        <li>Usa la API del workspace para comprobar el código y estado ACTIVE del canal.</li>
-        <li>Registra las Consultas y Mensajes mediante la API REST de Twenty.</li>
-        <li>Tras probar el flujo, confirma la integración y marca el canal activo.</li>
+        <li>Usa el nodo Twenty CRM de n8n para leer el código, la política y el estado ACTIVE del canal.</li>
+        <li>Registra las Consultas y Mensajes mediante las operaciones Record del nodo Twenty CRM de n8n.</li>
+        <li>Define las reglas desde la pestaña Gestión de consultas. Tras probar el flujo, confirma la integración y marca el canal activo.</li>
       </ol>
       <p style={{fontSize:12,color:muted}}>El estado aquí es informativo hasta que el flujo externo respete esa comprobación. No introduzcas credenciales en estos registros.</p>
     </section>

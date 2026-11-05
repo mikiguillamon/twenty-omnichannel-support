@@ -66,7 +66,7 @@ function Overview() {
         {!channelsError && channels===null && <p>Cargando canales…</p>}
         {!channelsError && channels!==null && activeChannels.length===0 && <p>No hay canales activos. Configúralos desde «Canales».</p>}
         {!channelsError && activeChannels.map(channel=>
-          <p key={channel.id} style={{fontSize:13}}>{channel.channelType==='WHATSAPP'?'WhatsApp':'Email'} · {channel.name||channel.code||'Sin nombre'}</p>)}
+          <p key={channel.id} style={{fontSize:13}}>{channel.channelType==='WHATSAPP'?'WhatsApp':channel.channelType==='INSTAGRAM'?'Instagram':channel.channelType==='TELEGRAM'?'Telegram':'Email'} · {channel.name||channel.code||'Sin nombre'}</p>)}
         {!channelsError && channels!==null && <p style={{fontSize:12,color:dark?'#CBD5E1':'#64748B'}}>
           {activeChannels.length} activo(s) de {channels.length}. El estado no indica que el proveedor esté funcionando.
         </p>}

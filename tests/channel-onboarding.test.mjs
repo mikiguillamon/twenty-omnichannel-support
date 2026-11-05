@@ -7,6 +7,7 @@ test('channels start disabled',()=>{
 });
 test('channel page is installed in navigation',()=>{
   assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_SETUP'));
+  assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_POLICIES'));
   assert(read('src/navigation-menu-items/menu-channels.menu.ts').includes('LAYOUT_CHANNEL_SETUP'));
 });
 test('email and whatsapp views remain while fixed sidebar links are removed',()=>{
