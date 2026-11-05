@@ -1,41 +1,36 @@
-# Uso diario de Omnichannel Support
+# Operación diaria de Omnichannel Support
 
 ## Resumen
 
-En la barra lateral de Twenty abre **Atención al cliente → Resumen**. Allí verás total de consultas registradas, pendientes de atención humana, errores técnicos y respuestas evaluadas como incorrectas. Son contadores **acumulados**, no una tasa de éxito ni una métrica de un periodo. Las tablas permiten abrir los registros.
+Abrir **Atención al cliente > Resumen** para revisar Consultas registradas, pendientes humanos, errores técnicos y evaluaciones incorrectas. Estos indicadores son acumulados. Para analizar un periodo concreto, utilizar dashboards con filtros temporales cuando la versión de Twenty lo permita. Si falla una consulta de métricas, revisar permisos o GraphQL; no interpretar los datos ausentes como cero.
 
-Para comparativas semanales/mensuales y ratios, usa los widgets de los dashboards nativos de Twenty con filtros de fecha: consulta `DASHBOARD.md`.
+## Gestionar Consultas
 
-## Revisión rápida
+En Consultas se encuentran las vistas de Email, WhatsApp, Pendientes de agente y Errores técnicos. Abrir una Consulta para revisar sus detalles y el historial de Mensajes. El visor presenta hasta 100 Mensajes en orden cronológico; para conversaciones más largas, consultar la relación nativa de Mensajes.
 
-1. Abre **Pendientes de agente**: asigna un responsable y cambia status a IN_PROGRESS cuando se haga cargo.
-2. Abre **Errores técnicos**: identifica problemas del proveedor/bot. No marques la consulta como resuelta solo porque el workflow volvió a funcionar.
-3. Abre **Respuestas incorrectas**: anota la corrección y crea una tarea nativa de Twenty si hay trabajo pendiente.
-4. Revisa **Canales**: el último evento, el heartbeat y el estado de salud deben tener sentido. Sin heartbeat reciente no implica automáticamente cero actividad.
-5. Comprueba las FAQs: un borrador no debe ser suministrado al bot.
+Cuando se asigne atención humana, utilizar `status=HUMAN_REQUIRED`, registrar `escalatedAt` y completar `assignedTo` si se conoce. Cambiar el estado a `IN_PROGRESS` cuando un agente se haga cargo. Marcar `RESOLVED` o `CLOSED` según el procedimiento de atención adoptado y mantener `resolution` coherente con el resultado comprobado.
 
-## Estado técnico vs resultado vs evaluación
+## Interpretar los resultados
 
-- `technicalStatus=SUCCESS`: el pipeline finalizó correctamente.
-- `resolution=SOLVED`: el asunto quedó solucionado según la evidencia disponible.
-- `verdict=CORRECT`: una persona evaluó una consulta o respuesta concreta como correcta.
+- `technicalStatus` describe el proceso de automatización, no la satisfacción del cliente.
+- `resolution` indica si se solucionó la consulta.
+- `automation` registra el grado de intervención automática.
+- `supportEvaluations.verdict` recoge una revisión humana, que puede estar pendiente.
 
-Nunca agregues los tres como un único porcentaje de éxito. La satisfacción humana debe mostrar la cobertura: **número de elementos evaluados / número de elementos elegibles**.
+Una tasa de calidad necesita su denominador: elementos revisados sobre elementos elegibles. No atribuir la misma tasa a todos los Mensajes cuando solo se evalúa una muestra.
 
-## Canales
+## Canales y FAQs
 
-Una instancia de canal es un buzón o número concretos. Se puede crear otra instancia sin cambiar el código. `status=ACTIVE` permite operar; `health=HEALTHY` indica que la última comprobación conocida fue correcta. Ambos son campos independientes.
+En Canales, revisar por separado el estado operativo y la salud técnica. Los campos de heartbeat y evento deben proceder de comprobaciones observadas. La pausa o desactivación en Twenty necesita que el workflow externo consulte el estado para detener nuevos envíos.
 
-## FAQ y categorías
+Publicar FAQs revisadas con `status=PUBLISHED`; mantener borradores en `DRAFT` y archivar respuestas obsoletas. La app no crea automáticamente un historial de revisiones. Los bots deben consultar FAQs por idioma, categoría y publicación.
 
-Las categorías son registros de Twenty y cada cliente las configura. Las FAQs pueden estar en DRAFT, PUBLISHED o ARCHIVED. Publicar una FAQ implica cambiar su estado y registrar publishedAt/revision con un workflow o procedimiento de edición; la app **no mantiene historial de versiones automáticamente** en esta beta.
+## Evaluaciones y seguimiento
 
-## Evaluaciones
+Evaluar una Consulta completa o un Mensaje individual, indicando `targetScope` y la relación apropiada. Anotar `verdict`, comentario y propuesta de corrección cuando corresponda. Vincular una tarea nativa de Twenty si existe trabajo pendiente, comprobando que la relación `taskId` apunta a la tarea real. El campo textual `linkedTaskId` no reemplaza esa relación.
 
-Puedes evaluar una Consulta completa o un Mensaje. Elige targetScope y relaciona el registro correcto. Escribe comentario y, si procede, proposedCorrection; usar followupStatus para seguimiento. Los campos vinculados al mensaje y la consulta no se validan de forma cruzada automáticamente en esta beta: la integración debe evitar evaluar un mensaje de otra consulta.
+## Comprobaciones periódicas
 
-## Configuración por workspace (beta.2)
+Revisar el estado de los Canales, los casos humanos sin responsable, los errores de automatización, las respuestas incorrectas y las FAQs pendientes de actualización. Aplicar políticas de privacidad y retención sobre los datos registrados.
 
-Desde **Atención al cliente → Canales**, crea los buzones o números reales que utiliza el cliente. Cada uno se crea desactivado. Los estados ACTIVE/PAUSED/DISABLED se gestionan desde esa pantalla, pero deben ser respetados por las automatizaciones externas: por sí solos no encienden ni detienen n8n. Consulta [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md).
-
-Las vistas Email, WhatsApp, Pendientes y Errores siguen disponibles en **Consultas**. Los mensajes se consultan desde la conversación; no necesitas un acceso independiente a todos los mensajes.
+Para las reglas de ingestión y envío, consultar [Integración con n8n](INTEGRACION_N8N.md).
