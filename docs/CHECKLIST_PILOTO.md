@@ -1,45 +1,45 @@
-# Checklist de aceptación — piloto 0.3.0-beta.1
+# Checklist de validación de Omnichannel Support
 
-## Distribución
+Esta lista sirve para probar una instalación nueva o actualizada antes de conectarla a comunicaciones reales.
 
-- [ ] Nuevo repositorio de la app con CI verde.
-- [ ] GitHub Actions privado configurado con el workspace **propietario** (no el de un cliente accidentalmente).
-- [ ] App publicada privadamente tras cambiar versión si ya existía.
-- [ ] Enlace **Distribution → Copy share link** verificado.
-- [ ] Instalación desde interfaz Twenty en el workspace piloto, sin Terminal.
-- [ ] Se comprueba actualización posterior con un número semver mayor.
+## Instalación y permisos
 
-## Modelo y API
+- [ ] La versión instalada de Twenty está dentro del rango de compatibilidad declarado por la app.
+- [ ] La app muestra los siete objetos y las relaciones con Persona y Tarea nativas.
+- [ ] Se puede crear un Canal, una Categoría, una FAQ y una Consulta desde Twenty.
+- [ ] Un usuario operativo con permisos limitados solo accede a los registros autorizados.
+- [ ] Las credenciales API están separadas por workspace y no existen secretos en `supportSettings`.
 
-- [ ] Siete objetos y siete parejas de relaciones visibles.
-- [ ] Relación Persona → Consultas → Mensajes y Evaluaciones.
-- [ ] Categorías, ajustes y canales creados/actualizados desde Twenty UI.
-- [ ] Claves externas únicas: reintentos no duplican mensajes.
-- [ ] REST/GraphQL para FAQ, categoría, canal, consulta, mensaje y evaluación verificado con API Playground.
-- [ ] Un token de n8n por workspace, permisos mínimos.
+## Integración con n8n
 
-## UI
+- [ ] El nodo Twenty instalado permite buscar, crear y actualizar los objetos personalizados necesarios.
+- [ ] Las relaciones `personId`, `channelInstanceId`, `categoryId` y `supportCaseId` se han probado en esa versión.
+- [ ] El Canal empieza `DISABLED` y el workflow consulta `status=ACTIVE` antes de responder.
+- [ ] Un webhook recibido dos veces no crea dos Mensajes.
+- [ ] Dos ejecuciones concurrentes con la misma clave recuperan el registro existente.
+- [ ] Una Persona puede tener varias Consultas y cada Consulta varios Mensajes.
+- [ ] Se prueban los hilos de email y la separación de asuntos de WhatsApp.
+- [ ] Un eco de mensaje saliente no se registra como entrada de cliente.
+- [ ] `SKIP`, `ESCALATE` y `PENDING_REVIEW` no generan envíos no autorizados.
+- [ ] Los mensajes `SENT`, `DELIVERED` y `FAILED` dependen de confirmaciones reales.
+- [ ] Pausar el Canal bloquea nuevos envíos, incluso en ejecuciones iniciadas anteriormente.
+- [ ] Los errores se pueden reintentar sin duplicar envíos ni borrar el historial.
 
-- [ ] `Resumen` carga contadores reales o aviso explícito de error.
-- [ ] `Pendientes de agente` y `Errores técnicos` se filtran correctamente.
-- [ ] Detalle de consulta muestra campos, visor de chat y evaluaciones.
-- [ ] Visor ordena por occurredAt; cuerpos largos se muestran sin HTML inseguro.
-- [ ] Contraste legible en modo claro y oscuro.
-- [ ] Permisos de usuarios restringidos no exponen contenido ni widgets indebidos.
+## UI y supervisión
 
-## Operativa
+- [ ] El visor de Consulta muestra Mensajes en orden cronológico con sus estados.
+- [ ] Se contempla el límite de 100 mensajes del visor para históricos largos.
+- [ ] Las vistas Email, WhatsApp, Pendientes y Errores filtran correctamente.
+- [ ] El Resumen muestra datos reales o un error explícito cuando falla la consulta.
+- [ ] `technicalStatus`, `resolution`, `automation` y `verdict` se interpretan por separado.
+- [ ] Las FAQs solo se entregan al bot cuando están `PUBLISHED`.
+- [ ] Las Evaluaciones se asocian a la Consulta o al Mensaje que realmente revisan.
 
-- [ ] Email entrante y borrador/salida representados por mensajes distintos o estados distinguibles.
-- [ ] WhatsApp entrante/saliente se muestra por orden.
-- [ ] Al responder SKIP se registra decisión sin falsear un envío.
-- [ ] Estado técnico SUCCESS y resultado UNSOLVED pueden coexistir.
-- [ ] Evaluación INCORRECT registra propuesta de corrección y seguimiento.
-- [ ] Channel health y heartbeat no se inventan cuando no hay señal.
+## Operación segura
 
-## Condiciones de publicación pública
-
-- [ ] NPM metadata y logo validados.
-- [ ] Licencia, privacidad, retención, soporte y costes decididos.
-- [ ] Repo/CI preparado para provenance y Claim with GitHub.
-- [ ] No se rompe la app Meta Lead Sync ni el workspace jff.
-- [ ] No se modifica ningún workflow n8n sin aprobación del usuario.
+- [ ] Se ha probado una caída del proveedor y su recuperación.
+- [ ] `health` y `lastHeartbeatAt` reflejan comprobaciones, no supuestos.
+- [ ] Existe una política para HTML, multimedia y adjuntos.
+- [ ] Hay una política de retención y supresión de datos personales.
+- [ ] Las actualizaciones se han probado sin pérdida de datos y sin desinstalaciones innecesarias.
+- [ ] La integración está validada con datos ficticios antes de activarse.
