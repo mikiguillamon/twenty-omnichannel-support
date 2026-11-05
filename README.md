@@ -1,80 +1,76 @@
 # Omnichannel Support for Twenty CRM
 
-**Open-source support console for Twenty CRM (MIT).** Cases, messages, FAQs, channels, human evaluations and dashboards are stored per workspace and accessible via Twenty's native REST/GraphQL API. Email/WhatsApp delivery and AI bots remain external integrations such as n8n.
+An open-source support workspace for Twenty CRM, distributed under the MIT license. It keeps customer support cases, messages, FAQs, channels, human reviews, and reporting in Twenty, with separate records and configuration for each workspace.
 
-**Status:** beta.4 successfully published on npm via GitHub Actions with provenance; beta.5 prepares to include the complete MIT LICENSE in the distribution. **Compatibility:** Twenty 2.50.x. [MIT license](LICENSE) · [Publishing instructions](docs/PUBLICACION.md)
+Email and WhatsApp delivery are handled by external providers and automations, such as n8n. The app does not send or receive messages on its own.
 
----
+## Features
 
-# Omnichannel Support para Twenty CRM
+- Seven native Twenty objects: Cases, Messages, FAQs, Categories, Channels, Evaluations, and Support Settings.
+- Connections to Twenty's existing People and Task records.
+- A chronological conversation viewer within each case.
+- Support views for email, WhatsApp, agent follow-up, and technical errors.
+- A summary page showing total cases, human follow-ups, technical errors, and incorrect evaluations.
+- Configurable channel instances, each with operational status and reported health.
+- Unique external keys to help prevent duplicate cases and messages.
+- FAQs grouped by category, language and publication state.
 
-Una aplicación open source con licencia MIT, reutilizable y configurable por workspace. Convierte Twenty en una consola de atención multicanal: **consultas, mensajes, FAQs, canales, calidad y supervisión**. Inspirada en la visión operativa de Captia Dashboard, pero sin desarrollar otro CRM.
+A case represents one support issue, which may contain multiple messages. Each message records its direction, sender, content, reply decision and delivery status. Technical success, issue resolution and human evaluation remain independent.
 
-**Versión:** `0.3.0-beta.5`  
-**Compatibilidad objetivo:** Twenty `2.50.x`, SDK `2.50.0`  
-**Estado:** publicación automática npm validada con beta.4 y provenance. La beta.5 incorpora la licencia MIT en el tarball. No modifica las instalaciones privadas de Twenty.  
-**Licencia:** [MIT](LICENSE) — © 2026 Just For Fun 360, S.L.
+## Requirements
 
-## Funciones incluidas en el código
+Check the published package's `engines.twenty` compatibility range before installation. Each workspace needs its own authorized credentials for any external integration.
 
-- **Siete objetos:** FAQs, Categorías, Consultas, Mensajes, Ajustes de soporte, Canales y Evaluaciones.
-- **Personas nativas de Twenty:** una persona puede tener muchas consultas; cada consulta tiene mensajes y evaluaciones.
-- **Canales configurables:** cada buzón o número es una instancia independiente. Configuración y activación en Twenty; los nuevos canales empiezan desactivados.
-- **Calidad:** evaluación de una consulta o mensaje, corrección propuesta y seguimiento vinculado opcionalmente a una tarea nativa.
-- **Resultados independientes:** estado técnico del bot, resultado operativo de la consulta y evaluación humana.
-- **Deduplicación:** índices únicos sobre claves externas de consultas y mensajes, códigos de canales y categorías y claves de ajustes.
-- **Menú simplificado:** Resumen, Consultas, Canales, FAQs, Categorías, Evaluaciones y Configuración. Email, WhatsApp, Pendientes, Errores y Respuestas incorrectas son vistas guardadas, sin accesos fijos en la barra lateral.
-- **Página de consulta:** pestaña de detalles, visor cronológico de mensajes y listado de evaluaciones.
-- **Resumen:** indicadores y tablas nativas de pendientes/errores en una página de Twenty.
-- **API:** los registros siguen siendo objetos estándar de la API REST/GraphQL de Twenty. No es necesaria una base de datos intermedia.
+## Installation
 
-**Lo que NO hace automáticamente:** conectar proveedores de email, enviar mensajes, registrar llamadas o modificar workflows de n8n. Son integraciones externas; este paquete crea el destino y la experiencia de trabajo. Los indicadores y el visor dependen de que la API REST/GraphQL del workspace tenga los nombres y permisos esperados: deben probarse en el piloto.
+Install the application through the Twenty app catalog when available, or through an authorized private distribution link. Check the seven objects and their relationships, create channel instances and categories, and test the setup with sample records before connecting real communication providers.
 
-## Instalación para clientes, sin Terminal
+See [Installation](docs/INSTALACION.md) and [Validation checklist](docs/CHECKLIST_PILOTO.md).
 
-El código lo despliega una sola vez el proveedor. Después, los usuarios autorizados de otros workspaces de **la misma instancia de Twenty** pueden instalar la versión privada desde un **enlace de distribución**: `Settings → Developers → Apps → My apps → Distribution → Copy share link`.
+## Using n8n
 
-Para distribución pública se usa una **GitHub Release** sobre el commit probado de `main`; `publish.yml` publicará por OIDC y provenance, usando `beta` para prereleases y `latest` para estables. **Las nuevas versiones se publican desde una GitHub Release**, con npm Trusted Publishing y provenance, en el canal beta o latest según el tipo de versión.
+n8n receives events from email and WhatsApp providers, resolves the customer and case in Twenty, records messages, makes routing or reply decisions and saves real delivery outcomes.
 
-Lee [PUBLICACION.md](docs/PUBLICACION.md) para la ruta de GitHub Actions y [INSTALACION.md](docs/INSTALACION.md) para el piloto. La mayoría de instalaciones por cliente se hacen desde la interfaz, no desde la consola.
+Use the Twenty node available in your n8n installation for supported CRM operations. Before adopting a workflow, confirm that the specific node version supports custom Twenty objects and relationships. Consult the API Playground in Twenty to verify the generated schema. The examples in this repository describe workflow behavior and field mappings; they are not importable n8n workflows.
 
-## Primeros pasos para el desarrollador
+See [n8n integration](docs/INTEGRACION_N8N.md) and [Data model](docs/ARQUITECTURA.md).
 
-Necesitas Node.js `24.5+`, Yarn `4.13`, acceso a npm y un workspace de prueba en Twenty 2.50.x.
+## Known limits
+
+- The app does not configure email/WhatsApp providers or operate n8n workflows automatically.
+- Pausing or disabling a channel in Twenty takes effect only when the integration checks channel status.
+- The conversation widget shows up to 100 messages; the native message relationship remains available for longer histories.
+- Attachments and rich email content need a separate storage and processing strategy.
+- A draft is not a sent message. Delivery statuses require actual provider acknowledgements.
+- Dashboard queries and permissions must be validated in the deployed Twenty version.
+
+## Development
+
+Use the Node.js and Yarn versions specified in `package.json` and its package manager field.
 
 ```bash
 corepack enable
-corepack yarn install
+corepack yarn install --immutable
+corepack yarn release:check
 corepack yarn check
 corepack yarn test
 ```
 
-`check` ejecuta verificaciones estructurales, el typecheck del SDK y el build. La beta anterior pasó el build real y las pruebas en GitHub Actions. Ejecuta siempre estos controles sobre el commit de cada versión; antes de publicar también se requiere `corepack yarn release:check` y la comprobación del artefacto.
+For public builds, verify the manifest and distributable tarball, including the MIT `LICENSE`, before publishing with the Twenty CLI. See [Publishing](docs/PUBLICACION.md).
 
-## Documentación
+## Documentation
 
-- [Publicación e instalación desde UI/Marketplace](docs/PUBLICACION.md)
-- [Instalación piloto](docs/INSTALACION.md)
-- [Contrato API / n8n](docs/INTEGRACION_N8N.md)
-- [Modelo y arquitectura](docs/ARQUITECTURA.md)
-- [Operativa diaria](docs/OPERATIVA.md)
-- [Dashboard nativo](docs/DASHBOARD.md)
-- [Seguridad y privacidad](docs/SEGURIDAD.md)
-- [Checklist de validación](docs/CHECKLIST_PILOTO.md)
+- [Architecture and data model](docs/ARQUITECTURA.md)
+- [Installation and upgrade](docs/INSTALACION.md)
+- [n8n integration](docs/INTEGRACION_N8N.md)
+- [Channel configuration](docs/CONFIGURACION_CANALES.md)
+- [Daily operations](docs/OPERATIVA.md)
+- [Dashboard](docs/DASHBOARD.md)
+- [Security and privacy](docs/SEGURIDAD.md)
+- [Validation checklist](docs/CHECKLIST_PILOTO.md)
+- [Publishing](docs/PUBLICACION.md)
+- [Changelog](CHANGELOG.md)
 
-## Referencia de producto
+## License
 
-Captia Dashboard: https://github.com/mikiguillamon/captia-dashboard  
-Se toman de referencia su separación de estado técnico/resultado/evaluación, supervisión y drill-down; no se copia su stack Rails ni su sistema multitenant o autenticación.
-
-## Configurar canales por workspace
-
-Abre **Atención al cliente → Canales**. La pantalla permite crear, pausar, desactivar y marcar como activos los canales del cliente. El estado no activa o detiene n8n por sí solo. Lee [CONFIGURACION_CANALES.md](docs/CONFIGURACION_CANALES.md) antes de conectar tus automatizaciones.
-
-## Proceso de releases npm
-
-El procedimiento canónico está en `50 Knowledge/Development/Publicacion npm - Estandar GitHub Actions Twenty n8n` del Second Brain. Para este repositorio consulta [PUBLICACION.md](docs/PUBLICACION.md): GitHub Release (`published`) activa `publish.yml`, sin `PUBLISH` manual y sin Environment npm obligatorio. Un push en GitHub no publica en npm: hace falta una GitHub Release y autenticación npm configurada.
-
-## MIT license inside npm distribution
-
-Twenty SDK 2.50 builds from `.twenty/output`. The `prepack` hook copies the repository's MIT `LICENSE` into that folder before npm packs or publishes the application. Both GitHub CI and the release workflow verify the actual distributable tarball contains `package/LICENSE`. Do not publish from the source directory with plain `npm publish`.
+MIT. See [LICENSE](LICENSE).
