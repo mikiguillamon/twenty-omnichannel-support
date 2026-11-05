@@ -1,96 +1,99 @@
-# Contrato API para integraciones n8n
+# Integrar Omnichannel Support con n8n y Twenty
 
-**No modifica workflows existentes.** Esta documentación es un contrato de datos para preparar una integración controlada cuando lo autorices.
+## Alcance
 
-## Punto de entrada
+La app registra historial, consultas, conocimiento y supervisión en el workspace de Twenty. El transporte de email y WhatsApp y la ejecución del bot corresponden a n8n y a los proveedores. Se recomienda utilizar el **nodo Twenty de n8n** para las operaciones de CRM que soporte la versión instalada. Antes de diseñar el flujo, comprobar en ese nodo que permite buscar, crear y actualizar los objetos personalizados `supportChannels`, `supportCases`, `supportMessages`, `supportFaqs` y sus relaciones.
 
-`https://<slug>.space.justforfun.es/rest/` con clave propia del workspace: `Authorization: Bearer <clave_del_cliente>`.
+No se debe asumir soporte para objetos personalizados solo porque el nodo conecte con Twenty. Si una operación no aparece, documentar la incompatibilidad y revisar la versión del nodo; no presentar un ejemplo basado en HTTP como si fuera una acción oficial del nodo. El API Playground del workspace sirve para inspeccionar los nombres y los filtros generados, incluso cuando la implementación utiliza el nodo Twenty.
 
-Rutas esperadas bajo la API autogenerada de Twenty:
+## Preparación
 
-- `supportFaqs`, `supportCategories`, `supportSettings`: lectura de conocimiento y parámetros.
-- `supportChannels`: instancias técnicas y sus heartbeats.
-- `supportCases`: creación/actualización del hilo.
-- `supportMessages`: mensajes entrantes, generados, enviados y resultados de entrega.
-- `supportEvaluations`: revisión humana y correcciones.
+1. Crear en Twenty un Canal por buzón o número real, con `code`, `channelType`, `provider` y `externalIdentifier`. Dejarlo desactivado hasta probar la conexión.
+2. Crear las categorías y FAQs necesarias. Solo las FAQs `PUBLISHED` deben usarse para responder.
+3. Crear una credencial Twenty en n8n con una API key propia de ese workspace y permisos mínimos.
+4. Comprobar operaciones de lectura, búsqueda, creación y actualización de objetos personalizados en el nodo Twenty; validar relaciones en el API Playground.
+5. Crear un subworkflow común de escritura en Twenty, llamado por los triggers de email y WhatsApp. Mantener el envío en el nodo del proveedor.
+6. Hacer pruebas con datos ficticios y activar el Canal solo cuando el flujo pueda comprobar `status=ACTIVE` antes de enviar.
 
-**Los nombres y los payloads de relaciones deben confirmarse en el API Playground del workspace instalado**, pues la forma de los IDs y filtros varía según la versión real y el esquema generado.
+Los valores de un mismo workspace nunca se consultan con credenciales de otro. Los tokens y claves de proveedor se guardan en el gestor de credenciales de n8n, no en `supportSettings`.
 
-## Identificadores e idempotencia
+## Flujo de recepción
 
-No uses el teléfono o email como ID único de un hilo para siempre: un contacto puede abrir varios casos. Utiliza claves externas estables, por ejemplo:
-
-- Canal: `email-informacion` / `whatsapp-atencion`.
-- Caso: `EMAIL:gmail:thread-123` o `WHATSAPP:evolution:conversation-456-2026-11`.
-- Mensaje: `EMAIL:gmail:msg-id-123` o `WHATSAPP:evolution:wamid-456`.
-- Evaluación de origen externo: `REVIEW:qa:eval-789`.
-
-Los índices únicos evitan inserciones duplicadas. Ante un conflicto, recupera el registro y actualízalo; no dupliques datos.
-
-## Entrada de mensajes (Email y WhatsApp)
-
-1. Normalizar email y teléfono E.164; consultar Persona y crearla solo si no existe coincidencia segura.
-2. Resolver Canal por `code`, verificar que está ACTIVE. Guardar y actualizar la última actividad/heartbeat según el evento real.
-3. Buscar Consulta por externalKey. Si no existe, crearla asociada a Persona y Canal; rellenar tanto `channel` (EMAIL/WHATSAPP) como `channelInstance` (relación).
-4. Añadir Mensaje INBOUND con externalKey, body, occurredAt, senderType CUSTOMER y deliveryStatus RECEIVED.
-5. Consultar FAQs publicadas y categoría/idioma, leer los ajustes de soporte sin secretos.
-6. Si el bot decide no responder, guardar decisión SKIP; si propone una respuesta, registrar `draftBody` sin atribuirla todavía como enviada.
-7. **Solo tras confirmación del proveedor** registrar el contenido real enviado en `body`, deliveryStatus SENT, sentAt y senderType BOT/AGENT. Para DELIVERED y deliveredAt se requiere acuse de entrega real.
-8. Actualizar Consulta con status, resolution, automation y technicalStatus por separado. Si necesita intervención, status HUMAN_REQUIRED y fecha escalatedAt.
-9. Si se evalúa la respuesta, crear Evaluación y enlazarla a Consulta o Mensaje. Si requiere mejora, marcar followupStatus y enlazar mediante la relación `task` una tarea nativa real si se ha creado.
-
-El valor `SUCCESS` técnico no demuestra que la consulta se haya resuelto; una evaluación PENDING tampoco equivale a negativa.
-
-## Ejemplo conceptual (NO copiar directamente a HTTP Request)
-
-```json
-{
-  "supportCase": {
-    "name": "Consulta de pedido #42",
-    "externalKey": "EMAIL:gmail:thread-42",
-    "channel": "EMAIL",
-    "channelInstance": "<UUID canal>",
-    "person": "<UUID persona>",
-    "category": "<UUID categoria>",
-    "status": "IN_PROGRESS",
-    "technicalStatus": "SUCCESS",
-    "resolution": "PENDING",
-    "automation": "PENDING"
-  },
-  "supportMessage": {
-    "name": "Respuesta generada",
-    "externalKey": "EMAIL:gmail:draft-42-v1",
-    "supportCase": "<UUID consulta>",
-    "direction": "OUTBOUND",
-    "senderType": "BOT",
-    "draftBody": "Respuesta propuesta del asistente",
-    "replyDecision": "PENDING_REVIEW",
-    "deliveryStatus": "PENDING"
-  }
-}
+```text
+Trigger Email / Webhook WhatsApp
+ -> validar proveedor y descartar ecos propios
+ -> normalizar identidad, canal, conversación, mensaje y fecha
+ -> nodo Twenty: buscar Canal por code
+ -> comprobar tipo y status
+ -> nodo Twenty: buscar o crear Persona
+ -> nodo Twenty: buscar o crear Consulta por externalKey
+ -> nodo Twenty: buscar o crear Mensaje por externalKey
+ -> nodo Twenty: leer FAQs publicadas y Ajustes
+ -> bot: REPLY / SKIP / ESCALATE / PENDING_REVIEW
+ -> si REPLY: crear borrador, comprobar Canal de nuevo, enviar
+ -> nodo Twenty: actualizar Mensaje y Consulta con el resultado real
 ```
 
-Los campos de relación pueden usar `personId`, `channelInstanceId` o la estructura concreta del Playground. En Twenty, los valores de SELECT deben coincidir con el enum declarado.
+### Mapeo de entrada
 
-## Seguimiento de salud
+| Evento normalizado | Twenty |
+|---|---|
+| Remitente email o teléfono E.164 | buscar Persona; `originEmail` o `originPhone` de Consulta |
+| Cuenta receptora | `supportChannels.code` y relación `channelInstanceId` |
+| Tipo de transporte | `supportCases.channel=EMAIL/WHATSAPP` |
+| ID de hilo/caso | `supportCases.externalKey` |
+| ID único del mensaje | `supportMessages.externalKey` |
+| ID interno de la Consulta | `supportMessages.supportCaseId` |
+| Dirección y autor | `direction=INBOUND`, `senderType=CUSTOMER` |
+| Cuerpo y fecha | `body`, `occurredAt` |
+| Recepción real | `deliveryStatus=RECEIVED` |
 
-No confundas heartbeats y errores técnicos de transporte con una respuesta incorrecta del bot. Actualiza por Canal:
+Los campos de relación declarados en el código incluyen `personId`, `channelInstanceId`, `categoryId`, `supportCaseId` y `taskId`. La interfaz del nodo puede representar la relación como un selector o como un campo ID: comprobarlo en la versión instalada.
 
-- `lastEventAt` cuando realmente llega un evento del proveedor.
-- `lastHeartbeatAt` cuando un sondeo/heartbeat termina correctamente.
-- `health` HEALTHY/WARNING/CRITICAL/UNKNOWN a partir de una regla comprobable.
-- `errorSummary` sin credenciales, direcciones privadas ni cuerpos de mensajes.
+## Claves externas y agrupación
 
-Los ajustes `staleAfterMinutes` se pueden cambiar por cliente, pero **su efecto requiere lógica en el workflow que produce el heartbeat**. La aplicación no ejecuta verificaciones externas automáticamente en esta versión.
+Cada Consulta y Mensaje tiene su propia `externalKey` única, estable y con ámbito de proveedor y canal. Ejemplos ficticios:
 
-## Seguridad y límites
+- Consulta email: `EMAIL:proveedor:cuenta:thread-123`.
+- Mensaje email: `EMAIL:proveedor:cuenta:msg-789`.
+- Consulta WhatsApp: `WHATSAPP:proveedor:numeroCanal:caso-456`.
+- Mensaje WhatsApp: `WHATSAPP:proveedor:numeroCanal:wamid-789`.
 
-- Un token por workspace, con permisos mínimos, guardado en credenciales de n8n.
-- No registrar tokens, contenido sensible o trazas privadas en campos de error.
-- Filtrar por `status=PUBLISHED` antes de entregar FAQs al bot.
-- No completar o aprobar acciones en nombre del cliente sin autorización.
-- Establecer retención y supresión antes de producir con datos personales.
+El correo puede agruparse por el identificador de hilo del proveedor y las cabeceras `Message-ID`, `In-Reply-To` y `References`. El `Message-ID` por sí solo identifica un correo, no toda la conversación. En WhatsApp, el teléfono identifica al interlocutor, pero no debe convertirse en el ID permanente de un único caso: determinar si se trata de un asunto abierto, reabierto o nuevo.
 
-## Estado configurable (beta.2)
+Buscar antes de crear y, cuando una inserción falle por índice único, recuperar el registro existente. Dos ejecuciones concurrentes pueden superar a la vez la búsqueda previa. Los IDs de ejecución de n8n sirven para diagnóstico, no como claves de idempotencia.
 
-Desde la nueva página **Canales**, cada workspace puede marcar un canal ACTIVE/PAUSED/DISABLED. Es un dato operativo: **no modifica n8n**. Para aplicarlo realmente, el workflow externo debe consultar el Canal por `code` y no procesar o enviar respuestas automáticas salvo que `status === ACTIVE`. No guardar secretos en Twenty.
+## Respuesta y confirmaciones
+
+- `REPLY`: crear o actualizar un Mensaje `OUTBOUND`, `senderType=BOT`, `draftBody` y `deliveryStatus=PENDING`.
+- `SKIP`: registrar decisión y no inventar una salida.
+- `ESCALATE`: poner Consulta `HUMAN_REQUIRED`, fijar `escalatedAt` y asignar responsable cuando se sepa.
+- `PENDING_REVIEW`: guardar borrador hasta aprobación; no enviarlo automáticamente.
+
+Antes de enviar, volver a consultar `supportChannels.status`. Cuando el proveedor acepte el envío, poner el contenido efectivamente enviado en `body`, `deliveryStatus=SENT` y `sentAt`. Con acuse explícito de entrega, actualizar el mismo Mensaje a `DELIVERED` y añadir `deliveredAt`. Un rechazo debe producir `FAILED`, no `SENT`.
+
+Los proveedores pueden enviar notificaciones de mensajes propios y eventos de estado. Correlacionar por el ID de origen para actualizar el Mensaje saliente, sin crear un nuevo Mensaje `INBOUND`. El esquema actual no contiene un campo `providerMessageId` independiente: el integrador debe planificar cómo conservar esa correlación y, si es necesario, ampliar el modelo. El campo `externalKey` no debe cambiar a mitad de un envío.
+
+## Estados y supervisión
+
+`supportCases.status` indica el trabajo pendiente; `resolution` indica si el problema quedó solucionado; `technicalStatus` indica si el workflow funcionó; `automation` registra cuánto se automatizó. No mezclar sus métricas. `supportEvaluations.verdict` registra una evaluación humana separada.
+
+Actualizar la salud de cada Canal solamente con hechos observados: `lastEventAt` por evento, `lastHeartbeatAt` tras comprobación, `health` desde una regla explícita, y `errorSummary` sin información privada. `staleAfterMinutes` no ejecuta ninguna comprobación por sí mismo.
+
+## Pruebas antes de producción
+
+- Dos entregas del mismo webhook producen un solo Mensaje.
+- Un mismo asunto genera una Consulta con varios Mensajes; un nuevo asunto puede crear otra.
+- Los mensajes emitidos por el bot no regresan como mensajes del cliente.
+- Un borrador pendiente no figura como enviado y `SKIP` no genera mensajes falsos.
+- Los acuses de entrega actualizan el mismo registro.
+- Una pausa del Canal impide nuevos envíos.
+- Un error técnico puede coexistir con una resolución todavía pendiente.
+- Las credenciales y los datos permanecen aislados por workspace.
+- Las operaciones y relaciones del nodo Twenty están verificadas en esa instalación.
+
+## Limitaciones que hay que contemplar
+
+La aplicación no tiene compositor de salida propio, no almacena archivos adjuntos en una relación específica de Mensajes, y el visor cronológico muestra como máximo 100 Mensajes. El manejo de HTML, multimedia y conversaciones largas requiere un procedimiento complementario. Las actualizaciones de esquema y del nodo Twenty deben comprobarse en un entorno de pruebas.
+
+Consulta [ARQUITECTURA.md](ARQUITECTURA.md), [OPERATIVA.md](OPERATIVA.md), [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md).
