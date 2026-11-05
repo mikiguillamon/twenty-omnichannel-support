@@ -21,7 +21,7 @@ Una tasa de calidad necesita su denominador: elementos revisados sobre elementos
 
 ## Canales y FAQs
 
-En Canales, revisar por separado el estado operativo y la salud técnica. Los campos de heartbeat y evento deben proceder de comprobaciones observadas. La pausa o desactivación en Twenty necesita que el workflow externo consulte el estado para detener nuevos envíos.
+En Canales, revisar por separado el estado operativo, la salud técnica y las reglas de Gestión de consultas. Los canales existentes pueden requerir guardar su política tras la actualización. Los campos de heartbeat y evento deben proceder de comprobaciones observadas. La pausa o desactivación en Twenty necesita que el workflow externo consulte el estado para detener nuevos envíos.
 
 Publicar FAQs revisadas con `status=PUBLISHED`; mantener borradores en `DRAFT` y archivar respuestas obsoletas. La app no crea automáticamente un historial de revisiones. Los bots deben consultar FAQs por idioma, categoría y publicación.
 
