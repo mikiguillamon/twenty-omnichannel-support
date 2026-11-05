@@ -20,6 +20,10 @@ Twenty Person ──1:N── Support Case ──1:N── Support Message
                          ├────N:1── Support Channel
                          └────N:1── Support Category ──1:N── Support FAQ
 
+Support Channel (1) ── (N) External Identity ── (N:1) Twenty Person
+                                 │
+                                 └──── (1:N) Support Case
+
 Support Setting: claves/valores por workspace, sin secretos.
 ```
 
@@ -29,7 +33,8 @@ Support Setting: claves/valores por workspace, sin secretos.
 |---|---|---|
 | `supportCases` | Caso/hilo de atención | externalKey, status, technicalStatus, resolution, automation, person, channelInstance, category, fechas |
 | `supportMessages` | Mensaje individual o propuesta | externalKey, supportCase, direction, senderType, body, draftBody, replyDecision, deliveryStatus, occurredAt |
-| `supportChannels` | Instancias email/WhatsApp | code, channelType, provider, status, health, lastEventAt, lastHeartbeatAt |
+| `supportChannels` | Instancias email/WhatsApp/Instagram/Telegram y su política | code, channelType, provider, status, health, groupingMode, continuationHours, reopenHours |
+| `supportExternalIdentities` | Identidad del interlocutor por cuenta/proveedor | externalKey, externalUserId, externalAccountId, person, channelInstance, verified |
 | `supportEvaluations` | Revisión humana | targetScope, supportCase, supportMessage, task (relación a Task nativa), verdict, proposedCorrection, reviewer, reviewedAt |
 | `supportFaqs` | Conocimiento aprobado | question, answer, status, language, category, revision, publishedAt |
 | `supportCategories` | Categorías configurables | name, code, enabled, description |
@@ -47,13 +52,14 @@ Las etiquetas predeterminadas `MULTI_SELECT` son compartidas; `customTags` es un
 - `Consultas`: objeto Twenty con vistas filtradas por Email, WhatsApp, Agente y Errores.
 - `Detalle de consulta`: campos y relaciones nativas; visor cronológico React sobre la REST API usando el token **del usuario que mira la pantalla**, no un token de administrador.
 - `Evaluaciones`: objeto nativo con vistas para revisar respuestas incorrectas.
-- `Canales`: estado y última actividad por integración.
+- `Canales`: estado y última actividad por integración; pestaña Gestión de consultas para editar las políticas independientes de cada Canal.
+- `Identidades externas`: relación entre usuario de plataforma, Persona, Canal y Consultas.
 
 Los dashboards nativos adicionales de Twenty se configuran por separado (ver `DASHBOARD.md`) hasta que validemos completamente la reproducción portable por manifest de los widgets nativos.
 
 ## Trabajo por API
 
-La API autogenerada de Twenty expone los siete objetos. La app no implanta por ahora un endpoint alternativo de ingestión: las integraciones trabajan con los modelos y permisos de Twenty. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
+La API autogenerada de Twenty expone los ocho objetos. La app no implanta por ahora un endpoint alternativo de ingestión: las integraciones trabajan con los modelos y permisos de Twenty. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
 
 ## Separación y actualización
 
@@ -61,3 +67,7 @@ La API autogenerada de Twenty expone los siete objetos. La app no implanta por a
 - Los datos y credenciales nunca se copian entre workspaces.
 - Publicar una versión nueva requiere subir `version` en `package.json`.
 - Para modificaciones de esquema en producción, revisar plan de cambios, campos que pueden eliminarse y compatibilidad de n8n antes de aplicar.
+
+## Agrupación por canal
+
+La app guarda la política en cada registro de Canal. Para Email, por defecto se conserva un caso por hilo (o se puede optar por uno por correo entrante). En WhatsApp, Instagram y Telegram se ofrecen agrupación inteligente, por actividad y manual. n8n aplica las reglas con el nodo Twenty CRM y puede llamar a un clasificador de IA desde n8n cuando se permite; Twenty no realiza inferencias. Véase [POLITICAS_CONVERSACION.md](POLITICAS_CONVERSACION.md).
