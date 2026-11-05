@@ -4,7 +4,7 @@ Omnichannel Support almacena conversaciones y datos personales en los registros 
 
 ## Separación por workspace
 
-Crear credenciales diferentes para cada workspace de Twenty y conceder solo los permisos necesarios para Personas, Consultas, Mensajes, FAQs, Canales y Evaluaciones. No compartir tokens entre organizaciones ni utilizar una clave global de administración para el visor de conversaciones. Comprobar los permisos desde un usuario de atención con acceso limitado.
+Crear credenciales diferentes para cada workspace de Twenty y conceder solo los permisos necesarios para Personas, Consultas, Mensajes, identidades externas, alias, FAQs, Canales y Evaluaciones. No compartir tokens entre organizaciones ni utilizar una clave global de administración para el visor de conversaciones. Comprobar los permisos desde un usuario de atención con acceso limitado.
 
 ## Credenciales
 
@@ -12,11 +12,11 @@ Guardar las API keys de Twenty y los secretos de Gmail, Microsoft 365, WhatsApp 
 
 ## Webhooks y contenido
 
-Validar el origen de cada evento antes de crear registros. Distinguir mensajes entrantes, salidas propias y acuses para evitar bucles. Normalizar direcciones y teléfonos; evitar fusionar contactos ambiguos. Tratar cuerpo HTML y adjuntos según una política explícita y utilizar los controles de acceso del proveedor donde se guarden archivos. Revisar quién puede acceder a los datos de ejecución retenidos por n8n.
+Validar el origen de cada evento antes de crear registros. Distinguir mensajes entrantes, salidas propias y acuses para evitar bucles. Normalizar direcciones e identificadores según el proveedor. Resolver PN JID/LID con evidencia fiable y no fusionar automáticamente identidades en conflicto. Tratar cuerpo HTML y adjuntos según una política explícita y utilizar los controles de acceso del proveedor donde se guarden archivos. Revisar quién puede acceder a los datos de ejecución retenidos por n8n.
 
 ## Conservación y derechos
 
-Definir base jurídica, información a interesados, acuerdos de tratamiento cuando correspondan y plazos para Mensajes, borradores, Evaluaciones, registros de auditoría y adjuntos. Documentar procedimientos de acceso, rectificación y supresión conforme a la normativa aplicable. La app no aplica automáticamente una política de borrado o anonimización.
+Definir base jurídica, información a interesados, acuerdos de tratamiento cuando correspondan y plazos para Mensajes, borradores, identificadores externos, Evaluaciones, registros de auditoría y adjuntos. Documentar procedimientos de acceso, rectificación y supresión conforme a la normativa aplicable. La app no aplica automáticamente una política de borrado o anonimización.
 
 ## Cambios y despliegues
 
