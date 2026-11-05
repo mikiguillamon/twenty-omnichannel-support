@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0-beta.6 — Per-channel conversation policies (candidate)
+
+- Add Email, WhatsApp, Instagram and Telegram channel types. Configure per-channel routing (thread, individual message, hybrid, session or manual) from the Channel management page.
+- Add configurable continuation and reopen windows, optional n8n semantic classification thresholds, ambiguity handling and disabled-by-default auto-close.
+- Add `supportExternalIdentities` to identify provider-scoped users and optionally link them to native People, Channels and Cases.
+- Preserve existing object and field identifiers; existing channel records keep their data, with policy defaults applied by the UI until explicitly saved.
+- Document the native Twenty CRM node integration and update schema checks. The app itself does not call any AI model or modify n8n workflows.
+
+
 ## 0.3.0-beta.5 — MIT license in npm package (candidate)
 
 - Preserve the canonical MIT `LICENSE` in the generated npm distribution using the Twenty CLI packaging lifecycle.
