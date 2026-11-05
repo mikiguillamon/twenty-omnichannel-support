@@ -34,7 +34,8 @@ Support Setting: claves/valores por workspace, sin secretos.
 | `supportCases` | Caso/hilo de atención | externalKey, status, technicalStatus, resolution, automation, person, channelInstance, category, fechas |
 | `supportMessages` | Mensaje individual o propuesta | externalKey, supportCase, direction, senderType, body, draftBody, replyDecision, deliveryStatus, occurredAt |
 | `supportChannels` | Instancias email/WhatsApp/Instagram/Telegram y su política | code, channelType, provider, status, health, groupingMode, continuationHours, reopenHours |
-| `supportExternalIdentities` | Identidad del interlocutor por cuenta/proveedor | externalKey, externalUserId, externalAccountId, person, channelInstance, verified |
+| `supportExternalIdentities` | Identidad lógica por cuenta/proveedor, compartida por varios alias | externalKey, externalUserId, externalAccountId, person, channelInstance, verified |
+| `supportIdentityAliases` | PN JID, LID y otros identificadores observados para una misma identidad | externalKey, aliasValue, aliasType, externalIdentity, evidence |
 | `supportEvaluations` | Revisión humana | targetScope, supportCase, supportMessage, task (relación a Task nativa), verdict, proposedCorrection, reviewer, reviewedAt |
 | `supportFaqs` | Conocimiento aprobado | question, answer, status, language, category, revision, publishedAt |
 | `supportCategories` | Categorías configurables | name, code, enabled, description |
@@ -59,7 +60,7 @@ Los dashboards nativos adicionales de Twenty se configuran por separado (ver `DA
 
 ## Trabajo por API
 
-La API autogenerada de Twenty expone los ocho objetos. La app no implanta por ahora un endpoint alternativo de ingestión: las integraciones trabajan con los modelos y permisos de Twenty. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
+La API autogenerada de Twenty expone los nueve objetos. La app no implanta por ahora un endpoint alternativo de ingestión: las integraciones trabajan con los modelos y permisos de Twenty. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
 
 ## Separación y actualización
 
@@ -71,3 +72,7 @@ La API autogenerada de Twenty expone los ocho objetos. La app no implanta por ah
 ## Agrupación por canal
 
 La app guarda la política en cada registro de Canal. Para Email, por defecto se conserva un caso por hilo (o se puede optar por uno por correo entrante). En WhatsApp, Instagram y Telegram se ofrecen agrupación inteligente, por actividad y manual. n8n aplica las reglas con el nodo Twenty CRM y puede llamar a un clasificador de IA desde n8n cuando se permite; Twenty no realiza inferencias. Véase [POLITICAS_CONVERSACION.md](POLITICAS_CONVERSACION.md).
+
+## Identificadores alternativos de WhatsApp
+
+Una cuenta puede entregar un PN JID y un LID del mismo interlocutor en `remoteJid` / `remoteJidAlt` sin orden garantizado. Se guardan en `supportIdentityAliases` asociados a una única `supportExternalIdentity`. Ante alias que apuntan a identidades distintas, no fusionar automáticamente. Los Mensajes conservan ambos campos originales de direccionamiento y el ID real del mensaje. Véase [IDENTIFICADORES_WHATSAPP.md](IDENTIFICADORES_WHATSAPP.md).
