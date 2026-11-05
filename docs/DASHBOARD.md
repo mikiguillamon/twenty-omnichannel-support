@@ -1,53 +1,30 @@
-# Dashboard de atención — enfoque Captia, usando Twenty
+# Supervisión y dashboards de Omnichannel Support
 
-## Navegación incluida en la app
+## Resumen incluido
 
-La app incluye una **standalone page** `Atención al cliente → Resumen` con:
+La app incluye una página de resumen con cuatro indicadores acumulados: Consultas registradas, pendientes de intervención humana, errores técnicos y evaluaciones incorrectas. También facilita acceso a los casos pendientes y los errores. Los indicadores se obtienen del workspace actual y necesitan permisos suficientes; si falla la consulta, la interfaz debe mostrar ausencia de datos y no ceros ficticios.
 
-- KPI acumulados de Consultas, pendientes humanos, errores técnicos y evaluaciones incorrectas.
-- Tabla nativa de Consultas pendientes de agente.
-- Tabla nativa de errores técnicos.
+La página de Resumen lista los Canales activos. Su estado operativo (`ACTIVE`) no demuestra que el proveedor funcione correctamente, algo que debe reflejarse en `health`.
 
-La primera fuente de métricas es una consulta `totalCount` de la API GraphQL del mismo workspace. No se sustituye la API por una base de datos nueva. El componente necesita permiso de lectura a los objetos consultados; si falla, muestra aviso y guiones, no ceros falsos.
+## Dashboard de análisis en Twenty
 
-**Se debe verificar** en el workspace piloto el nombre de los filtros y campos GraphQL (`supportCases`, `technicalStatus`, `supportEvaluations`): el SDK se ha escrito para Twenty 2.50, pero no se ha podido ejecutar contra el servidor en esta fase.
+Cuando el editor de dashboards de la versión instalada lo permita, utilizar widgets separados para:
 
-## Widgets recomendados en el dashboard NATIVO de Twenty
+| Área | Fuente | Medición |
+|---|---|---|
+| Volumen | `supportCases` | Casos por fecha y canal |
+| Atención | `supportCases` | Estados y tiempos de resolución |
+| Automatización | `supportCases` | `automation` FULL/PARTIAL/NONE |
+| Resultado | `supportCases` | `resolution` SOLVED/UNSOLVED/PENDING |
+| Técnica | `supportCases`, `supportChannels` | Errores, reintentos y salud |
+| Calidad | `supportEvaluations` | Veredictos y cobertura de revisión |
 
-En **Dashboards → New Dashboard**, crear un dashboard `Atención multicanal` y configurar:
+Configurar los periodos y filtros de cada widget. Confirmar que la versión de Twenty admite las relaciones y agrupaciones deseadas; no dar por hecho un filtro global aplicable automáticamente a todos los widgets.
 
-| Pestaña | Tipo | Fuente | Agrupación/filtro |
-|---|---|---|---|
-| Resumen | Aggregate | supportCases | total por periodo |
-| Resumen | Aggregate | supportCases | status HUMAN_REQUIRED |
-| Resumen | Aggregate | supportCases | resolution SOLVED |
-| Resumen | Aggregate | supportCases | automation FULL |
-| Actividad | Line | supportCases | createdAt por semana |
-| Actividad | Bar | supportCases | canal (channel) |
-| Actividad | Pie | supportCases | categoría (relation) si la UI permite este agrupamiento |
-| Calidad | Bar | supportEvaluations | verdict |
-| Calidad | Table | supportEvaluations | INCORRECT |
-| Salud | Table | supportChannels | health / lastEventAt |
+## Reglas de interpretación
 
-Las tablas pueden permitir edición desde el widget, si el rol del usuario lo permite. No dar por hecha la compatibilidad de cada agrupación: validar en el editor nativo de Twenty del piloto.
+Una ejecución técnica correcta (`technicalStatus=SUCCESS`) no demuestra una Consulta resuelta (`resolution=SOLVED`) ni una evaluación humana positiva (`verdict=CORRECT`).
 
-**Limitaciones en Twenty 2.50:** los filtros de periodo se configuran por widget, no existe un filtro global de dashboard que propague a todos los widgets; tampoco hay exportación/replicación automática de dashboards nativos entre workspaces. Para replicar sin consola, la página `Resumen` incluida en la app cubre la supervisión principal; el dashboard de análisis avanzado queda como receta configurada por workspace.
+Para métricas de calidad, publicar tanto los resultados de las evaluaciones como su cobertura: número de elementos evaluados dividido entre elementos elegibles. Los totales históricos incluyen Consultas de Canales que más tarde se hayan desactivado.
 
-## KPIs y criterios de verdad
-
-Separar siempre:
-
-- **Operación:** consultas creadas/resueltas, abiertas, escaladas, tiempo de resolución.
-- **Automatización:** FULL/PARTIAL/NONE; no es equivalente a correcto/incorrecto.
-- **Técnica:** ERROR/RETRYING/SUCCESS, salud del canal, lastHeartbeatAt, frescura.
-- **Calidad:** correctas/incorrectas sobre evaluadas; mostrar cobertura de evaluación.
-
-No se deben presentar datos sin fecha como si fueran del último mes ni asumir cero cuando falta permiso, se interrumpió la integración o no existen datos.
-
-## Próximo módulo analítico
-
-Para comparaciones arbitrarias de periodo, tasas calculadas y drill-down automático desde un KPI al histórico filtrado, desarrollar un widget específico después de medir las limitaciones reales del dashboard nativo. El dato fuente seguirá siendo Twenty y su API.
-
-## Canales activos (beta.2)
-
-El Resumen lista los canales con estado `ACTIVE` en el workspace actual. Los indicadores de Consultas permanecen acumulados y conservan el histórico de canales pausados o desactivados. No confundas estado operativo con salud técnica.
+Los comparativos por periodo y los ratios personalizados pueden requerir widgets adicionales. Verificar primero las capacidades del editor y la API de la versión real de Twenty.
