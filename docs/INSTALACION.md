@@ -14,7 +14,7 @@ No es necesario instalar Node.js o Yarn en el equipo de cada usuario de Twenty. 
 
 1. Abrir las aplicaciones o el Marketplace desde Twenty, con una cuenta autorizada.
 2. Localizar Omnichannel Support y comprobar la compatibilidad de su versión. Si se utiliza una distribución privada, abrir el enlace proporcionado por el propietario de la aplicación desde el workspace de destino.
-3. Instalar la aplicación. Confirmar que aparecen Consultas, Canales, FAQs, Categorías, Evaluaciones, Configuración, Identidades externas y Resumen.
+3. Instalar la aplicación. Confirmar que aparecen Consultas, Canales, FAQs, Categorías, Evaluaciones, Configuración, Identidades externas, Alias de identidad y Resumen.
 4. Crear una Persona ficticia y un Canal de prueba que comience desactivado. Abrir **Canales → Gestión de consultas** y guardar su política.
 5. Crear una Categoría y una FAQ en `DRAFT`, después publicarla y comprobar que puede filtrarse por `PUBLISHED`.
 6. Crear una Consulta relacionada con la Persona y el Canal, y dos Mensajes ficticios, uno `INBOUND` y otro `OUTBOUND`. Registrar `SENT` únicamente si se produjo un envío de prueba realmente aceptado.
@@ -37,4 +37,4 @@ Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md) y [CHECKLIST_PILOTO.md](CHECKL
 
 Actualizar desde Twenty cuando haya una versión compatible, conservando los datos existentes. Comprobar el cambio previamente en un workspace o instancia aislada, en particular cuando cambia el origen de instalación entre distribución privada y catálogo público. No desinstalar la versión anterior como método habitual de actualización.
 
-Verificar después de actualizar los ocho objetos, las relaciones, el historial, las vistas, los permisos, el nodo de n8n y una operación de prueba. Ante una regresión, detener los envíos automáticos y preparar una reversión compatible con el esquema de datos y la política de copias de seguridad, sin asumir que desinstalar restaura automáticamente el estado anterior.
+Verificar después de actualizar los nueve objetos, las relaciones, el historial, las vistas, los permisos, el nodo de n8n y una operación de prueba. Ante una regresión, detener los envíos automáticos y preparar una reversión compatible con el esquema de datos y la política de copias de seguridad, sin asumir que desinstalar restaura automáticamente el estado anterior.
