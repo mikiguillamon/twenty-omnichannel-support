@@ -25,7 +25,7 @@ En npm, para el paquete correspondiente, configurar GitHub Actions como Trusted 
 - Nombre de Environment vacío, salvo que el workflow utilice uno configurado deliberadamente.
 - Permisos de publicación directa cuando se utilice `npm publish` mediante el CLI de Twenty.
 
-La GitHub Action necesita `id-token: write`, un runner compatible alojado en GitHub, y versiones de Node/npm que admitan OIDC. No introducir un `NPM_TOKEN` de escritura innecesario. Para el primer registro del nombre npm, seguir el procedimiento oficial de bootstrap o staged publishing que admita el registro.
+La GitHub Action necesita `id-token: write`, un runner compatible alojado en GitHub y una versión de npm compatible con OIDC. Para gestionar dist-tags con OIDC se requiere npm CLI **11.21.0 o posterior**, además del permiso independiente **Allow npm dist-tag** en la configuración Trusted Publisher de `publish.yml`. Si la conexión ya existía, comprueba su permiso; npm permite añadir otra conexión autorizada al mismo workflow si hace falta. No elimines la conexión actual sin comprobar primero que la nueva puede publicar. No introducir un `NPM_TOKEN` de escritura innecesario. Para el primer registro del nombre npm, seguir el procedimiento oficial de bootstrap o staged publishing que admita el registro.
 
 ## Crear una release
 
@@ -53,7 +53,7 @@ Confirmar que la versión es nueva, que CI está en verde y que el tag no existe
 gh release create "$TAG" --target "$SHA" --title "$TAG" --generate-notes --prerelease --latest=false
 ```
 
-Para una versión estable, omitir las opciones de prerelease solo después de validar los criterios de estabilidad. El workflow `publish.yml`, activado por `release.published`, vuelve a comprobar versión, tag, pruebas, compilación, manifiesto y paquete, y publica con el CLI Twenty (`corepack yarn twenty app:publish --tag beta` para prereleases, sin `--tag beta` para estables). No ejecutar `npm publish` desde la raíz del repositorio porque el CLI de Twenty prepara el paquete distribuible.
+Para una versión estable, omitir las opciones de prerelease solo después de validar los criterios de estabilidad. El workflow `publish.yml`, activado por `release.published`, vuelve a comprobar versión, tag, pruebas, compilación, manifiesto y paquete. La app utiliza una **política específica**: las prereleases se publican en `beta` y, una vez completada la publicación, se promocionan también a `latest` con `npm dist-tag add`. Las versiones estables se publican directamente en `latest`. Esto permite que Twenty detecte la beta como versión predeterminada en npm. La promoción requiere el permiso OIDC de dist-tags y puede fallar independientemente de la publicación; comprobar siempre las etiquetas al finalizar. No ejecutar `npm publish` desde la raíz del repositorio porque el CLI de Twenty prepara el paquete distribuible.
 
 ## Verificar
 
@@ -63,7 +63,7 @@ npm view <NOMBRE_PAQUETE> versions --json
 npm view <NOMBRE_PAQUETE> dist-tags --json
 ```
 
-Sustituir `<NOMBRE_PAQUETE>` por el identificador npm real. Confirmar procedencia (provenance), integridad del tarball, etiqueta `beta` o `latest`, visibilidad en el catálogo según los criterios de Twenty y una instalación de prueba. Un paquete publicado en npm no aparece necesariamente inmediatamente en todos los catálogos. Las versiones preliminares se publican con el dist-tag `beta`, mientras que npm y algunos catálogos priorizan `latest`. No mover una beta a `latest` sin decidir expresamente que debe ser la versión predeterminada para todos los usuarios. La sincronización automática de Twenty 2.50 se programa cada hora; para adelantarla, usar el comando del CLI con un remoto válido o el comando del servidor `yarn command:prod marketplace:catalog-sync` desde el directorio de `twenty-server` cuando se tenga acceso administrativo.
+Sustituir `<NOMBRE_PAQUETE>` por el identificador npm real. Confirmar procedencia (provenance), integridad del tarball, visibilidad en Twenty y una instalación de prueba. En este proyecto se espera que **`beta` y `latest` apunten a la nueva beta** después de cada publicación preliminar. `latest` también se utiliza para instalaciones npm sin versión indicada, por lo que esta decisión afecta a todos los usuarios; no generalizarla a otros paquetes sin autorizarla. Para promover una versión ya publicada, utilizar **Actions → Publish Omnichannel Support to npm → Run workflow**, indicar `version` (por ejemplo `0.3.0-beta.8`) y verificar `npm view twenty-omnichannel-support dist-tags --json`. Como alternativa, un mantenedor autenticado puede ejecutar `npm dist-tag add twenty-omnichannel-support@0.3.0-beta.8 latest`. No hace falta volver a publicar la versión. Si no se puede usar OIDC, revisar **Allow npm dist-tag** antes de crear tokens. El catálogo de Twenty 2.50 se sincroniza cada hora; se puede adelantar desde el CLI con remoto válido o mediante `yarn command:prod marketplace:catalog-sync` dentro del servidor.
 
 ## Errores habituales
 
