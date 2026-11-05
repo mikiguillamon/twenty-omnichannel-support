@@ -17,6 +17,8 @@ Esta lista sirve para probar una instalación nueva o actualizada antes de conec
 - [ ] El Canal empieza `DISABLED` y el workflow consulta `status=ACTIVE` antes de responder.
 - [ ] Un webhook recibido dos veces no crea dos Mensajes.
 - [ ] Se pueden crear Identidades externas distintas por proveedor/cuenta y vincularlas a Personas y Consultas.
+- [ ] Las identidades no verificadas pueden existir sin crear una Persona duplicada.
+- [ ] Los alias de WhatsApp son únicos por cuenta y proveedor, incluso en eventos concurrentes.
 - [ ] Un mismo contacto WhatsApp resuelve la misma identidad mediante JID de teléfono o LID, en cualquiera de los dos campos del evento.
 - [ ] Dos alias ya asociados a identidades distintas nunca causan una fusión automática.
 - [ ] Los mensajes conservan ambos JID originales y el ID real del mensaje del proveedor.
