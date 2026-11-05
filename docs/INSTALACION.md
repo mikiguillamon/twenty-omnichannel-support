@@ -1,58 +1,40 @@
-# Instalación piloto — Omnichannel Support 0.3.0-beta.2
+# Instalación y validación de Omnichannel Support
 
 ## Requisitos
 
-- Twenty CRM 2.50.x; un workspace piloto distinto de `jff`.
-- `space.justforfun.es`, el workspace piloto y el TLS correctamente enrutados en Coolify/Traefik. Un registro DNS wildcard **no configura Traefik por sí solo**.
-- Propietario de la app con permiso **Developers / Workspace Apps**.
-- Node 24.5+ solo en el entorno de build o GitHub Actions; los **clientes no necesitan Node/Yarn**.
-- Verificado: el despliegue de Twenty estaba operativo y registraba dos workspaces activos, aunque el nombre del segundo no ha sido confirmado.
+- Una instancia de Twenty dentro del rango declarado en `engines.twenty` del paquete.
+- Permisos para instalar aplicaciones en el workspace de destino.
+- Una versión publicada y disponible de la aplicación, o un enlace de distribución privada proporcionado por su propietario.
+- Un workspace de pruebas separado de los datos reales para validar la actualización o la primera instalación.
+- Para integrar n8n, una API key independiente del workspace y un nodo Twenty cuya compatibilidad con objetos personalizados se haya comprobado.
 
-## 1. Crear repo y validar en Actions
+No es necesario instalar Node.js o Yarn en el equipo de cada usuario de Twenty. Son herramientas de desarrollo y empaquetado.
 
-Seguir `docs/PUBLICACION.md`. Subir el proyecto a un repositorio nuevo y esperar a que el workflow `Verify Omnichannel Support` termine correctamente. Si falla el build del SDK, **no publicar**: corregir el error reportado y repetir.
+## Instalación desde la interfaz
 
-## 2. Primera publicación privada
+1. Abrir las aplicaciones o el Marketplace desde Twenty, con una cuenta autorizada.
+2. Localizar Omnichannel Support y comprobar la compatibilidad de su versión. Si se utiliza una distribución privada, abrir el enlace proporcionado por el propietario de la aplicación desde el workspace de destino.
+3. Instalar la aplicación. Confirmar que aparecen Consultas, Canales, FAQs, Categorías, Evaluaciones, Configuración y Resumen.
+4. Crear una Persona ficticia y un Canal de prueba que comience desactivado.
+5. Crear una Categoría y una FAQ en `DRAFT`, después publicarla y comprobar que puede filtrarse por `PUBLISHED`.
+6. Crear una Consulta relacionada con la Persona y el Canal, y dos Mensajes ficticios, uno `INBOUND` y otro `OUTBOUND`. Registrar `SENT` únicamente si se produjo un envío de prueba realmente aceptado.
+7. Comprobar las relaciones y el historial desde la ficha de Consulta.
+8. Crear una Evaluación relacionada con el Mensaje correspondiente. Probar la vista de respuestas incorrectas.
+9. Comprobar las vistas de pendientes humanos y errores técnicos mediante los estados de Consulta.
+10. Verificar Resumen, permisos de usuarios operativos y aislamiento entre workspaces.
 
-Configurar `TWENTY_DEPLOY_URL` (variable) y `TWENTY_DEPLOY_API_KEY` (secret) en GitHub, correspondientes al workspace propietario. Ejecutar desde **Actions → Deploy private app to Twenty** con `DEPLOY`. Este es el único paso que sube el paquete; NO despliega Twenty ni reinicia Coolify.
+## Conectar n8n
 
-## 3. Instalar desde Twenty UI
+1. Configurar una credencial Twenty en n8n con permisos mínimos para el workspace.
+2. Comprobar que el nodo Twenty admite las operaciones necesarias sobre los objetos personalizados y sus relaciones. El API Playground de Twenty permite verificar el esquema.
+3. Configurar triggers y proveedores de Email o WhatsApp, y el subworkflow de búsqueda/creación de Persona, Consulta y Mensaje.
+4. Probar deduplicación, confirmaciones, ecos, pausas, reintentos y escalados con datos ficticios.
+5. Activar el Canal desde Twenty después de las pruebas; el workflow debe respetar el estado y comprobarlo otra vez antes de cada envío.
 
-En el workspace propietario, obtener **Distribution → Copy share link**. Abrir el enlace dentro del workspace piloto e instalar desde la interfaz. Verificar los siete objetos y las vistas bajo `Atención al cliente`.
+Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md) para el procedimiento completo.
 
-## 4. Pruebas básicas con datos ficticios
+## Actualizaciones y reversión
 
-1. Crear un Canal `Email - Pruebas` con `code=email-test`, tipo EMAIL, proveedor Test, estado ACTIVE.
-2. Crear una Categoría `Información` con `code=informacion`, habilitada.
-3. Crear una FAQ en borrador; marcarla publicada y comprobar que aparece en FAQs publicadas.
-4. Crear una Persona de ejemplo.
-5. Crear una Consulta vinculada a Persona, Categoría y Canal; rellenar `channel=EMAIL` y `externalKey=EMAIL:test:thread-001`.
-6. Crear un Mensaje entrante y uno saliente. En el saliente, comprobar la diferencia entre `draftBody` y `body`, y poner `deliveryStatus=SENT` solo si hubo envío de prueba realmente confirmado.
-7. Abrir la ficha de Consulta y comprobar las pestañas Detalles, Conversación y Evaluaciones.
-8. Crear una Evaluación INCORRECT y relacionarla con la Consulta o un Mensaje, con comentario y corrección propuesta. Comprobar la vista Respuestas incorrectas.
-9. Actualizar el estado de una Consulta a HUMAN_REQUIRED y su technicalStatus a ERROR. Comprobar las vistas Pendientes de agente y Errores técnicos.
-10. Abrir `Resumen` y comprobar que los contadores corresponden con los datos de prueba. Si muestra error, revisar permisos y consultas GraphQL con el Playground.
-11. Repetir llamadas de prueba por API con la misma externalKey; verificar que la restricción de unicidad evita duplicaciones.
-12. Probar con usuario operativo limitado para asegurarse de que no accede a datos restringidos.
+Actualizar desde Twenty cuando haya una versión compatible, conservando los datos existentes. Comprobar el cambio previamente en un workspace o instancia aislada, en particular cuando cambia el origen de instalación entre distribución privada y catálogo público. No desinstalar la versión anterior como método habitual de actualización.
 
-## 5. Conectar n8n
-
-Crear una **API key diferente** con permiso mínimo para leer FAQs/Configuración/Canales y crear/actualizar Consultas/Mensajes/Evaluaciones. Verificar los endpoints del workspace en **Settings → Developers → API**, no asumir nombres de campos de relaciones sin comprobación. Consultar `INTEGRACION_N8N.md`.
-
-No cambiar ni activar flujos n8n existentes sin revisar antes la correspondencia y hacer pruebas controladas.
-
-## 6. Hito de salida del piloto
-
-- GitHub CI verde (typecheck, build y tests), publicación privada aceptada.
-- Instalada en el workspace piloto sin Terminal.
-- Vistas y UI funcionan en claro/oscuro.
-- API de CRUD, relaciones y claves externas verificada.
-- KPI y listado con datos reales de prueba, sin falsos ceros.
-- Roles revisados; sin acceso cruzado entre workspaces.
-- Confirmado rollback (publicar parche de versión o desinstalar en piloto sin borrar registros en producción).
-
-Antes de dar acceso a un cliente real, aplicar políticas de privacidad y retención.
-
-## Actualización de beta.1
-
-Confirma CI verde y ejecuta el workflow **Deploy private app to Twenty** con `DEPLOY`. Después actualiza desde **Settings → Applications** en cada workspace. No desinstales la versión anterior. Verifica la nueva página **Canales**, las vistas que se conservan dentro de **Consultas** y los mensajes previos.
+Verificar después de actualizar los siete objetos, las relaciones, el historial, las vistas, los permisos, el nodo de n8n y una operación de prueba. Ante una regresión, detener los envíos automáticos y preparar una reversión compatible con el esquema de datos y la política de copias de seguridad, sin asumir que desinstalar restaura automáticamente el estado anterior.
