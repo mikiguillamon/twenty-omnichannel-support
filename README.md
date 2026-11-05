@@ -23,8 +23,8 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 ## Get started
 
 1. Install Omnichannel Support from the Twenty Marketplace in your workspace.
-2. Open **Customer support > Channels** and add the inbox or account you want to connect.
-3. Under **Conversation management**, choose how messages should be grouped into cases.
+2. Open **Channels** in the support section of Twenty and add the inbox or account you want to connect.
+3. In **Conversation management**, choose how messages should be grouped into cases.
 4. Connect your provider using n8n and the Twenty CRM node. Test an incoming message and a reply before enabling the channel.
 
 ## Guides
