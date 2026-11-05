@@ -5,7 +5,7 @@ Esta lista sirve para probar una instalación nueva o actualizada antes de conec
 ## Instalación y permisos
 
 - [ ] La versión instalada de Twenty está dentro del rango de compatibilidad declarado por la app.
-- [ ] La app muestra los siete objetos y las relaciones con Persona y Tarea nativas.
+- [ ] La app muestra los ocho objetos y las relaciones con Persona y Tarea nativas.
 - [ ] Se puede crear un Canal, una Categoría, una FAQ y una Consulta desde Twenty.
 - [ ] Un usuario operativo con permisos limitados solo accede a los registros autorizados.
 - [ ] Las credenciales API están separadas por workspace y no existen secretos en `supportSettings`.
@@ -16,6 +16,10 @@ Esta lista sirve para probar una instalación nueva o actualizada antes de conec
 - [ ] Las relaciones `personId`, `channelInstanceId`, `categoryId` y `supportCaseId` se han probado en esa versión.
 - [ ] El Canal empieza `DISABLED` y el workflow consulta `status=ACTIVE` antes de responder.
 - [ ] Un webhook recibido dos veces no crea dos Mensajes.
+- [ ] Se pueden crear Identidades externas distintas por proveedor/cuenta y vincularlas a Personas y Consultas.
+- [ ] Las políticas de Canal se guardan desde la pestaña Gestión de consultas, y se leen con el nodo Twenty CRM.
+- [ ] Email agrupa respuestas en el hilo correcto; WhatsApp, Instagram y Telegram admiten política propia.
+- [ ] La app no llama a modelos de IA: cuando está permitida, la clasificación ocurre en n8n.
 - [ ] Dos ejecuciones concurrentes con la misma clave recuperan el registro existente.
 - [ ] Una Persona puede tener varias Consultas y cada Consulta varios Mensajes.
 - [ ] Se prueban los hilos de email y la separación de asuntos de WhatsApp.
