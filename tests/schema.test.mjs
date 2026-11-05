@@ -22,6 +22,14 @@ test('multichannel types and per-channel policies are preserved',()=>{
   assert(read('src/indexes/external-identity-unique.index.ts').includes('isUnique: true'));
   assert(read('src/front-components/channel-policies.tsx').includes('updateChannelPolicy'));
 });
+test('WhatsApp PN and LID can map to the same identity through aliases',()=>{
+  const aliases=read('src/objects/support-identity-alias.object.ts');
+  for(const value of ['WHATSAPP_PN','WHATSAPP_LID','externalKey','aliasValue'])assert(aliases.includes(value));
+  assert(read('src/indexes/identity-alias-external-unique.index.ts').includes('isUnique: true'));
+  assert(read('src/fields/identity-alias-identity.field.ts').includes("joinColumnName: 'externalIdentityId'"));
+  const message=read('src/objects/support-message.object.ts');
+  for(const field of ['providerChatId','providerChatIdAlt','providerMessageId'])assert(message.includes(field));
+});
 test('required case data dimensions remain independent',()=>{
   const src=read('src/objects/support-case.object.ts');
   for(const name of ['technicalStatus','resolution','automation','status'])assert(src.includes(`name: "${name}"`) || src.includes(`name: '${name}'`));

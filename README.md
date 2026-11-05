@@ -6,7 +6,7 @@ Email, WhatsApp, Instagram and Telegram delivery are handled by external provide
 
 ## Features
 
-- Eight native Twenty objects: Cases, Messages, FAQs, Categories, Channels, Evaluations, Support Settings, and External Identities.
+- Nine native Twenty objects: Cases, Messages, FAQs, Categories, Channels, Evaluations, Support Settings, External Identities, and Identity Aliases.
 - Connections to Twenty's existing People and Task records.
 - A chronological conversation viewer within each case.
 - Support views for email, WhatsApp, agent follow-up, and technical errors.
@@ -14,6 +14,7 @@ Email, WhatsApp, Instagram and Telegram delivery are handled by external provide
 - Configurable channel instances for email, WhatsApp, Instagram and Telegram, each with operational status and reported health.
 - A user-friendly **Conversation management** tab in Channels, with individual routing policies per channel (thread, message, hybrid, session and manual).
 - External identities linked to native People and Cases, including provider-scoped IDs that are not phone numbers.
+- Multiple provider-scoped aliases per identity, including WhatsApp PN JIDs and LIDs, with conflict-safe resolution and original addressing retained on messages.
 - Unique external keys to help prevent duplicate cases and messages.
 - FAQs grouped by category, language and publication state.
 
@@ -67,6 +68,7 @@ For public builds, verify the manifest and distributable tarball, including the 
 - [Installation and upgrade](docs/INSTALACION.md)
 - [n8n integration](docs/INTEGRACION_N8N.md)
 - [Conversation routing policies](docs/POLITICAS_CONVERSACION.md)
+- [WhatsApp PN JID/LID handling](docs/IDENTIFICADORES_WHATSAPP.md)
 - [Channel configuration](docs/CONFIGURACION_CANALES.md)
 - [Daily operations](docs/OPERATIVA.md)
 - [Dashboard](docs/DASHBOARD.md)
