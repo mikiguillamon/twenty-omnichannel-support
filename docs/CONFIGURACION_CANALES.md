@@ -1,22 +1,26 @@
-# Configurar canales por cliente en Twenty
+# Configurar canales por workspace
 
-En **Atención al cliente → Canales** puedes crear las instancias que realmente utiliza este workspace. Un canal es un buzón de correo o número de WhatsApp, no una sección fija del menú.
+Un Canal es un buzón o número concreto, con su propio `code`, tipo, proveedor e identificador externo. Un workspace puede disponer de varios Canales de email y WhatsApp.
 
-1. Crea un canal indicando **Nombre**, **Código único**, **Tipo**, **Proveedor** e **Identificador externo**. No introduzcas contraseñas ni tokens.
-2. Se guardará **Desactivado**. Este estado evita confundir una configuración recién creada con una integración lista.
-3. Prepara y prueba de forma independiente la conexión en n8n. Utiliza una API key exclusiva del workspace para consultar `supportChannels` y registrar `supportCases` y `supportMessages`.
-4. Cuando esté probado, marca la casilla de confirmación y pulsa **Marcar activo**. Puedes pausarlo o desactivarlo sin eliminar mensajes ni conversaciones.
-5. En **Consultas** utiliza las vistas guardadas **Email**, **WhatsApp**, **Pendientes de agente** y **Errores técnicos**. El menú lateral ya no muestra atajos fijos para cada tipo de canal.
-6. En **Resumen** verás solo los canales marcados como activos. Los contadores acumulados incluyen datos históricos, aunque un canal ya esté desactivado.
+## Preparación
 
-## Contrato de la integración
+1. Abrir **Atención al cliente > Canales** en Twenty.
+2. Crear una instancia con nombre visible, código único (`code`), `channelType` (`EMAIL` o `WHATSAPP`), `provider` e `externalIdentifier`. Evitar tokens y contraseñas en estos campos.
+3. Dejar el Canal inicialmente `DISABLED`. Configurar la conexión del proveedor y el workflow de n8n por separado.
+4. Crear una credencial Twenty específica del workspace y probar lecturas/escrituras con el nodo Twenty compatible con objetos personalizados.
+5. Verificar que el workflow encuentra el Canal por `code` y comprueba `status=ACTIVE` antes de responder. Comprobar también el estado inmediatamente antes de enviar.
+6. Tras las pruebas, activar el Canal desde la interfaz. Pausarlo o desactivarlo para bloquear nuevos envíos automáticos mediante la lógica configurada en n8n.
 
-La interfaz **no configura Gmail, Evolution API, Microsoft 365 ni n8n**. Solo escribe el registro de Canal en Twenty. Para que un estado `PAUSED` o `DISABLED` detenga respuestas, cada workflow tiene que comprobar `status === ACTIVE` antes de enviar o procesar. El cambio de estado no cancela ejecuciones ya iniciadas.
+## Estado operativo y salud técnica
 
-Usa `code` como identificador estable, una clave externa distinta por conversación y otra por mensaje, y la relación `channelInstanceId` de cada Consulta. Confirma el esquema en el **API Playground** de Twenty antes de enviar peticiones desde n8n. No reutilices claves de API entre workspaces.
+`status` expresa si el Canal puede operar: `ACTIVE`, `PAUSED` o `DISABLED`. `health` expresa el resultado observado de las comprobaciones: `UNKNOWN`, `HEALTHY`, `WARNING` o `CRITICAL`.
 
-Los botones de activación están protegidos por una confirmación visual, pero no hacen una verificación técnica real del proveedor. `health` y las marcas de tiempo deben proceder de eventos o comprobaciones reales, nunca deducirse de `status`.
+n8n o el monitor externo deben actualizar `lastEventAt` tras eventos reales y `lastHeartbeatAt` tras comprobaciones realizadas. `staleAfterMinutes` solo tiene efecto si se implementa la correspondiente regla. No marcar `HEALTHY` por el mero hecho de activar un Canal.
 
-## Actualizar desde la versión anterior
+Cambiar el estado en Twenty no crea conexiones ni desactiva por sí mismo los triggers del proveedor. Tampoco cancela los workflows que ya estén en ejecución.
 
-Publica una versión nueva desde GitHub Actions. En cada workspace abre **Settings → Applications → Omnichannel Support** e instala la actualización sin desinstalar la anterior. Comprueba que las consultas y mensajes previos siguen accesibles y que las vistas Email/WhatsApp siguen dentro de Consultas. No hay migración ni borrado de registros.
+## Integración y supervisión
+
+En cada Consulta, mantener `channel` (EMAIL/WHATSAPP) y `channelInstanceId` (relación al Canal concreto) coherentes. Conservar histórico cuando se pause o desactive un Canal. Los recuentos acumulados pueden incluir casos de Canales ya desactivados.
+
+Consultar [Integración con n8n](INTEGRACION_N8N.md) y [Checklist](CHECKLIST_PILOTO.md) antes de trabajar con datos reales.
