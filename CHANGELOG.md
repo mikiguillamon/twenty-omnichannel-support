@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0-beta.7 — WhatsApp PN JID / LID handling
+
+- Add `supportIdentityAliases` to associate a WhatsApp phone JID and LID with one logical external identity, scoped to the provider and receiving account.
+- Preserve both original chat identifiers and the provider message ID on each Message.
+- Add collision-safe alias resolution helpers and regression tests; conflicting identities must be reviewed rather than automatically merged.
+- Document resolution using n8n's Twenty CRM node, including single-identifier events, reversed PN/LID order and outbound tracking.
+- This update only adds data structures; it does not modify provider integrations or n8n workflows.
+
+
 ## 0.3.0-beta.6 — Per-channel conversation policies (candidate)
 
 - Add Email, WhatsApp, Instagram and Telegram channel types. Configure per-channel routing (thread, individual message, hybrid, session or manual) from the Channel management page.
