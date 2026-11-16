@@ -37,6 +37,6 @@ La aplicación almacena datos y relaciones; las consultas, validaciones y actuac
 
 ## Ingestión actual mediante el endpoint de la app
 
-Para los flujos que utilicen la API de la app, puedes enviar \`remoteJid\` y \`remoteJidAlt\` en \`contact\`, \`message\` o en el nivel superior del JSON. La función normaliza PN/LID y consulta los alias en \`supportIdentityAliases\` antes de asociar la identidad. Ante conflictos entre identidades, fuerza revisión.
+Para los flujos que utilicen la API de la app, puedes enviar `remoteJid` y `remoteJidAlt` en `contact`, `message` o en el nivel superior del JSON. La función normaliza PN/LID y consulta los alias en `supportIdentityAliases` antes de asociar la identidad. Ante conflictos entre identidades, fuerza revisión.
 
 No necesitas ejecutar tú mismo toda la secuencia de búsqueda y creación de identidades con nodos individuales de Twenty. El procedimiento anterior con nodos REST/CRM es útil cuando decides trabajar fuera del endpoint o necesitas una operación específica, pero el flujo recomendado es [INTEGRACION_N8N.md](INTEGRACION_N8N.md). Consulta también los campos y ejemplos exactos en [API_REFERENCE.md](API_REFERENCE.md).

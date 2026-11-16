@@ -90,8 +90,8 @@ Comprobar la versión realmente instalada en cada workspace y la compatibilidad 
 
 ## Verificar una actualización con cambios de esquema
 
-Antes de distribuir una versión que añade campos o valores SELECT a \`supportCases\`, \`supportMessages\` o \`supportChannels\`, prueba la sincronización del manifiesto en un workspace aislado. Comprueba que la pestaña Omnichannel en Personas y las vistas de conversaciones se instalan sin perder las relaciones.
+Antes de distribuir una versión que añade campos o valores SELECT a `supportCases`, `supportMessages` o `supportChannels`, prueba la sincronización del manifiesto en un workspace aislado. Comprueba que la pestaña Omnichannel en Personas y las vistas de conversaciones se instalan sin perder las relaciones.
 
-Para las versiones que modifican la ingestión, ejecuta un mensaje recibido, un duplicado, una actualización de conversación al añadir mensaje, un acuse de entrega y un evento \`PHONE\`. El contrato de referencia está en [API_REFERENCE.md](API_REFERENCE.md).
+Para las versiones que modifican la ingestión, ejecuta un mensaje recibido, un duplicado, una actualización de conversación al añadir mensaje, un acuse de entrega y un evento `PHONE`. El contrato de referencia está en [API_REFERENCE.md](API_REFERENCE.md).
 
-Los archivos de documentación pueden actualizarse en \`main\` sin generar una nueva publicación npm. Solo una GitHub Release publicada activa el workflow de publicación del paquete.
+Los archivos de documentación pueden actualizarse en `main` sin generar una nueva publicación npm. Solo una GitHub Release publicada activa el workflow de publicación del paquete.

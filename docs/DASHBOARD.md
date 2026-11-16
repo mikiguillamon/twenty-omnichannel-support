@@ -23,6 +23,6 @@ Los registros históricos incluyen también los canales posteriormente desactiva
 
 ## Referencia REST de indicadores
 
-La página consulta \`GET /rest/supportCases\` para el total y con filtros \`status[eq]:"HUMAN_REQUIRED"\` o \`technicalStatus[eq]:"ERROR"\`. El indicador de evaluaciones incorrectas utiliza \`GET /rest/supportEvaluations\` con \`verdict[eq]:"INCORRECT"\`. En cada respuesta, el contador es \`totalCount\` a nivel raíz.
+La página consulta `GET /rest/supportCases` para el total y con filtros `status[eq]:"HUMAN_REQUIRED"` o `technicalStatus[eq]:"ERROR"`. El indicador de evaluaciones incorrectas utiliza `GET /rest/supportEvaluations` con `verdict[eq]:"INCORRECT"`. En cada respuesta, el contador es `totalCount` a nivel raíz.
 
-La visibilidad de las tarjetas se guarda con \`supportSettings.key=omnichannel.dashboard.visibleKpis\`. El \`valueText\` es un array JSON con \`total\`, \`pendingHuman\`, \`technicalError\` e \`incorrect\`. Las claves disponibles para la API de los demás objetos están documentadas en [API_REFERENCE.md](API_REFERENCE.md).
+La visibilidad de las tarjetas se guarda con `supportSettings.key=omnichannel.dashboard.visibleKpis`. El `valueText` es un array JSON con `total`, `pendingHuman`, `technicalError` e `incorrect`. Las claves disponibles para la API de los demás objetos están documentadas en [API_REFERENCE.md](API_REFERENCE.md).
