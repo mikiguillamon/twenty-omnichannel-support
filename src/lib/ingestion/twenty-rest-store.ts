@@ -40,7 +40,11 @@ export function serializeFilter(fields: Filter): string {
 
 /** Uses the workspace token provided by Twenty to the installed application's logic function. */
 export class TwentyRestIngestionStore implements IngestionStore {
-  constructor(private readonly api: RestApiClient = new RestApiClient({ runAs: 'application' })) {}
+  private readonly api: RestApiClient;
+
+  constructor(api: RestApiClient = new RestApiClient({ runAs: 'application' })) {
+    this.api = api;
+  }
 
   async list(resource: string, filter: Filter, limit = 2): Promise<DbRecord[]> {
     singular(resource); // Do not allow arbitrary REST resources.
