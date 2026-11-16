@@ -364,3 +364,26 @@ test('telephone recordings automatically appear on the case as well as on the me
   assert.equal(store.rowsFor('supportCases')[0].transcription, 'Hola');
   assert.equal(store.rowsFor('supportMessages')[0].body, 'Llamada entrante');
 });
+
+test('a duplicate event from a different contact cannot inject surnames into the linked Person', async () => {
+  const store = new MemoryStore();
+  await ingest(email({contact: {email: 'client@example.com', firstName: 'Alex'}}), store);
+  const duplicate = await ingest(email({contact: {
+    email: 'attacker@example.com', firstName: 'Unrelated', lastName: 'Injected',
+  }}), store);
+  assert.equal(duplicate.status, 'duplicate');
+  assert.equal(store.rowsFor('people')[0].name.lastName, '');
+  assert.equal(store.rowsFor('supportMessages').length, 1);
+});
+
+test('a Person without complete native name representation is never overwritten by enrichment', async () => {
+  const store = new MemoryStore();
+  store.rows.set('people', [{
+    id: 'person-partial', emails: {primaryEmail: 'client@example.com'},
+    name: {firstName: 'Protected'},
+  }]);
+  await ingest(email({contact: {
+    email: 'client@example.com', firstName: 'Other', lastName: 'New',
+  }}),store);
+  assert.deepEqual(store.rowsFor('people')[0].name,{firstName:'Protected'});
+});
