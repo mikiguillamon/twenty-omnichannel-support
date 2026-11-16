@@ -2,8 +2,19 @@ import { RestApiClient } from 'twenty-client-sdk/rest';
 import { type DbRecord, type Filter, type IngestionStore } from './processor.ts';
 
 type ApiResponse = { data?: Record<string, unknown> };
-const singular = (resource: string): string =>
-  resource === 'people' ? 'person' : resource.endsWith('s') ? resource.slice(0, -1) : resource;
+const OBJECTS: Record<string, string> = {
+  people: 'person',
+  supportChannels: 'supportChannel',
+  supportExternalIdentities: 'supportExternalIdentity',
+  supportIdentityAliases: 'supportIdentityAlias',
+  supportCases: 'supportCase',
+  supportMessages: 'supportMessage',
+};
+const singular = (resource: string): string => {
+  const name = OBJECTS[resource];
+  if (!name) throw new Error('Unsupported CRM resource');
+  return name;
+};
 
 function responseObject(response: ApiResponse, resource: string, operation: 'create' | 'update' | 'get'): DbRecord {
   const name = singular(resource);
@@ -32,15 +43,17 @@ export class TwentyRestIngestionStore implements IngestionStore {
   constructor(private readonly api: RestApiClient = new RestApiClient({ runAs: 'application' })) {}
 
   async list(resource: string, filter: Filter, limit = 2): Promise<DbRecord[]> {
+    singular(resource); // Do not allow arbitrary REST resources.
     const result = await this.api.get<ApiResponse>('/rest/' + resource, {
-      query: { filter: serializeFilter(filter), limit: Math.min(Math.max(limit, 1), 100), depth: 0 },
+      query: { filter: serializeFilter(filter), limit: Math.min(Math.max(limit, 1), 60), depth: 0 },
     });
     const records = result?.data?.[resource];
     if (!Array.isArray(records)) throw new Error('Twenty REST returned an unexpected list response for ' + resource);
     return records as DbRecord[];
   }
   async get(resource: string, id: string): Promise<DbRecord | null> {
-    if (!/^[a-zA-Z0-9-]+$/.test(id)) throw Error('Invalid record ID');
+    singular(resource);
+    if (!/^[a-fA-F0-9-]{36}$/.test(id)) throw Error('Invalid record ID');
     try {
       return responseObject(await this.api.get<ApiResponse>('/rest/' + resource + '/' + id), resource, 'get');
     } catch (error) {
@@ -49,6 +62,7 @@ export class TwentyRestIngestionStore implements IngestionStore {
     }
   }
   async create(resource: string, data: Record<string, unknown>): Promise<DbRecord> {
+    singular(resource);
     return responseObject(await this.api.post<ApiResponse>('/rest/' + resource, data), resource, 'create');
   }
   async update(resource: string, id: string, data: Record<string, unknown>): Promise<DbRecord> {
