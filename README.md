@@ -16,7 +16,7 @@ WhatsApp integrations can associate number-based JIDs and LIDs with the same cus
 
 ## How it connects
 
-The app stores cases, messages, FAQs and channel settings in Twenty. To receive or send messages, connect your own email or messaging provider through an automation tool such as **n8n**. The integration reads the settings for each channel and records messages and delivery results.
+The app stores cases, messages, FAQs and channel settings in Twenty. To receive or send messages, connect your own email or messaging provider through an automation tool such as **n8n**. The app provides a workspace-authenticated ingestion endpoint that receives normalized events and records identities, contacts, cases, messages and delivery status. Your automation tool only needs to connect to the provider and send one HTTP request.
 
 Omnichannel Support does not include a messaging gateway or an AI service. If you use a bot or a classifier, you configure it in your automation tool.
 
@@ -25,7 +25,13 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 1. Install Omnichannel Support from the Twenty Marketplace in your workspace.
 2. Open **Channels** in the support section of Twenty and add the inbox or account you want to connect.
 3. In **Conversation management**, choose how messages should be grouped into cases.
-4. Connect your provider using n8n and the Twenty CRM node. Test an incoming message and a reply before enabling the channel.
+4. Connect your provider to n8n and call the app's authenticated ingestion API. Test an incoming message, a retry and a reply before enabling the channel.
+
+## Ingestion API
+
+The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram and Telegram events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
+
+[Read the ingestion API guide](docs/INGESTION_API.md) for payload examples, authentication and rollout considerations.
 
 ## Guides
 
