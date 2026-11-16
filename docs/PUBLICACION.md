@@ -65,6 +65,12 @@ npm view <NOMBRE_PAQUETE> dist-tags --json
 
 Sustituir `<NOMBRE_PAQUETE>` por el identificador npm real. Confirmar procedencia (provenance), integridad del tarball, visibilidad en Twenty y una instalación de prueba. En este proyecto se espera que **`beta` y `latest` apunten a la nueva beta** después de cada publicación preliminar. `latest` también se utiliza para instalaciones npm sin versión indicada, por lo que esta decisión afecta a todos los usuarios; no generalizarla a otros paquetes sin autorizarla. Para promover una versión ya publicada, utilizar **Actions → Publish Omnichannel Support to npm → Run workflow**, indicar `version` (por ejemplo `0.3.0-beta.8`) y verificar `npm view twenty-omnichannel-support dist-tags --json`. Como alternativa, un mantenedor autenticado puede ejecutar `npm dist-tag add twenty-omnichannel-support@0.3.0-beta.8 latest`. No hace falta volver a publicar la versión. Si no se puede usar OIDC, revisar **Allow npm dist-tag** antes de crear tokens. El catálogo de Twenty 2.50 se sincroniza cada hora; se puede adelantar desde el CLI con remoto válido o mediante `yarn command:prod marketplace:catalog-sync` dentro del servidor.
 
+## Actualizar workspaces existentes
+
+Publicar una versión nueva en npm y promoverla a `latest` no implica una instalación inmediata en todos los workspaces. Primero, la instancia sincroniza el catálogo (en Twenty 2.50, normalmente cada hora). Después, los workspaces que tengan habilitada la actualización automática en la configuración de Omnichannel Support pueden actualizarse si son compatibles. En los demás, un administrador debe iniciar la actualización desde Twenty.
+
+Comprobar la versión realmente instalada en cada workspace y la compatibilidad con `engines.twenty`; no asumir que todos los servidores actualizarán automáticamente por el cambio de `latest`. No desinstalar para actualizar.
+
 ## Errores habituales
 
 - **Error OIDC o de autenticación:** revisar nombre de owner, repositorio, workflow, Environment y permisos del Trusted Publisher.
