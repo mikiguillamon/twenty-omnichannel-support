@@ -311,3 +311,56 @@ test('no identity-safe conversation can be silently marked informational during 
   assert.equal(result.reviewRequired,true);
   assert.equal(store.rowsFor('supportCases')[0].status,'HUMAN_REQUIRED');
 });
+
+test('structured surnames are saved in Twenty native Person name field', async () => {
+  const store = new MemoryStore();
+  await ingest(email({ contact: {
+    email: 'client@example.com', firstName: 'María del Mar', lastName: 'García López',
+  } }), store);
+  assert.deepEqual(store.rowsFor('people')[0].name, { firstName: 'María del Mar', lastName: 'García López' });
+});
+
+test('verified existing Person receives missing surname without overwriting curated names', async () => {
+  const store = new MemoryStore();
+  store.rows.set('people', [{
+    id: 'person-1', emails: { primaryEmail: 'client@example.com' },
+    name: { firstName: 'Alex', lastName: '' },
+  }]);
+  await ingest(email({ contact: {
+    email: 'client@example.com', firstName: 'Alexander', lastName: 'Pérez',
+  } }), store);
+  assert.deepEqual(store.rowsFor('people')[0].name, { firstName: 'Alex', lastName: 'Pérez' });
+  await ingest(email({ message: {
+    externalId: 'message-2', threadId: 'thread-1', body: 'Otro mensaje',
+  }, contact: {
+    email: 'client@example.com', firstName: 'Alexander', lastName: 'Otro Apellido',
+  } }), store);
+  assert.equal(store.rowsFor('people')[0].name.lastName, 'Pérez');
+});
+
+test('existing linked Person can be enriched during an idempotent replay', async () => {
+  const store = new MemoryStore();
+  await ingest(email({ contact: {email: 'client@example.com', name: 'Alex'} }), store);
+  const retry = await ingest(email({contact: {
+    email: 'client@example.com', firstName: 'Alex', lastName: 'Soler',
+  }}), store);
+  assert.equal(retry.status, 'duplicate');
+  assert.equal(store.rowsFor('people')[0].name.lastName, 'Soler');
+  assert.equal(store.rowsFor('supportMessages').length, 1);
+});
+
+test('telephone recordings automatically appear on the case as well as on the message', async () => {
+  const store = new MemoryStore('PHONE');
+  await ingest(normalizeEvent({
+    channelCode: 'phone-test', channelType: 'PHONE', provider: 'voip', accountId: 'line-1',
+    contact: {externalId: 'call-contact-1'},
+    message: {
+      externalId: 'call-5', issueKey: 'call-5', callTranscription: 'Hola',
+      callRecordingUrl: 'https://audio.example.com/5.mp3',
+    },
+  }), store);
+  assert.equal(store.rowsFor('supportCases')[0].recording.primaryLinkUrl, 'https://audio.example.com/5.mp3');
+  assert.equal(store.rowsFor('supportMessages')[0].callRecording.primaryLinkUrl, 'https://audio.example.com/5.mp3');
+  assert.equal(store.rowsFor('supportCases')[0].transcription, 'Hola');
+  assert.equal(store.rowsFor('supportMessages')[0].body, 'Llamada entrante');
+});
