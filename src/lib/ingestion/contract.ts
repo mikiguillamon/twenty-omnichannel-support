@@ -43,13 +43,14 @@ export type IngestEvent = {
 };
 
 export class IngestError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly status = 422,
-  ) {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(code: string, message: string, status = 422) {
     super(message);
     this.name = 'IngestError';
+    this.code = code;
+    this.status = status;
   }
 }
 
