@@ -6,7 +6,7 @@ import { effectivePolicy, getChannels, updateChannelPolicy, validatePolicy } fro
 import type { ChannelPolicy, ChannelType, SupportChannel } from '../lib/support-channels.ts';
 
 const channelLabel:Record<ChannelType,string> = {
-  EMAIL:'Email',WHATSAPP:'WhatsApp',INSTAGRAM:'Instagram',TELEGRAM:'Telegram',
+  EMAIL:'Email',WHATSAPP:'WhatsApp',INSTAGRAM:'Instagram',TELEGRAM:'Telegram',PHONE:'Llamadas',
 };
 
 function ChannelPolicies() {

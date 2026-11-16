@@ -14,6 +14,7 @@ export default defineObject({
       {value:'WHATSAPP',label:'WhatsApp',position:1,color:'green'},
       {value:'INSTAGRAM',label:'Instagram',position:2,color:'purple'},
       {value:'TELEGRAM',label:'Telegram',position:3,color:'blue'},
+      {value:'PHONE',label:'Llamadas telefónicas',position:4,color:'green'},
     ]},
     { universalIdentifier: IDS.CHANNEL_PROVIDER, name: 'provider', label: 'Proveedor', type: FieldType.TEXT, icon: 'IconPlug' },
     { universalIdentifier: IDS.CHANNEL_EXTERNALID, name: 'externalIdentifier', label: 'Identificador externo', type: FieldType.TEXT, icon: 'IconAt' },
