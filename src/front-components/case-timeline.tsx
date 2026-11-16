@@ -14,6 +14,8 @@ type SupportMessage = {
   deliveryStatus?: string | null;
   replyDecision?: string | null;
   externalKey?: string | null;
+  callTranscription?: string | null;
+  callRecording?: { primaryLinkUrl?: string | null; primaryLinkLabel?: string | null } | null;
 };
 
 const unwrap = (response: unknown): SupportMessage[] => {
@@ -82,6 +84,10 @@ function CaseTimeline() {
               <span>{message.occurredAt?new Date(message.occurredAt).toLocaleString('es-ES'):''}</span>
             </div>
             <div style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{message.body || message.draftBody || '(Sin contenido)'}</div>
+            {message.callTranscription && <details><summary>Transcripción de la llamada</summary>
+              <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{message.callTranscription}</p></details>}
+            {message.callRecording?.primaryLinkUrl?.startsWith('https://') && <a href={message.callRecording.primaryLinkUrl}
+              target="_blank" rel="noreferrer noopener">Escuchar grabación</a>}
             <div style={{marginTop:'8px',display:'flex',gap:'8px',fontSize:'11px',color:dark?'#CBD5E1':'#475569'}}>
               {message.deliveryStatus && <span>{message.deliveryStatus}</span>}
               {message.replyDecision && <span>· {message.replyDecision}</span>}
