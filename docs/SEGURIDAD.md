@@ -25,3 +25,16 @@ Antes de actualizar Twenty o la app, comprobar compatibilidad de esquema, permis
 ## Licencia
 
 El proyecto se distribuye bajo licencia MIT. El archivo `LICENSE` contiene los términos aplicables y debe conservarse cuando corresponda. La licencia de software no sustituye obligaciones contractuales, de privacidad o seguridad del servicio.
+
+
+## Endpoints y datos de llamadas
+
+La función \`POST /omnichannel/v1/ingest\` requiere autenticación en Twenty. Comprueba también los permisos de la app y del workspace que ejecuta la función. Un error en la autorización no debe resolverse publicando un webhook sin Bearer.
+
+La entrada valida el tipo de canal, proveedor, cuenta, IDs y límites de texto. Los mensajes necesitan IDs estables para que los reintentos sean idempotentes. El procedimiento de varios registros no constituye una transacción única de base de datos: ante un error de escritura, vuelve a intentar el mismo mensaje y comprueba que no haya datos parciales que precisen revisión.
+
+La API admite enlaces HTTPS de grabaciones, sin credenciales incrustadas, y los registra como \`LINKS\`. No comprueba que la URL sea privada ni que expire. Protege la descarga en el servicio de almacenamiento, aplica reglas de consentimiento y retención de llamadas y evita URLs con tokens permanentes.
+
+Los estados y categorías enviados desde una integración no deben utilizarse para eludir una revisión de identidad. Los eventos \`message.status\` solo cambian el estado de entrega del mensaje y no aceptan actualizaciones del objeto \`conversation\`.
+
+Documentación de referencia: [API_REFERENCE.md](API_REFERENCE.md).

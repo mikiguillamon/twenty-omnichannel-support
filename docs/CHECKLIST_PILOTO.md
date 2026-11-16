@@ -1,54 +1,53 @@
-# Checklist de validación de Omnichannel Support
+# Checklist para probar Omnichannel Support
 
-Esta lista sirve para probar una instalación nueva o actualizada antes de conectarla a comunicaciones reales.
+Ejecuta estas comprobaciones en un workspace aislado antes de instalar o actualizar una versión para clientes. La batería automatizada del repositorio no sustituye una prueba de sincronización real de Twenty ni del proveedor.
 
 ## Instalación y permisos
 
-- [ ] La versión instalada de Twenty está dentro del rango de compatibilidad declarado por la app.
-- [ ] La app muestra los nueve objetos y las relaciones con Persona y Tarea nativas.
-- [ ] Se puede crear un Canal, una Categoría, una FAQ y una Consulta desde Twenty.
-- [ ] Un usuario operativo con permisos limitados solo accede a los registros autorizados.
-- [ ] Las credenciales API están separadas por workspace y no existen secretos en `supportSettings`.
+- [ ] Twenty está dentro de la compatibilidad declarada por el paquete.
+- [ ] La app se instala o actualiza sin eliminar registros existentes.
+- [ ] Los nueve objetos personalizados están presentes.
+- [ ] El menú aparece como **Omnichannel → Conversaciones**.
+- [ ] Se conservan las relaciones, categorías, identificadores únicos y claves de mensajes anteriores.
+- [ ] Una Persona muestra pestaña Omnichannel con sus conversaciones e identidades vinculadas.
+- [ ] El token del workspace puede llamar al endpoint de ingestión y no tiene permisos innecesarios.
 
-## Integración con n8n
+## Mensajes y conversaciones
 
-- [ ] El nodo Twenty instalado permite buscar, crear y actualizar los objetos personalizados necesarios.
-- [ ] Las relaciones `personId`, `channelInstanceId`, `categoryId` y `supportCaseId` se han probado en esa versión.
-- [ ] El Canal empieza `DISABLED` y el workflow consulta `status=ACTIVE` antes de responder.
-- [ ] Un webhook recibido dos veces no crea dos Mensajes.
-- [ ] Se pueden crear Identidades externas distintas por proveedor/cuenta y vincularlas a Personas y Consultas.
-- [ ] Las identidades no verificadas pueden existir sin crear una Persona duplicada.
-- [ ] Los alias de WhatsApp son únicos por cuenta y proveedor, incluso en eventos concurrentes.
-- [ ] Un mismo contacto WhatsApp resuelve la misma identidad mediante JID de teléfono o LID, en cualquiera de los dos campos del evento.
-- [ ] Dos alias ya asociados a identidades distintas nunca causan una fusión automática.
-- [ ] Los mensajes conservan ambos JID originales y el ID real del mensaje del proveedor.
-- [ ] Las políticas de Canal se guardan desde la pestaña Gestión de consultas, y se leen con el nodo Twenty CRM.
-- [ ] Email agrupa respuestas en el hilo correcto; WhatsApp, Instagram y Telegram admiten política propia.
-- [ ] La app no llama a modelos de IA: cuando está permitida, la clasificación ocurre en n8n.
-- [ ] Dos ejecuciones concurrentes con la misma clave recuperan el registro existente.
-- [ ] Una Persona puede tener varias Consultas y cada Consulta varios Mensajes.
-- [ ] Se prueban los hilos de email y la separación de asuntos de WhatsApp.
-- [ ] Un eco de mensaje saliente no se registra como entrada de cliente.
-- [ ] `SKIP`, `ESCALATE` y `PENDING_REVIEW` no generan envíos no autorizados.
-- [ ] Los mensajes `SENT`, `DELIVERED` y `FAILED` dependen de confirmaciones reales.
-- [ ] Pausar el Canal bloquea nuevos envíos, incluso en ejecuciones iniciadas anteriormente.
-- [ ] Los errores se pueden reintentar sin duplicar envíos ni borrar el historial.
+- [ ] Un mensaje nuevo crea o encuentra Canal, identidad externa y Persona cuando existe una coincidencia fiable.
+- [ ] Un \`externalId\` repetido no crea mensajes duplicados.
+- [ ] Un segundo \`externalId\` del mismo hilo actualiza la conversación y puede cambiar \`status\` o \`followUp\`.
+- [ ] La omisión de \`conversation.summary\` conserva el resumen anterior.
+- [ ] Un evento duplicado no revierte un estado actualizado por otro mensaje posterior.
+- [ ] \`message.status\` cambia la entrega del mensaje existente, sin modificar \`supportCases.status\`.
+- [ ] Se rechazan \`categoryId\` y \`categoryCode\` juntos, categorías desconocidas y estados inválidos.
+- [ ] Una coincidencia dudosa exige revisión y no fusiona Personas automáticamente.
+- [ ] Los valores \`AUTOMATED\`, \`INFORMATIONAL\` y \`WAITING_INTERNAL\` aparecen en la interfaz.
 
-## UI y supervisión
+## WhatsApp y otros canales
 
-- [ ] El visor de Consulta muestra Mensajes en orden cronológico con sus estados.
-- [ ] Se contempla el límite de 100 mensajes del visor para históricos largos.
-- [ ] Las vistas Email, WhatsApp, Pendientes y Errores filtran correctamente.
-- [ ] El Resumen muestra datos reales o un error explícito cuando falla la consulta.
-- [ ] `technicalStatus`, `resolution`, `automation` y `verdict` se interpretan por separado.
-- [ ] Las FAQs solo se entregan al bot cuando están `PUBLISHED`.
-- [ ] Las Evaluaciones se asocian a la Consulta o al Mensaje que realmente revisan.
+- [ ] WhatsApp PN/LID y sus cambios de orden no generan identidades falsas.
+- [ ] Los grupos WhatsApp no entran por el endpoint de Personas.
+- [ ] Dos cuentas del mismo proveedor permanecen aisladas.
+- [ ] El Canal \`PHONE\` aparece en la configuración y acepta un evento de llamada con ID estable.
+- [ ] La transcripción se ve en el mensaje y, si procede, en la conversación.
+- [ ] La grabación se enlaza mediante HTTPS con protección de acceso.
+- [ ] Los Canales desactivados o pausados no provocan envíos automáticos desde n8n.
 
-## Operación segura
+## Resumen y dashboards
 
-- [ ] Se ha probado una caída del proveedor y su recuperación.
-- [ ] `health` y `lastHeartbeatAt` reflejan comprobaciones, no supuestos.
-- [ ] Existe una política para HTML, multimedia y adjuntos.
-- [ ] Hay una política de retención y supresión de datos personales.
-- [ ] Las actualizaciones se han probado sin pérdida de datos y sin desinstalaciones innecesarias.
-- [ ] La integración está validada con datos ficticios antes de activarse.
+- [ ] Los contadores REST cargan cifras reales o muestran ausencia de datos cuando hay un error.
+- [ ] Las tarjetas de KPI se pueden mostrar y ocultar por workspace.
+- [ ] La preferencia de visibilidad persiste en \`supportSettings\`.
+- [ ] Las tablas de atención humana y errores técnicos se abren.
+- [ ] Se pueden crear gráficos en los dashboards nativos de Twenty para ese workspace.
+
+## Publicación y reversión
+
+- [ ] Pruebas, comprobación de tipos, SDK build y tarball pasan en CI.
+- [ ] El paquete contiene licencia y excluye datos y credenciales sensibles.
+- [ ] El tag de la release coincide con el \`package.json\` publicado.
+- [ ] Las etiquetas npm \`beta\` y \`latest\` responden a la política de ese proyecto.
+- [ ] La instalación de prueba conserva los datos y permite volver al flujo anterior de n8n si falla la integración.
+
+Consulta [API Reference](API_REFERENCE.md), [Instalación](INSTALACION.md), [Seguridad](SEGURIDAD.md) y [Publicación](PUBLICACION.md).

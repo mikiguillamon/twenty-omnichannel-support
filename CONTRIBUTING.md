@@ -23,6 +23,8 @@ The check command validates the schema, runs TypeScript and builds the Twenty ap
 
 Keep existing `universalIdentifier` values stable when changing the schema. Test added fields and relations against a disposable workspace before updating one that contains support data. Changes to the README will also change the Marketplace About page in the next published package.
 
+The ingestion contract is documented in [docs/API_REFERENCE.md](docs/API_REFERENCE.md). Keep it in sync with `src/lib/ingestion/contract.ts`, `processor.ts`, response statuses and tests when changing the API. Provider integration examples should use the authenticated ingestion endpoint instead of rebuilding the CRM write path with individual n8n nodes.
+
 ## Application architecture
 
 - `supportCases` and `supportMessages` store enquiries and individual messages.

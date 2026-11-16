@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0-beta.12 - Conversation metadata, phone calls and workspace overview
+
+- Added conversation states `AUTOMATED`, `INFORMATIONAL` and `WAITING_INTERNAL`, plus follow-up tracking, language, comments, transcription and recording links.
+- Extended the authenticated ingestion API so each new message can set or update conversation status and metadata. Delivery notifications remain separate, and retries do not reapply stale conversation changes.
+- Added `PHONE` channels, call-level transcriptions and recording URLs. Call transport and audio storage remain external.
+- Renamed the customer-support menu to **Omnichannel** and the case object to **Conversaciones** in the interface. REST resource names and existing universal identifiers are unchanged.
+- Added an Omnichannel tab and view on native People records to expose related conversations and identities.
+- Switched overview counters from the previous GraphQL request to separate REST queries. Visibility of the four built-in KPIs is configurable per workspace; native Twenty dashboards provide additional charts.
+- Expanded integration tests and SDK checks. See [API reference](docs/API_REFERENCE.md), [n8n integration](docs/INTEGRACION_N8N.md) and [upgrade checklist](docs/CHECKLIST_PILOTO.md).
+
+
 ## 0.3.0-beta.11 — Channel deletion permission fix
 
 - Grant the application's role `Destroy` for Support Channels only, while keeping conversations and identities protected.

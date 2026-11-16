@@ -96,3 +96,12 @@ Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md), [CONFIGURACION_CANALES.md](CO
 ## Estado y seguimiento mediante ingestión
 
 Cada nuevo mensaje puede traer `conversation.status` y `conversation.followUp`. Un mensaje automatizado de bienvenida que no necesita agente puede marcarse `INFORMATIONAL` o `AUTOMATED` sin alterar `resolution`. Ante una identidad o hilo ambiguo se exige revisión humana. Los reintentos no vuelven a aplicar estados antiguos; los eventos de entrega tampoco cambian el estado de la conversación.
+
+
+## Alcance actual del endpoint
+
+El endpoint \`POST /omnichannel/v1/ingest\` aplica las reglas de asociación que están implementadas en el procesador: referencias verificadas a una conversación o mensaje, claves de asunto, hilo para modo \`THREAD\` y actividad reciente para \`SESSION\`. En \`MANUAL\` y \`HYBRID\` puede pedir revisión si no hay una referencia segura.
+
+Los campos de clasificación semántica, reapertura y cierre automático son políticas de configuración. No activan por sí mismos un clasificador de IA ni un proceso programado. El proveedor o n8n deben implementar esas actuaciones cuando correspondan.
+
+Al añadir un mensaje nuevo, \`conversation.status\` y \`conversation.followUp\` permiten actualizar el estado general. La notificación \`message.status\` se limita a la entrega. Los ejemplos de payload y todas las opciones de estado están en [API_REFERENCE.md](API_REFERENCE.md).

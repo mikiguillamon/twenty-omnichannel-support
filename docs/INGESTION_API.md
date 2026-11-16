@@ -1,5 +1,7 @@
 # API de ingestión de mensajes
 
+La [referencia completa de API](API_REFERENCE.md) contiene todos los campos del contrato, códigos de error, respuestas y ejemplos. Esta guía explica su integración operativa.
+
 Omnichannel Support incorpora un endpoint de ingestión en la propia aplicación de Twenty. n8n conserva la recepción, el envío y la adaptación de los eventos de cada proveedor; Twenty resuelve contactos, identidades, consultas y el historial.
 
 ## Requisitos

@@ -33,3 +33,10 @@ La función `whatsappAliases` de `src/lib/whatsapp-identities.ts` implementa nor
 Para pruebas, verificar las cuatro situaciones: solo PN, solo LID, ambos JIDs del mismo contacto (en cualquier orden), y ambos JIDs previamente vinculados a identidades diferentes. Repetir con dos cuentas receptoras distintas. Confirmar que el evento duplicado no crea alias, Mensajes ni Consultas duplicadas.
 
 La aplicación almacena datos y relaciones; las consultas, validaciones y actuaciones corresponden a n8n. [Políticas de conversación](POLITICAS_CONVERSACION.md).
+
+
+## Ingestión actual mediante el endpoint de la app
+
+Para los flujos que utilicen la API de la app, puedes enviar \`remoteJid\` y \`remoteJidAlt\` en \`contact\`, \`message\` o en el nivel superior del JSON. La función normaliza PN/LID y consulta los alias en \`supportIdentityAliases\` antes de asociar la identidad. Ante conflictos entre identidades, fuerza revisión.
+
+No necesitas ejecutar tú mismo toda la secuencia de búsqueda y creación de identidades con nodos individuales de Twenty. El procedimiento anterior con nodos REST/CRM es útil cuando decides trabajar fuera del endpoint o necesitas una operación específica, pero el flujo recomendado es [INTEGRACION_N8N.md](INTEGRACION_N8N.md). Consulta también los campos y ejemplos exactos en [API_REFERENCE.md](API_REFERENCE.md).

@@ -81,3 +81,12 @@ Una cuenta puede entregar un PN JID y un LID del mismo interlocutor en `remoteJi
 ## Personas y llamadas
 
 La app amplía la ficha nativa de Persona con una pestaña Omnichannel y dos tablas de relaciones: Conversaciones e Identidades vinculadas a canales. Una identidad sin Persona fiable no se fusiona automáticamente. El Canal `PHONE` permite crear registros de llamadas, transcripciones y enlaces seguros a grabaciones, sin almacenar audio binario.
+
+
+## Contrato API de la versión 0.3.0-beta.12
+
+El handler autenticado \`/omnichannel/v1/ingest\` recibe eventos \`message.received\`, \`message.sent\` y \`message.status\`. Normaliza las claves externas dentro del ámbito del Canal y su cuenta. Con mensajes nuevos permite actualizar de forma parcial los metadatos de \`supportCases\` con el bloque \`conversation\`.
+
+En el modelo \`supportMessages\` se incluyen \`callTranscription\` y \`callRecording\`. A nivel \`supportCases\` están \`followUp\`, \`followUpAt\`, \`comments\`, \`language\`, \`transcription\` y \`recording\`. Los campos de tipo \`LINKS\` almacenan referencias a audio, no archivos.
+
+Los cambios de etiquetas visibles no alteran los nombres de recursos REST: \`supportCases\` sigue representando las conversaciones. [API Reference](API_REFERENCE.md) detalla el contrato y las validaciones.

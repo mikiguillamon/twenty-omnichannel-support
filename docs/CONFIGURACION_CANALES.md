@@ -1,6 +1,8 @@
 # Configurar canales por workspace
 
-Un Canal es un buzón, número, bot o cuenta concreta, con su propio `code`, tipo, proveedor e identificador externo. Un workspace puede disponer de varios Canales de email, WhatsApp, Instagram y Telegram.
+Las integraciones actuales pueden registrar eventos mediante un único [endpoint de ingestión autenticado](API_REFERENCE.md), que también permite actualizar el estado y los metadatos de la conversación al añadir un mensaje. Las reglas de transporte y envío continúan en el proveedor y su automatización.
+
+Un Canal es un buzón, número, bot o cuenta concreta, con su propio `code`, tipo, proveedor e identificador externo. Un workspace puede disponer de varios Canales de email, WhatsApp, Instagram, Telegram y llamadas telefónicas (`PHONE`).
 
 ## Preparación
 

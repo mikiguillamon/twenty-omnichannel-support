@@ -1,40 +1,51 @@
-# Instalación y validación de Omnichannel Support
+# Instalar y actualizar Omnichannel Support
+
+La aplicación funciona por workspace dentro de Twenty. Cada instalación mantiene sus propios canales, categorías, conversaciones, identidades y ajustes. El paquete de código \`0.3.0-beta.12\` declara compatibilidad con Twenty \`>=2.50.0 <2.51.0\`.
 
 ## Requisitos
 
-- Una instancia de Twenty dentro del rango declarado en `engines.twenty` del paquete.
-- Permisos para instalar aplicaciones en el workspace de destino.
-- Una versión publicada y disponible de la aplicación, o un enlace de distribución privada proporcionado por su propietario.
-- Un workspace de pruebas separado de los datos reales para validar la actualización o la primera instalación.
-- Para integrar n8n, una API key independiente del workspace y un nodo Twenty cuya compatibilidad con objetos personalizados se haya comprobado. La app por sí sola no sincroniza comunicaciones.
+Necesitas una instancia de Twenty compatible, permisos para instalar aplicaciones y una versión distribuida desde el Marketplace o por el mecanismo privado correspondiente. Para registrar eventos, prepara una API key del workspace que vaya a recibirlos.
 
-No es necesario instalar Node.js o Yarn en el equipo de cada usuario de Twenty. Son herramientas de desarrollo y empaquetado.
+El esquema se compone de los objetos \`supportCases\`, \`supportMessages\`, \`supportChannels\`, \`supportExternalIdentities\`, \`supportIdentityAliases\`, \`supportCategories\`, \`supportFaqs\`, \`supportEvaluations\` y \`supportSettings\`. Personas y Tareas son objetos nativos de Twenty que la app puede relacionar.
 
-## Instalación desde la interfaz
+## Instalar desde Twenty
 
-1. Abrir las aplicaciones o el Marketplace desde Twenty, con una cuenta autorizada.
-2. Localizar Omnichannel Support y comprobar la compatibilidad de su versión. Si se utiliza una distribución privada, abrir el enlace proporcionado por el propietario de la aplicación desde el workspace de destino.
-3. Instalar la aplicación. Confirmar que aparecen Consultas, Canales, FAQs, Categorías, Evaluaciones, Configuración, Identidades externas, Alias de identidad y Resumen.
-4. Crear una Persona ficticia y un Canal de prueba que comience desactivado. Abrir **Canales → Gestión de consultas** y guardar su política.
-5. Crear una Categoría y una FAQ en `DRAFT`, después publicarla y comprobar que puede filtrarse por `PUBLISHED`.
-6. Crear una Consulta relacionada con la Persona y el Canal, y dos Mensajes ficticios, uno `INBOUND` y otro `OUTBOUND`. Registrar `SENT` únicamente si se produjo un envío de prueba realmente aceptado.
-7. Comprobar las relaciones y el historial desde la ficha de Consulta.
-8. Crear una Evaluación relacionada con el Mensaje correspondiente. Probar la vista de respuestas incorrectas.
-9. Comprobar las vistas de pendientes humanos y errores técnicos mediante los estados de Consulta.
-10. Verificar Resumen, permisos de usuarios operativos y aislamiento entre workspaces.
+1. Abre el Marketplace del workspace y localiza Omnichannel Support. Comprueba nombre, versión y compatibilidad.
+2. Instala la app y espera a que Twenty aplique su esquema. Verifica que el menú se llama **Omnichannel** y que contiene **Conversaciones**, Canales, FAQs, Categorías, Evaluaciones, Ajustes e Identidades externas.
+3. Abre una Persona de prueba para comprobar la pestaña Omnichannel, que muestra Conversaciones e identidades relacionadas.
+4. Comprueba que la página Resumen carga los cuatro contadores REST y permite elegir cuáles se muestran.
+5. Crea una Categoría con \`code\` estable si vas a clasificar conversaciones. Añade después un Canal desactivado, seleccionando Email, WhatsApp, Instagram, Telegram o PHONE.
+6. Configura la política de conversación del Canal. Para correo puedes usar agrupación por hilo. Para chats, revisa los modos de actividad y los casos ambiguos.
 
-## Conectar n8n
+La app no instala ni configura Gmail, Evolution API, Telegram, Instagram o una centralita. El transporte se gestiona desde el proveedor y, normalmente, con n8n.
 
-1. Configurar una credencial Twenty en n8n con permisos mínimos para el workspace.
-2. Comprobar que el nodo Twenty admite las operaciones necesarias sobre los objetos personalizados y sus relaciones. El API Playground de Twenty permite verificar el esquema.
-3. Configurar el proveedor del Canal y un flujo que resuelva identidad externa y sus alias, Persona (si procede), Consulta y Mensaje con las reglas del Canal. Para email, mantener las respuestas dentro del hilo correspondiente.
-4. Probar deduplicación, confirmaciones, ecos, pausas, reintentos y escalados con datos ficticios.
-5. Activar el Canal desde Twenty después de las pruebas; el workflow debe respetar el estado y comprobarlo otra vez antes de cada envío.
+## Conectar el endpoint autenticado
 
-Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md) para el procedimiento completo.
+Prepara un HTTP Request desde n8n al endpoint del workspace:
 
-## Actualizaciones y reversión
+\`\`\`http
+POST https://TWENTY_HOST/s/omnichannel/v1/ingest
+Authorization: Bearer TOKEN_DEL_WORKSPACE
+Content-Type: application/json
+\`\`\`
 
-Actualizar desde Twenty cuando haya una versión compatible, conservando los datos existentes. Si el workspace tiene activada la actualización automática para esta app, la nueva versión compatible puede aplicarse después de sincronizar el catálogo; si no, el administrador debe actualizarla desde la ficha de la app. Publicar en npm no fuerza las actualizaciones existentes. Comprobar el cambio previamente en un workspace o instancia aislada, en particular cuando cambia el origen de instalación entre distribución privada y catálogo público. No desinstalar la versión anterior como método habitual de actualización.
+Confirma la URL efectiva de la función en tu Twenty. La definición interna es \`/omnichannel/v1/ingest\`, y el handler exige autenticación.
 
-Verificar después de actualizar los nueve objetos, las relaciones, el historial, las vistas, los permisos, el nodo de n8n y una operación de prueba. Ante una regresión, detener los envíos automáticos y preparar una reversión compatible con el esquema de datos y la política de copias de seguridad, sin asumir que desinstalar restaura automáticamente el estado anterior.
+Envía \`channelCode\`, los datos de \`contact\` y de \`message\`. Para añadir o actualizar estado, seguimiento, categoría o resumen al incorporar un mensaje, incluye \`conversation\`. Consulta [API Reference](API_REFERENCE.md) y [n8n](INTEGRACION_N8N.md).
+
+Antes de activar un Canal, prueba la creación de un mensaje, un reintento con la misma ID estable, un segundo mensaje del mismo asunto y un acuse \`message.status\`. Comprueba la vinculación correcta a Persona y que el estado no se modifica por un acuse de entrega.
+
+## Actualizar una instalación
+
+1. Haz copia de seguridad de la base de datos y confirma qué versión de la app tiene instalada cada workspace.
+2. Revisa [CHANGELOG](../CHANGELOG.md), compatibilidad y campos añadidos. No cambies los identificadores universales de objetos ni campos existentes.
+3. Actualiza primero un workspace de prueba con datos representativos. La actualización debe conservar los objetos y sus registros; **no desinstales la app** para actualizarla.
+4. Comprueba las opciones nuevas de \`status\`, \`followUp\`, el canal \`PHONE\`, los campos de llamadas, la ficha de Persona y el Resumen.
+5. Ejecuta [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md) y valida un envío real al endpoint con una credencial de pruebas.
+6. Sincroniza el Marketplace cuando sea necesario y actualiza los demás workspaces de forma controlada. La publicación npm y el catálogo de Twenty son procesos distintos.
+
+## Rollback y límites
+
+Volver a un paquete anterior puede dejar campos nuevos que esa versión desconoce. Antes de hacer rollback, revisa compatibilidad y conserva una copia de los datos. No borres manualmente los nuevos campos para ocultar un problema de interfaz.
+
+La función de ingestión no envía mensajes ni genera grabaciones. Las URLs de audio se guardan como enlaces HTTPS que deben estar protegidos. Para diagnóstico y errores de permisos, revisa [Seguridad](SEGURIDAD.md), [Referencia API](API_REFERENCE.md) y [Publicación](PUBLICACION.md).

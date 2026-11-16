@@ -33,9 +33,13 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 
 The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram, Telegram and phone events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
 
-[Read the ingestion API guide](docs/INGESTION_API.md) for payload examples, authentication and rollout considerations.
+[Read the complete API reference](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/API_REFERENCE.md) for endpoints, fields, validation rules, response codes and examples. See the [integration guide](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/INTEGRACION_N8N.md) for n8n setup.
 
 ## Guides
+
+- [API reference](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/API_REFERENCE.md)
+- [Daily operations and conversation statuses](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/OPERATIVA.md)
+- [Workspace dashboards](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/DASHBOARD.md)
 
 - [Installation and first setup](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/INSTALACION.md)
 - [Connecting n8n and Twenty](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/INTEGRACION_N8N.md)

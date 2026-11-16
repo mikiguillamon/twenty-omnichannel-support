@@ -1,36 +1,41 @@
 # Operación diaria de Omnichannel Support
 
-## Resumen
+## Revisar el Resumen
 
-Abrir **Atención al cliente > Resumen** para revisar Consultas registradas, pendientes humanos, errores técnicos y evaluaciones incorrectas. Estos indicadores son acumulados. Para analizar un periodo concreto, utilizar dashboards con filtros temporales cuando la versión de Twenty lo permita. Si falla una consulta de métricas, revisar permisos o GraphQL; no interpretar los datos ausentes como cero.
+En **Omnichannel → Resumen** aparecen contadores de conversaciones registradas, atención humana pendiente, errores técnicos y evaluaciones incorrectas. Cada contador se lee por REST y puede fallar independientemente de los demás. Un valor no disponible no equivale a cero.
 
-## Gestionar Consultas
+Selecciona **Personalizar indicadores** para elegir qué tarjetas mostrar en el workspace. Las gráficas por periodo, canal y categoría se crean en los dashboards nativos de Twenty.
 
-En Consultas se encuentran las vistas de Email, WhatsApp, Pendientes de agente y Errores técnicos. Abrir una Consulta para revisar sus detalles y el historial de Mensajes. El visor presenta hasta 100 Mensajes en orden cronológico; para conversaciones más largas, consultar la relación nativa de Mensajes.
+## Gestionar conversaciones
 
-Cuando se asigne atención humana, utilizar `status=HUMAN_REQUIRED`, registrar `escalatedAt` y completar `assignedTo` si se conoce. Cambiar el estado a `IN_PROGRESS` cuando un agente se haga cargo. Marcar `RESOLVED` o `CLOSED` según el procedimiento de atención adoptado y mantener `resolution` coherente con el resultado comprobado.
+Abre **Omnichannel → Conversaciones**. Puedes filtrar por Canal, estado, categoría o fechas. En el detalle se muestran los datos de la conversación y una pestaña de mensajes ordenados, con enlaces a grabaciones y transcripciones cuando existen.
 
-## Interpretar los resultados
+Para comunicaciones automatizadas, marca \`AUTOMATED\` o \`INFORMATIONAL\` cuando no hagan falta personas. Reserva \`HUMAN_REQUIRED\` para casos que requieren atención humana. Los otros estados son \`NEW\`, \`IN_PROGRESS\`, \`WAITING_CUSTOMER\`, \`WAITING_INTERNAL\`, \`RESOLVED\` y \`CLOSED\`.
 
-- `technicalStatus` describe el proceso de automatización, no la satisfacción del cliente.
-- `resolution` indica si se solucionó la consulta.
-- `automation` registra el grado de intervención automática.
-- `supportEvaluations.verdict` recoge una revisión humana, que puede estar pendiente.
+El seguimiento tiene su propio selector: \`NONE\`, \`REQUIRED\`, \`SCHEDULED\`, \`WAITING_RESPONSE\`, \`IN_PROGRESS\`, \`COMPLETED\` o \`CANCELLED\`. Utiliza \`followUpAt\` para la próxima fecha. \`summary\`, \`comments\` y \`language\` ayudan a mantener contexto sin mezclarlo con el contenido de los mensajes.
 
-Una tasa de calidad necesita su denominador: elementos revisados sobre elementos elegibles. No atribuir la misma tasa a todos los Mensajes cuando solo se evalúa una muestra.
+Los campos \`resolution\`, \`automation\` y \`technicalStatus\` son independientes del estado de atención. Un envío técnico correcto no significa que la incidencia esté resuelta.
 
-## Canales y FAQs
+## Ver el historial de una Persona
 
-En Canales, revisar por separado el estado operativo, la salud técnica y las reglas de Gestión de consultas. Los canales existentes pueden requerir guardar su política tras la actualización. Los campos de heartbeat y evento deben proceder de comprobaciones observadas. La pausa o desactivación en Twenty necesita que el workflow externo consulte el estado para detener nuevos envíos.
+Abre la ficha de Persona y entra en la pestaña **Omnichannel**. Encontrarás las conversaciones y las identidades externas que se han vinculado con seguridad. Si la integración no puede identificar a la Persona, la conversación sigue disponible en Omnichannel y su identidad externa puede consultarse por separado.
 
-Publicar FAQs revisadas con `status=PUBLISHED`; mantener borradores en `DRAFT` y archivar respuestas obsoletas. La app no crea automáticamente un historial de revisiones. Los bots deben consultar FAQs por idioma, categoría y publicación.
+En WhatsApp se guardan los alias PN y LID dentro de la identidad correspondiente. Revisa las vinculaciones dudosas antes de asociar una identidad a una Persona.
 
-## Evaluaciones y seguimiento
+## Llamadas y grabaciones
 
-Evaluar una Consulta completa o un Mensaje individual, indicando `targetScope` y la relación apropiada. Anotar `verdict`, comentario y propuesta de corrección cuando corresponda. Vincular una tarea nativa de Twenty si existe trabajo pendiente, comprobando que la relación `taskId` apunta a la tarea real. El campo textual `linkedTaskId` no reemplaza esa relación.
+Un Canal \`PHONE\` permite registrar llamadas con transcripción por mensaje y por conversación. Las grabaciones aparecen como enlaces HTTPS al almacenamiento externo. Comprueba sus permisos de acceso antes de compartir el registro.
 
-## Comprobaciones periódicas
+La app no realiza llamadas, no graba audio y no transcribe automáticamente. Esas acciones corresponden al proveedor de telefonía o al flujo de integración.
 
-Revisar el estado de los Canales, los casos humanos sin responsable, los errores de automatización, las respuestas incorrectas y las FAQs pendientes de actualización. Aplicar políticas de privacidad y retención sobre los datos registrados.
+## Canales, FAQs y evaluaciones
 
-Para las reglas de ingestión y envío, consultar [Integración con n8n](INTEGRACION_N8N.md).
+En Canales puedes consultar el estado operativo y gestionar las políticas de agrupación. \`ACTIVE\` permite trabajar según la política externa, pero no garantiza conectividad del proveedor. Para frenar envíos, pausa el canal y asegúrate de que n8n consulta ese estado.
+
+Mantén las FAQs con contenido revisado y categoría asignada cuando proceda. Una FAQ \`PUBLISHED\` puede ser utilizada por las automatizaciones; una \`DRAFT\` sigue pendiente de revisión. Registra las Evaluaciones de conversaciones o mensajes como trabajo de calidad, con su propio resultado y correcciones.
+
+## API y resolución de problemas
+
+La función \`POST /s/omnichannel/v1/ingest\` puede crear un mensaje nuevo y actualizar los metadatos de su conversación mediante el bloque \`conversation\`. Un evento \`message.status\` actualiza únicamente la entrega del mensaje original. Utiliza IDs estables para evitar duplicados.
+
+Para errores de ingestión, revisa \`reviewRequired\`, el código devuelto por la API, permisos, canal, proveedor, cuenta e ID del mensaje. Consulta [API Reference](API_REFERENCE.md), [Integración n8n](INTEGRACION_N8N.md) y [Checklist de pruebas](CHECKLIST_PILOTO.md).
