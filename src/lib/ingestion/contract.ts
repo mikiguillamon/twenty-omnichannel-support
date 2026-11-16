@@ -107,6 +107,9 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   if (eventType === 'message.status' && !externalId) {
     throw new IngestError('MISSING_MESSAGE_ID', 'A status event requires the original provider message ID');
   }
+  if (eventType === 'message.status' && !(message.deliveryStatus ?? top.deliveryStatus)) {
+    throw new IngestError('MISSING_STATUS', 'A status event must include deliveryStatus');
+  }
 
   const fromAddress = max(string(message.fromAddress ?? message.from ?? top.fromAddress), 500, 'fromAddress');
   const toAddress = max(string(message.toAddress ?? message.to ?? top.toAddress), 500, 'toAddress');
@@ -161,7 +164,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     message: {
       direction,
       senderType: sender as IngestEvent['message']['senderType'],
-      deliveryStatus: status(message.deliveryStatus ?? top.deliveryStatus, direction),
+      deliveryStatus: status(message.deliveryStatus ?? top.deliveryStatus ?? (eventType === 'message.sent' ? 'SENT' : undefined), direction),
       body: body || '[Message without text or with attachment]',
       subject: subject || 'Support enquiry',
       fromAddress, toAddress,
