@@ -186,7 +186,11 @@ export function keys(event: IngestEvent, channel: { channelType: string; provide
   if (event.channelType && event.channelType !== channelType) {
     throw new IngestError('CHANNEL_TYPE_MISMATCH', 'channelType does not match configured channel');
   }
-  const provider = event.provider || lower(channel.provider) || channelType.toLowerCase();
+  const configuredProvider = lower(channel.provider);
+  if (configuredProvider && event.provider && configuredProvider !== event.provider) {
+    throw new IngestError('PROVIDER_MISMATCH', 'Provider does not match the configured channel');
+  }
+  const provider = configuredProvider || event.provider || channelType.toLowerCase();
   const accountId = event.accountId || lower(channel.externalIdentifier);
   if (!accountId) throw new IngestError('MISSING_ACCOUNT', 'accountId or channel.externalIdentifier is required');
   if (event.accountId && channel.externalIdentifier && lower(channel.externalIdentifier) !== event.accountId) {
