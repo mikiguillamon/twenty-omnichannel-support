@@ -48,6 +48,8 @@ export type IngestEvent = {
   contactEmail: string;
   contactPhone: string;
   contactName: string;
+  contactFirstName: string;
+  contactLastName: string;
   personId: string | null;
   personVerified: boolean;
   conversation: ConversationPatch;
@@ -251,6 +253,10 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
 
   const body = max(string(message.body ?? message.text ?? top.body), 100000, 'body');
   const subject = max(string(message.subject ?? top.subject), 500, 'subject');
+  const contactFirstName = max(string(contact.firstName ?? top.firstName), 255, 'contact.firstName');
+  const contactLastName = max(string(contact.lastName ?? top.lastName), 255, 'contact.lastName');
+  const contactName = max(string(contact.name ?? top.displayName) ||
+    [contactFirstName, contactLastName].filter(Boolean).join(' '), 500, 'contact.name');
   const localId = externalId || fallbackId || 'generated-' + makeId();
   if (!externalId && !fallbackId && localId.length > 330) throw new IngestError('INVALID_ID', 'Invalid fallback ID');
 
@@ -267,7 +273,9 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     externalUserId: userId || primaryJid || altJid,
     contactEmail: email,
     contactPhone: max(string(contact.phone ?? top.originPhone), 80, 'contact.phone'),
-    contactName: max(string(contact.name ?? top.displayName), 500, 'contact.name'),
+    contactName,
+    contactFirstName,
+    contactLastName,
     personId: string(contact.personId ?? top.personId) || null,
     personVerified: contact.verified === true,
     conversation,
@@ -276,8 +284,9 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
       direction,
       senderType: sender as IngestEvent['message']['senderType'],
       deliveryStatus: status(message.deliveryStatus ?? top.deliveryStatus ?? (eventType === 'message.sent' ? 'SENT' : undefined), direction),
-      body: body || '[Message without text or with attachment]',
-      subject: subject || 'Support enquiry',
+      body: body || (type === 'PHONE' ? (direction === 'OUTBOUND' ? 'Llamada saliente' : 'Llamada entrante')
+        : '[Message without text or with attachment]'),
+      subject: subject || (type === 'PHONE' ? 'Llamada telefónica' : 'Support enquiry'),
       fromAddress, toAddress,
       occurredAt: occurred.toISOString(),
       threadId: max(string(message.threadId ?? top.threadId), 350, 'threadId'),
