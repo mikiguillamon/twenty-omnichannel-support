@@ -73,11 +73,21 @@ function ChannelSetup() {
       setFeedback('Canal eliminado. Las consultas, mensajes e identidades permanecen en Twenty, desvinculados de este canal.');
     } catch (reason) {
       const code=reason instanceof Error?reason.message:'';
+      const status=reason && typeof reason==='object' && 'status' in reason
+        ? (reason as {status?:unknown}).status : null;
       setError(code==='CHANNEL_NOT_DISABLED'
         ? 'El canal ya no está desactivado. Actualiza la lista y vuelve a intentarlo.'
         : code==='CHANNEL_CHANGED'
           ? 'El canal ha cambiado. Actualiza la lista y vuelve a confirmar.'
-          : 'No se pudo eliminar el canal. Comprueba tu permiso de eliminación definitiva (Destroy) y las relaciones en Twenty.');
+          : code==='CHANNEL_READ_FAILED'
+            ? 'Twenty ha devuelto una respuesta inesperada al comprobar el canal. No se ha enviado ninguna petición de borrado.'
+            : status===403
+              ? 'Twenty rechaza la eliminación (HTTP 403). El usuario y el rol de Omnichannel Support deben tener permiso Destroy sobre Canales.'
+              : status===401
+                ? 'Twenty rechaza la sesión (HTTP 401). Vuelve a entrar y comprueba los permisos.'
+                : status===404
+                  ? 'Twenty no encuentra el canal (HTTP 404). Actualiza la lista antes de intentarlo otra vez.'
+                  : 'No se pudo eliminar el canal'+(typeof status==='number'?' (HTTP '+status+')':'')+'. Detalle: '+(code||'error desconocido'));
     } finally {
       setBusy(false);setRevision(n=>n+1);
     }
