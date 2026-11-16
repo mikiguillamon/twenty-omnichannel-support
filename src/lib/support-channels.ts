@@ -106,3 +106,34 @@ export async function updateChannelPolicy(id:string, channelType:ChannelType, po
   if (error) throw Error(error);
   await new RestApiClient().patch('/rest/supportChannels/'+encodeURIComponent(id), policy);
 }
+
+/**
+ * Permanently remove a disabled channel, without deleting its conversations.
+ *
+ * The two incoming relations (from cases and external identities) use SET_NULL.
+ * The browser-side client acts as the current user, so Twenty enforces that
+ * user's Destroy permission for the Channel object.
+ */
+export async function destroyDisabledChannel(id: string, expectedCode: string | null): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('CHANNEL_INVALID_ID');
+  }
+  const client = new RestApiClient();
+  const path = '/rest/supportChannels/' + encodeURIComponent(id);
+  // A card can be stale: check the exact record just before issuing DELETE.
+  const response: unknown = await client.get(path, { query: { fields: 'id,code,status' } });
+  if (!response || typeof response !== 'object') throw new Error('CHANNEL_READ_FAILED');
+  const root = response as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object'
+    ? root.data as Record<string, unknown> : root;
+  const value = data.supportChannel ?? data.record ?? data;
+  if (!value || typeof value !== 'object') throw new Error('CHANNEL_READ_FAILED');
+  const channel = value as Record<string, unknown>;
+  if (channel.id !== id || (channel.code ?? null) !== expectedCode) {
+    throw new Error('CHANNEL_CHANGED');
+  }
+  if (channel.status !== 'DISABLED') throw new Error('CHANNEL_NOT_DISABLED');
+  // Hard delete releases the unique code, whereas soft delete keeps it taken.
+  // Cases, messages and external identities must never be deleted here.
+  await client.delete(path, { query: { soft_delete: 'false' } });
+}
