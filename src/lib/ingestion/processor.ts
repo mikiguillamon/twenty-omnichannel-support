@@ -44,12 +44,20 @@ async function insertUnique(
     throw error;
   }
 }
-const verifyCase = (candidate: DbRecord | null, channelId: string, identityId: string | null, personId: string | null): boolean => {
+const verifyCase = (
+  candidate: DbRecord | null, channelId: string,
+  identityId: string | null, personId: string | null, email: string,
+): boolean => {
   if (!candidate || recordId(candidate.channelInstanceId) !== channelId) return false;
-  const associatedIdentity = recordId(candidate.externalIdentityId);
-  const associatedPerson = recordId(candidate.personId);
-  return !(identityId && associatedIdentity && identityId !== associatedIdentity)
-    && !(personId && associatedPerson && personId !== associatedPerson);
+  if (!identityId && !personId && !email) return false;
+  const linkedIdentity = recordId(candidate.externalIdentityId);
+  const linkedPerson = recordId(candidate.personId);
+  if (linkedIdentity && linkedIdentity !== identityId) return false;
+  if (linkedPerson && linkedPerson !== personId) return false;
+  // A case ID alone does not establish who owns a conversation.
+  return (Boolean(identityId) && linkedIdentity === identityId)
+    || (Boolean(personId) && linkedPerson === personId)
+    || (Boolean(email) && text(candidate.originEmail).toLowerCase() === email.toLowerCase());
 };
 
 type PersonResolution = { personId: string | null; review: boolean };
@@ -163,7 +171,7 @@ async function caseFor(
       .filter(c => isOpen(c.status) && Date.parse(string(c.lastMessageAt) || '') >= time - limit)
       .sort((a, b) => Date.parse(string(b.lastMessageAt)) - Date.parse(string(a.lastMessageAt)))[0] ?? null;
   }
-  if (candidate && !verifyCase(candidate, channel.id, safeIdentity, safePerson)) {
+  if (candidate && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail)) {
     review = true;
     candidate = null;
   }
@@ -191,7 +199,7 @@ async function caseFor(
       ...(event.contactPhone ? { originPhone: event.contactPhone } : {}),
     });
     candidate = savedCase.record;
-    if (!verifyCase(candidate, channel.id, safeIdentity, safePerson)) {
+    if (!savedCase.created && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail)) {
       throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
     }
   } else {
@@ -206,7 +214,7 @@ async function caseFor(
 const deliveryRank: Record<string, number> = { PENDING: 0, SENT: 1, DELIVERED: 2, RECEIVED: 2 };
 async function statusChange(store: IngestionStore, existing: DbRecord, newStatus: string) {
   const current = string(existing.deliveryStatus);
-  if (current === newStatus || current === 'DELIVERED') return false;
+  if (current === newStatus || current === 'DELIVERED' || current === 'FAILED') return false;
   if (current !== 'FAILED' && newStatus !== 'FAILED' && (deliveryRank[newStatus] ?? 0) < (deliveryRank[current] ?? 0)) return false;
   await store.update('supportMessages', existing.id, {
     deliveryStatus: newStatus,
@@ -244,6 +252,12 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     let personId = recordId(previous?.personId) || null;
     let reviewRequired = false;
     if (previous && recordId(previous.channelInstanceId) === channel.id && !personId) {
+      const previousEmail = text(previous.originEmail).toLowerCase();
+      if (previousEmail && previousEmail !== event.contactEmail) {
+        return { ok: true, status: 'duplicate', channelId: channel.id,
+          caseId, identityId, personId: null, messageId: existing.id,
+          reviewRequired: true, stableId: event.stableId };
+      }
       const identity = identityId ? await store.get('supportExternalIdentities', identityId) : null;
       const knownExternalId = text(identity?.externalUserId);
       if (knownExternalId && event.externalUserId && knownExternalId !== event.externalUserId) {
