@@ -93,7 +93,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   if (suppliedType && !['EMAIL', 'WHATSAPP', 'INSTAGRAM', 'TELEGRAM'].includes(suppliedType)) {
     throw new IngestError('INVALID_CHANNEL', 'Unsupported channelType');
   }
-  const directionValue = string(message.direction ?? top.direction).toUpperCase() || 'INBOUND';
+  const directionValue = string(message.direction ?? top.direction).toUpperCase() || (top.eventType === 'message.sent' ? 'OUTBOUND' : 'INBOUND');
   if (directionValue !== 'INBOUND' && directionValue !== 'OUTBOUND') {
     throw new IngestError('INVALID_DIRECTION', 'Direction must be INBOUND or OUTBOUND');
   }
@@ -103,7 +103,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     throw new IngestError('INVALID_EVENT_TYPE', 'Unsupported eventType');
   }
   const eventType = typeRaw as IngestEvent['eventType'];
-  const externalId = max(string(message.externalId ?? message.messageId ?? top.messageId ?? top.externalMessageId), 300, 'messageId') || null;
+  const externalId = max(string(message.externalId ?? message.messageId ?? message.providerMessageId ?? top.messageId ?? top.externalMessageId ?? top.providerMessageId), 300, 'messageId') || null;
   const fallbackId = max(string(message.idempotencyKey ?? top.idempotencyKey), 300, 'idempotencyKey');
   if (eventType === 'message.status' && !externalId) {
     throw new IngestError('MISSING_MESSAGE_ID', 'A status event requires the original provider message ID');
