@@ -26,7 +26,8 @@ test('confirmation requires stopped external workflows and exact code',()=>{
   assert.match(source,/destroyDisabledChannel\(row\.id,row\.code\?\?null\)/);
 });
 
-test('technical app role does not gain destructive permissions',()=>{
+test('app role grants Destroy only for channel records',()=>{
   const source=read('src/roles/default-role.ts');
-  assert.match(source,/IDS\.CHANNEL_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false/);
+  assert.match(source,/IDS\.CHANNEL_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: true/);
+  assert.match(source,/IDS\.CASE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false/);
 });
