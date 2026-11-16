@@ -59,6 +59,8 @@ async function personFor(event: IngestEvent, store: IngestionStore, channelType:
     if (!person) throw new IngestError('UNKNOWN_PERSON', 'The supplied verified personId was not found', 409);
     return { personId: person.id, review: false };
   }
+  // Transport-derived email is trustworthy for EMAIL. Other channels need an explicit verification signal.
+  if (channelType !== 'EMAIL' && !event.personVerified) return { personId: null, review: false };
   const email = event.contactEmail || (channelType === 'EMAIL' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(event.externalUserId) ? event.externalUserId : '');
   if (!email) return { personId: null, review: false };
   const existing = await store.list('people', { 'emails.primaryEmail': email }, 2);
