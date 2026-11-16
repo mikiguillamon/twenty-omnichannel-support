@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { useColorScheme } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
-import { addChannel, getChannels, isValidCode, normalizeCode, updateChannelStatus } from '../lib/support-channels.ts';
+import { addChannel, destroyDisabledChannel, getChannels, isValidCode, normalizeCode, updateChannelStatus } from '../lib/support-channels.ts';
 import type { ChannelStatus, ChannelType, SupportChannel } from '../lib/support-channels.ts';
 
 function ChannelSetup() {
@@ -20,6 +20,9 @@ function ChannelSetup() {
   const [verified,setVerified]=useState(false);
   const [feedback,setFeedback]=useState('');
   const [error,setError]=useState('');
+  const [removingId,setRemovingId]=useState<string|null>(null);
+  const [removalCode,setRemovalCode]=useState('');
+  const [externalStopped,setExternalStopped]=useState(false);
   useEffect(()=>{
     let live=true;setLoading(true);setReadError(false);
     getChannels().then(data=>{if(live)setRows(data.sort((a,b)=>(a.name||'').localeCompare(b.name||'')));})
@@ -50,10 +53,34 @@ function ChannelSetup() {
     try {
       await updateChannelStatus(row.id,status);
       setVerified(false);
+      setRemovingId(null);setRemovalCode('');setExternalStopped(false);
       setFeedback('Estado actualizado en Twenty. Los workflows externos no se activan ni detienen automáticamente.');
       setRevision(n=>n+1);
     }catch{setError('No se pudo actualizar el estado del canal. Comprueba los permisos.');}
     finally{setBusy(false);}
+  }
+
+  function closeRemoval() {
+    setRemovingId(null);setRemovalCode('');setExternalStopped(false);
+  }
+  async function remove(row:SupportChannel) {
+    if (busy || removingId!==row.id || row.status!=='DISABLED' ||
+        removalCode!==(row.code||row.id) || !externalStopped) return;
+    setBusy(true);setError('');setFeedback('');
+    try {
+      await destroyDisabledChannel(row.id,row.code??null);
+      closeRemoval();
+      setFeedback('Canal eliminado. Las consultas, mensajes e identidades permanecen en Twenty, desvinculados de este canal.');
+    } catch (reason) {
+      const code=reason instanceof Error?reason.message:'';
+      setError(code==='CHANNEL_NOT_DISABLED'
+        ? 'El canal ya no está desactivado. Actualiza la lista y vuelve a intentarlo.'
+        : code==='CHANNEL_CHANGED'
+          ? 'El canal ha cambiado. Actualiza la lista y vuelve a confirmar.'
+          : 'No se pudo eliminar el canal. Comprueba tu permiso de eliminación definitiva (Destroy) y las relaciones en Twenty.');
+    } finally {
+      setBusy(false);setRevision(n=>n+1);
+    }
   }
   const active=rows.filter(row=>row.status==='ACTIVE').length;
   return <div style={{padding:14,display:'flex',flexDirection:'column',gap:18}}>
@@ -98,7 +125,30 @@ function ChannelSetup() {
           {row.status!=='ACTIVE'&&<button type="button" style={button} disabled={busy||!verified} onClick={()=>void changeStatus(row,'ACTIVE')}>Marcar activo</button>}
           {row.status==='ACTIVE'&&<button type="button" style={button} disabled={busy} onClick={()=>void changeStatus(row,'PAUSED')}>Pausar</button>}
           {row.status!=='DISABLED'&&<button type="button" style={button} disabled={busy} onClick={()=>void changeStatus(row,'DISABLED')}>Desactivar</button>}
+          {row.status==='DISABLED'&&<button type="button" style={{...button,color:dark?'#FCA5A5':'#B91C1C'}} disabled={busy}
+            onClick={()=>{setRemovingId(row.id);setRemovalCode('');setExternalStopped(false);setError('');setFeedback('');}}>
+            Eliminar canal
+          </button>}
         </div>
+        {removingId===row.id&&<section aria-label="Confirmar eliminación de canal" style={{padding:12,border:'1px solid '+(dark?'#F87171':'#DC2626'),borderRadius:8,display:'flex',flexDirection:'column',gap:10}}>
+          <strong>Eliminar definitivamente «{row.name||row.code||'este canal'}»</strong>
+          <p style={{fontSize:13,margin:0}}>Solo se eliminará este canal. Las consultas, mensajes e identidades se conservarán en Twenty, pero dejarán de estar vinculados a él. Esta acción no se puede deshacer.</p>
+          <p style={{fontSize:12,color:muted,margin:0}}>Detén los triggers y ejecuciones pendientes de n8n que utilizan este canal y guarda una copia de los datos necesarios. Desactivar aquí no detiene n8n automáticamente.</p>
+          <label style={{display:'flex',gap:9,fontSize:13,alignItems:'flex-start'}}>
+            <input type="checkbox" checked={externalStopped} disabled={busy} onChange={e=>setExternalStopped(e.target.checked)}/>
+            Confirmo que he detenido las automatizaciones externas de este canal.
+          </label>
+          <label style={{fontSize:13}}>Escribe <code>{row.code||row.id}</code> para confirmar
+            <input style={field} autoComplete="off" value={removalCode} disabled={busy} onChange={e=>setRemovalCode(e.target.value)} placeholder={row.code||row.id}/>
+          </label>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button type="button" disabled={busy||!externalStopped||removalCode!==(row.code||row.id)}
+              style={{...button,color:'#FFFFFF',background:'#B91C1C',borderColor:'#B91C1C'}} onClick={()=>void remove(row)}>
+              {busy?'Eliminando…':'Eliminar definitivamente'}
+            </button>
+            <button type="button" style={button} disabled={busy} onClick={closeRemoval}>Cancelar</button>
+          </div>
+        </section>}
       </article>)}
       {!readError&&!loading&&rows.length>0&&<label style={{fontSize:12,color:muted}}>
         <input type="checkbox" checked={verified} onChange={e=>setVerified(e.target.checked)}/>
