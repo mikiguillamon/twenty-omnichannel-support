@@ -174,3 +174,58 @@ test('filters escape untrusted values and encode multiple conditions', () => {
   assert.equal(serializeFilter({code:'test"and'}),'code[eq]:"test\\"and"');
   assert.equal(serializeFilter({externalIdentityId:'id-a',channelInstanceId:'id-b'}),'and(externalIdentityId[eq]:"id-a",channelInstanceId[eq]:"id-b")');
 });
+
+test('outgoing email resolves recipient without inventing a new thread ID', async () => {
+  const store = new MemoryStore();
+  const event = normalizeEvent({
+    channelCode: 'email-test',
+    channelType: 'EMAIL',
+    provider: 'gmail',
+    accountId: 'support@example.com',
+    message: {
+      externalId: 'outgoing-01',
+      direction: 'OUTBOUND',
+      toAddress: 'recipient@example.com',
+      fromAddress: 'support@example.com',
+      body: 'Respuesta',
+    },
+  });
+  const result = await ingest(event, store);
+  assert.equal(result.status, 'created');
+  assert.equal(store.rowsFor('people')[0].emails.primaryEmail, 'recipient@example.com');
+  assert.equal(store.rowsFor('supportCases')[0].status, 'HUMAN_REQUIRED');
+  assert.equal(store.rowsFor('supportMessages')[0].direction, 'OUTBOUND');
+});
+
+test('idempotencyKey makes retries safe when provider message ID is unavailable', async () => {
+  const store = new MemoryStore();
+  const raw = {
+    channelCode: 'email-test', channelType: 'EMAIL',
+    provider: 'gmail', accountId: 'support@example.com',
+    customerEmail: 'client@example.com',
+    idempotencyKey: 'source-event-1',
+    body: 'Mensaje sin ID de proveedor',
+  };
+  const firstResult = await ingest(normalizeEvent(raw), store);
+  const secondResult = await ingest(normalizeEvent(raw), store);
+  assert.equal(firstResult.status, 'created');
+  assert.equal(secondResult.status, 'duplicate');
+  assert.equal(store.rowsFor('supportMessages').length, 1);
+});
+
+test('delivery updates are monotonic after DELIVERED', async () => {
+  const store = new MemoryStore();
+  await ingest(email(), store);
+  await ingest(email({eventType:'message.status',message:{externalId:'provider-message-1',deliveryStatus:'DELIVERED'}}), store);
+  const late = await ingest(email({eventType:'message.status',message:{externalId:'provider-message-1',deliveryStatus:'SENT'}}), store);
+  assert.equal(late.status, 'duplicate');
+  assert.equal(store.rowsFor('supportMessages')[0].deliveryStatus, 'DELIVERED');
+});
+
+test('a message from a different configured account cannot impersonate an existing channel', async () => {
+  const store = new MemoryStore();
+  const event = email({accountId:'other@example.com'});
+  await assert.rejects(() => ingest(event,store), error =>
+    error instanceof IngestError && error.code === 'ACCOUNT_MISMATCH');
+  assert.equal(store.writes.length,0);
+});
