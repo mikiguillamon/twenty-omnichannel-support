@@ -3,7 +3,7 @@ import { IDS } from '../constants/ids.ts';
 export default defineApplicationRole({
   universalIdentifier: IDS.ROLE,
   label: 'Omnichannel Support application',
-  description: 'Permisos para operaciones de la app sobre los objetos propios y lectura de Personas.',
+  description: 'Permisos mínimos para gestionar Consultas, Mensajes, identidades, alias y Personas de Twenty.',
   canReadAllObjectRecords: false,
   canUpdateAllObjectRecords: false,
   canSoftDeleteAllObjectRecords: false,
@@ -13,7 +13,7 @@ export default defineApplicationRole({
   canBeAssignedToAgents: false,
   canBeAssignedToApiKeys: false,
   objectPermissions: [
-    { objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person.universalIdentifier, canReadObjectRecords: true, canUpdateObjectRecords: false, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
+    { objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.person.universalIdentifier, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: STANDARD_OBJECT_UNIVERSAL_IDENTIFIERS.task.universalIdentifier, canReadObjectRecords: true, canUpdateObjectRecords: false, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.CATEGORY_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.SETTING_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
@@ -21,6 +21,7 @@ export default defineApplicationRole({
     { objectUniversalIdentifier: IDS.CASE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.CHANNEL_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.EXT_IDENTITY_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
+    { objectUniversalIdentifier: IDS.ID_ALIAS_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.EVALUATION_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
     { objectUniversalIdentifier: IDS.MESSAGE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
   ],
