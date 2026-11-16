@@ -1,30 +1,21 @@
-# Supervisión y dashboards de Omnichannel Support
+# Resumen y dashboards de Omnichannel
 
-## Resumen incluido
+Omnichannel incluye la página **Resumen**, con indicadores de conversaciones registradas, atención humana pendiente, errores técnicos y evaluaciones incorrectas. Cada tarjeta obtiene su contador de manera independiente mediante la API REST de Twenty, cuyo resultado incluye `totalCount` a nivel raíz. Un error puntual no debe ocultar las demás métricas ni mostrarse como cero.
 
-La app incluye una página de resumen con cuatro indicadores acumulados: Consultas registradas, pendientes de intervención humana, errores técnicos y evaluaciones incorrectas. También facilita acceso a los casos pendientes y los errores. Los indicadores se obtienen del workspace actual y necesitan permisos suficientes; si falla la consulta, la interfaz debe mostrar ausencia de datos y no ceros ficticios.
+El botón **Personalizar indicadores** permite activar o desactivar cada contador para el workspace actual. La selección se guarda en `supportSettings` con la clave `omnichannel.dashboard.visibleKpis`. No guarda tokens ni secretos.
 
-La página de Resumen lista los Canales activos. Su estado operativo (`ACTIVE`) no demuestra que el proveedor funcione correctamente, algo que debe reflejarse en `health`.
+La sección de canales activos muestra la configuración de cada Canal; `ACTIVE` no equivale a una comprobación real de la salud del proveedor.
 
-## Dashboard de análisis en Twenty
+## Dashboard gráfico por workspace
 
-Cuando el editor de dashboards de la versión instalada lo permita, utilizar widgets separados para:
+Los dashboards nativos de Twenty son la solución prevista para crear las gráficas, filtros temporales, tablas, agrupaciones y métricas que prefiera cada workspace. No duplicamos el editor de dashboards en una interfaz paralela de la app.
 
-| Área | Fuente | Medición |
-|---|---|---|
-| Volumen | `supportCases` | Casos por fecha y canal |
-| Atención | `supportCases` | Estados y tiempos de resolución |
-| Automatización | `supportCases` | `automation` FULL/PARTIAL/NONE |
-| Resultado | `supportCases` | `resolution` SOLVED/UNSOLVED/PENDING |
-| Técnica | `supportCases`, `supportChannels` | Errores, reintentos y salud |
-| Calidad | `supportEvaluations` | Veredictos y cobertura de revisión |
+Desde **Tableros / Dashboards** del workspace, crea un panel y añade widgets sobre las fuentes `supportCases`, `supportMessages`, `supportChannels` y `supportEvaluations`. Algunas ideas: volumen por canal/estado/categoría/idioma; conversaciones pendientes; seguimiento programado; evolución por fecha; automatización; resoluciones; evaluaciones incorrectas.
 
-Configurar los periodos y filtros de cada widget. Confirmar que la versión de Twenty admite las relaciones y agrupaciones deseadas; no dar por hecho un filtro global aplicable automáticamente a todos los widgets.
+Los periodos, filtros, agrupaciones y tipos de gráfico disponibles dependen de la versión del editor de Twenty. Valida la compatibilidad de cada widget antes de distribuirlo a otros workspaces.
 
-## Reglas de interpretación
+## Errores
 
-Una ejecución técnica correcta (`technicalStatus=SUCCESS`) no demuestra una Consulta resuelta (`resolution=SOLVED`) ni una evaluación humana positiva (`verdict=CORRECT`).
+Si se muestra `—`, revisa los permisos del usuario y la petición REST concreta. El aviso `No Listener: tabs:outgoing.message.ready` que puede aparecer en el navegador no demuestra por sí solo que la API de Twenty esté fallando; revisa el contexto de la extensión o componente que emite el evento.
 
-Para métricas de calidad, publicar tanto los resultados de las evaluaciones como su cobertura: número de elementos evaluados dividido entre elementos elegibles. Los totales históricos incluyen Consultas de Canales que más tarde se hayan desactivado.
-
-Los comparativos por periodo y los ratios personalizados pueden requerir widgets adicionales. Verificar primero las capacidades del editor y la API de la versión real de Twenty.
+Los registros históricos incluyen también los canales posteriormente desactivados. Resultado operativo, ejecución técnica y evaluación humana son medidas independientes.

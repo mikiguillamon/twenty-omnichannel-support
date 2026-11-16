@@ -175,8 +175,8 @@ function ChannelSetup() {
       <ol style={{paddingLeft:22,display:'flex',flexDirection:'column',gap:6,fontSize:13}}>
         <li>Crea solo los buzones o números que utiliza este cliente. El estado inicial es Desactivado.</li>
         <li>Configura Gmail, Microsoft 365 o Evolution API por separado en n8n.</li>
-        <li>Usa el nodo Twenty CRM de n8n para leer el código, la política y el estado ACTIVE del canal.</li>
-        <li>Registra las Consultas y Mensajes mediante las operaciones Record del nodo Twenty CRM de n8n.</li>
+        <li>Comprueba la configuración del Canal y el estado ACTIVE antes de enviar eventos desde n8n.</li>
+        <li>Envía los eventos normalizados al endpoint autenticado de Omnichannel con un único HTTP Request desde n8n.</li>
         <li>Define las reglas desde la pestaña Gestión de consultas. Tras probar el flujo, confirma la integración y marca el canal activo.</li>
       </ol>
       <p style={{fontSize:12,color:muted}}>El estado aquí es informativo hasta que el flujo externo respete esa comprobación. No introduzcas credenciales en estos registros.</p>

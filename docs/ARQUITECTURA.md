@@ -50,8 +50,8 @@ Las etiquetas predeterminadas `MULTI_SELECT` son compartidas; `customTags` es un
 
 ## Páginas
 
-- `Atención al cliente → Resumen`: standalone page dentro de Twenty, con cuatro contadores y tablas de pendientes y errores. El componente de contadores obtiene `totalCount` mediante GraphQL y muestra **sin datos** si la consulta falla, nunca inventa ceros.
-- `Consultas`: objeto Twenty con vistas filtradas por Email, WhatsApp, Agente y Errores.
+- `Omnichannel → Resumen`: página con contadores REST independientes y selección de KPIs por workspace; los dashboards nativos permiten añadir gráficas y filtros.
+- `Conversaciones`: etiqueta visible del objeto `supportCases` con vistas y estados independientes de seguimiento.
 - `Detalle de consulta`: campos y relaciones nativas; visor cronológico React sobre la REST API usando el token **del usuario que mira la pantalla**, no un token de administrador.
 - `Evaluaciones`: objeto nativo con vistas para revisar respuestas incorrectas.
 - `Canales`: estado y última actividad por integración; pestaña Gestión de consultas para editar las políticas independientes de cada Canal.
@@ -61,7 +61,7 @@ Los dashboards nativos adicionales de Twenty se configuran por separado (ver [Da
 
 ## Trabajo por API
 
-La API autogenerada de Twenty expone los nueve objetos. La app no implanta por ahora un endpoint alternativo de ingestión: las integraciones trabajan con los modelos y permisos de Twenty. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
+La API autogenerada de Twenty expone los nueve objetos. La app incluye el endpoint autenticado `/s/omnichannel/v1/ingest`, que resuelve Persona/Identidad, conversación y mensaje. Su objeto opcional `conversation` permite establecer o actualizar los campos de la conversación al insertar cada mensaje nuevo. Antes de configurar un workflow de n8n, inspecciona el API Playground del workspace para verificar la forma de relaciones y filtros en la versión realmente desplegada.
 
 ## Separación y actualización
 
@@ -77,3 +77,7 @@ La app guarda la política en cada registro de Canal. Para Email, por defecto se
 ## Identificadores alternativos de WhatsApp
 
 Una cuenta puede entregar un PN JID y un LID del mismo interlocutor en `remoteJid` / `remoteJidAlt` sin orden garantizado. Se guardan en `supportIdentityAliases` asociados a una única `supportExternalIdentity`. Ante alias que apuntan a identidades distintas, no fusionar automáticamente. Los Mensajes conservan ambos campos originales de direccionamiento y el ID real del mensaje. Véase [IDENTIFICADORES_WHATSAPP.md](IDENTIFICADORES_WHATSAPP.md).
+
+## Personas y llamadas
+
+La app amplía la ficha nativa de Persona con una pestaña Omnichannel y dos tablas de relaciones: Conversaciones e Identidades vinculadas a canales. Una identidad sin Persona fiable no se fusiona automáticamente. El Canal `PHONE` permite crear registros de llamadas, transcripciones y enlaces seguros a grabaciones, sin almacenar audio binario.

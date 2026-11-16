@@ -92,3 +92,7 @@ Conservar las UUID universales de objetos y campos actuales. La app incorpora ob
 Probar con datos ficticios cada tipo de Canal, las identidades externas, las relaciones `personId`, `externalIdentityId`, `channelInstanceId`, los filtros del nodo Twenty, y la separación entre workspaces. Los canales de Telegram e Instagram requieren sus proveedores y triggers externos; la app no los configura automáticamente.
 
 Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md), [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md).
+
+## Estado y seguimiento mediante ingestión
+
+Cada nuevo mensaje puede traer `conversation.status` y `conversation.followUp`. Un mensaje automatizado de bienvenida que no necesita agente puede marcarse `INFORMATIONAL` o `AUTOMATED` sin alterar `resolution`. Ante una identidad o hilo ambiguo se exige revisión humana. Los reintentos no vuelven a aplicar estados antiguos; los eventos de entrega tampoco cambian el estado de la conversación.
