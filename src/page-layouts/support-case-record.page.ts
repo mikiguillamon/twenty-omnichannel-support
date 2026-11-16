@@ -3,7 +3,7 @@ import { IDS } from '../constants/ids.ts';
 
 export default definePageLayout({
   universalIdentifier:IDS.LAYOUT_SUPPORT_CASE,
-  name:'Detalle de consulta',type:'RECORD_PAGE',objectUniversalIdentifier:IDS.CASE_OBJECT,
+  name:'Detalle de conversación',type:'RECORD_PAGE',objectUniversalIdentifier:IDS.CASE_OBJECT,
   tabs:[
     { universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_TAB_DETAILS,title:'Detalles',icon:'IconFileText',position:0,
       layoutMode:PageLayoutTabLayoutMode.VERTICAL_LIST,
@@ -13,11 +13,17 @@ export default definePageLayout({
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_CHANNEL,title:'Canal',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_CHANNEL_INSTANCE,fieldDisplayMode:'CARD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_CATEGORY,title:'Categoría',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_CATEGORY_RELATION,fieldDisplayMode:'CARD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_IDENTITY,title:'Identidad externa',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_EXTERNAL_IDENTITY,fieldDisplayMode:'CARD'}},
-        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_STATUS,title:'Estado de la consulta',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_STATUS,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_STATUS,title:'Estado de la conversación',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_STATUS,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_RESOLUTION,title:'Resultado operativo',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_RESOLUTION,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_TECHNICAL,title:'Estado técnico',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_TECHNICAL_STATUS,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_AUTOMATION,title:'Automatización',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_AUTOMATION,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_SUMMARY,title:'Resumen',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_SUMMARY,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_FOLLOWUP,title:'Seguimiento',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_FOLLOW_UP,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_FOLLOWUP_AT,title:'Próximo seguimiento',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_FOLLOW_UP_AT,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_LANGUAGE,title:'Idioma',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_LANGUAGE,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_COMMENTS,title:'Comentarios',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_COMMENTS,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_TRANSCRIPTION,title:'Transcripción',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_TRANSCRIPTION,fieldDisplayMode:'FIELD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_RECORDING,title:'Grabación',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_RECORDING,fieldDisplayMode:'FIELD'}},
       ]},
     { universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_TAB_THREAD,title:'Conversación',icon:'IconMessages',position:1,
       layoutMode:PageLayoutTabLayoutMode.VERTICAL_LIST,

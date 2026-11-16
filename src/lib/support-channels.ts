@@ -1,6 +1,6 @@
 import { RestApiClient } from 'twenty-client-sdk/rest';
 
-export type ChannelType = 'EMAIL' | 'WHATSAPP' | 'INSTAGRAM' | 'TELEGRAM';
+export type ChannelType = 'EMAIL' | 'WHATSAPP' | 'INSTAGRAM' | 'TELEGRAM' | 'PHONE';
 export type ChannelStatus = 'ACTIVE' | 'PAUSED' | 'DISABLED';
 export type GroupingMode = 'THREAD' | 'MESSAGE' | 'HYBRID' | 'SESSION' | 'MANUAL';
 export type AmbiguousAction = 'REVIEW' | 'NEW';

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeEvent, keys, IngestError } from '../src/lib/ingestion/contract.ts';
+import { readTotalCount } from '../src/lib/overview.ts';
 import { ingest } from '../src/lib/ingestion/processor.ts';
 import { serializeFilter } from '../src/lib/ingestion/twenty-rest-store.ts';
 
@@ -9,9 +10,9 @@ class MemoryStore {
     this.rows = new Map();
     this.id = 0;
     this.rows.set('supportChannels', [{
-      id: 'channel-1', code: channelType === 'EMAIL' ? 'email-test' : 'wa-test',
-      channelType, provider: channelType === 'EMAIL' ? 'gmail' : 'evolution',
-      externalIdentifier: channelType === 'EMAIL' ? 'support@example.com' : 'wa-1',
+      id: 'channel-1', code: channelType === 'EMAIL' ? 'email-test' : channelType === 'PHONE' ? 'phone-test' : 'wa-test',
+      channelType, provider: channelType === 'EMAIL' ? 'gmail' : channelType === 'PHONE' ? 'voip' : 'evolution',
+      externalIdentifier: channelType === 'EMAIL' ? 'support@example.com' : channelType === 'PHONE' ? 'line-1' : 'wa-1',
       status: 'ACTIVE', groupingMode: channelType === 'EMAIL' ? 'THREAD' : 'HYBRID',
       ambiguousAction: 'REVIEW',
     }]);
@@ -228,4 +229,85 @@ test('a message from a different configured account cannot impersonate an existi
   await assert.rejects(() => ingest(event,store), error =>
     error instanceof IngestError && error.code === 'ACCOUNT_MISMATCH');
   assert.equal(store.writes.length,0);
+});
+
+
+test('REST dashboard counts use top-level totalCount and never fabricate zero',()=>{
+  assert.equal(readTotalCount({data:{supportCases:[]},totalCount:18}),18);
+  assert.equal(readTotalCount({data:{supportCases:[]}}),null);
+  assert.equal(readTotalCount({totalCount:0}),0);
+});
+
+test('create conversation with optional status, follow-up, language and summary through ingestion',async()=>{
+  const store=new MemoryStore();
+  const event=email({conversation:{
+    status:'INFORMATIONAL',followUp:'NONE',language:'ca',summary:'Missatge automàtic',comments:'Sense resposta necessària',
+    followUpAt:'2026-11-20T09:00:00Z',
+  }});
+  await ingest(event,store);
+  const conversation=store.rowsFor('supportCases')[0];
+  assert.equal(conversation.status,'INFORMATIONAL');
+  assert.equal(conversation.followUp,'NONE');
+  assert.equal(conversation.language,'ca');
+  assert.equal(conversation.summary,'Missatge automàtic');
+  assert.equal(conversation.followUpAt,'2026-11-20T09:00:00.000Z');
+});
+
+test('adding a new message updates status of existing conversation without clearing other fields',async()=>{
+  const store=new MemoryStore();
+  await ingest(email({conversation:{status:'AUTOMATED',summary:'Original'}}),store);
+  const event=email({message:{externalId:'msg-second',threadId:'thread-1',body:'Necesita seguimiento'},
+    conversation:{status:'WAITING_INTERNAL',followUp:'REQUIRED',comments:'Contactar al responsable'}});
+  const second=await ingest(event,store);
+  assert.equal(second.status,'created');
+  const conversation=store.rowsFor('supportCases')[0];
+  assert.equal(conversation.status,'WAITING_INTERNAL');
+  assert.equal(conversation.summary,'Original');
+  assert.equal(conversation.followUp,'REQUIRED');
+  assert.equal(conversation.comments,'Contactar al responsable');
+  const before=store.writes.length;
+  assert.equal((await ingest(event,store)).status,'duplicate');
+  assert.equal(store.writes.length,before);
+});
+
+test('categories are validated inside the current workspace before linking conversation',async()=>{
+  const store=new MemoryStore();
+  const categoryId='1e419c4a-6b99-4a69-8ea4-4d5d26a1c17a';
+  store.rows.set('supportCategories',[{id:categoryId,code:'WELCOME',enabled:true}]);
+  await ingest(email({conversation:{categoryCode:'WELCOME'}}),store);
+  assert.equal(store.rowsFor('supportCases')[0].categoryId,categoryId);
+  const other=email({message:{externalId:'msg-other',threadId:'thread-1',body:'Hola'},
+    conversation:{categoryCode:'UNKNOWN'}});
+  await assert.rejects(()=>ingest(other,store),error=>error instanceof IngestError&&error.code==='UNKNOWN_CATEGORY');
+  assert.equal(store.rowsFor('supportMessages').length,1);
+});
+
+test('phone call events preserve secure recording URLs and transcripts',async()=>{
+  const store=new MemoryStore('PHONE');
+  const event=normalizeEvent({
+    channelCode:'phone-test',channelType:'PHONE',provider:'voip',accountId:'line-1',
+    contact:{externalId:'caller-123',name:'Alex'},
+    message:{externalId:'call-1',issueKey:'call-thread-1',body:'Llamada',callTranscription:'Buenos días',callRecordingUrl:'https://recordings.example.com/clip-1'},
+    conversation:{status:'INFORMATIONAL',transcription:'Buenos días',recordingUrl:'https://recordings.example.com/clip-1'},
+  });
+  await ingest(event,store);
+  assert.equal(store.rowsFor('supportCases')[0].status,'INFORMATIONAL');
+  assert.equal(store.rowsFor('supportCases')[0].recording.primaryLinkUrl,'https://recordings.example.com/clip-1');
+  assert.equal(store.rowsFor('supportMessages')[0].callTranscription,'Buenos días');
+  assert.equal(store.rowsFor('supportMessages')[0].callRecording.primaryLinkUrl,'https://recordings.example.com/clip-1');
+});
+test('invalid status and non-HTTPS recordings are rejected before CRM writes',()=>{
+  assert.throws(()=>email({conversation:{status:'NOT_A_STATUS'}}),e=>e instanceof IngestError);
+  assert.throws(()=>email({conversation:{recordingUrl:'http://localhost:8080/private'}}),e=>e instanceof IngestError&&e.code==='INVALID_RECORDING_URL');
+  assert.throws(()=>email({conversation:{categoryId:'not-a-uuid'}}),e=>e instanceof IngestError&&e.code==='INVALID_CATEGORY');
+  assert.throws(()=>email({eventType:'message.status',message:{externalId:'provider-message-1',deliveryStatus:'SENT'},conversation:{status:'CLOSED'}}),
+    e=>e instanceof IngestError&&e.code==='CONVERSATION_ON_DELIVERY_EVENT');
+});
+test('no identity-safe conversation can be silently marked informational during mandatory review',async()=>{
+  const store=new MemoryStore();
+  const result=await ingest(normalizeEvent({channelCode:'email-test',channelType:'EMAIL',
+    accountId:'support@example.com',provider:'gmail',message:{externalId:'no-contact',body:'sin persona'},
+    conversation:{status:'INFORMATIONAL'}}),store);
+  assert.equal(result.reviewRequired,true);
+  assert.equal(store.rowsFor('supportCases')[0].status,'HUMAN_REQUIRED');
 });

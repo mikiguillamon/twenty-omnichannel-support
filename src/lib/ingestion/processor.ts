@@ -1,4 +1,4 @@
-import { type IngestEvent, IngestError, keys, type GroupingMode } from './contract.ts';
+import { type IngestEvent, IngestError, keys, type GroupingMode, type ConversationPatch } from './contract.ts';
 
 /** One repository per workspace. Implemented by Twenty's authenticated REST client. */
 export type DbRecord = { id: string; [key: string]: unknown };
@@ -23,7 +23,7 @@ export type IngestResult = {
 const string = (value: unknown): string => typeof value === 'string' ? value : '';
 const text = (value: unknown): string => string(value).trim();
 const recordId = (value: unknown): string => text(value);
-const isOpen = (value: unknown) => ['NEW', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'HUMAN_REQUIRED'].includes(string(value));
+const isOpen = (value: unknown) => ['NEW', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'HUMAN_REQUIRED', 'WAITING_INTERNAL'].includes(string(value));
 
 function duplicateKey(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -143,6 +143,32 @@ async function connectIdentity(
   return { personId: selected || null, review: false };
 }
 
+/** Resolve caller-supplied metadata only after the channel and record ownership were verified. */
+async function conversationUpdates(
+  patch: ConversationPatch, store: IngestionStore,
+): Promise<Record<string, unknown>> {
+  const data: Record<string, unknown> = {};
+  for (const field of ['status', 'followUp', 'followUpAt', 'summary', 'comments', 'language', 'transcription'] as const) {
+    if (Object.hasOwn(patch, field)) data[field] = patch[field];
+  }
+  if (Object.hasOwn(patch, 'recordingUrl')) {
+    data.recording = patch.recordingUrl
+      ? { primaryLinkUrl: patch.recordingUrl, primaryLinkLabel: 'Grabación de la conversación' }
+      : null;
+  }
+  if (Object.hasOwn(patch, 'categoryId') || Object.hasOwn(patch, 'categoryCode')) {
+    let category: DbRecord | null = null;
+    if (patch.categoryId) category = await store.get('supportCategories', patch.categoryId);
+    else if (patch.categoryCode) category = await first(store, 'supportCategories', { code: patch.categoryCode });
+    if (patch.categoryId || patch.categoryCode) {
+      if (!category || category.enabled === false)
+        throw new IngestError('UNKNOWN_CATEGORY', 'Category is not available in this workspace', 422);
+    }
+    data.categoryId = category?.id ?? null;
+  }
+  return data;
+}
+
 async function caseFor(
   event: IngestEvent, store: IngestionStore, scope: ReturnType<typeof keys>,
   channel: DbRecord, identityId: string | null, personId: string | null, review: boolean,
@@ -151,6 +177,7 @@ async function caseFor(
   const safeIdentity = review ? null : identityId;
   const safePerson = review ? null : personId;
   const ref = event.message;
+  const metadata = await conversationUpdates(event.conversation, store);
   const threadKey = ref.threadId ? scope.ns + ':THREAD:' + ref.threadId : '';
   const issueKey = ref.issueKey ? scope.ns + ':ISSUE:' + ref.issueKey : '';
   let candidate: DbRecord | null = null;
@@ -188,7 +215,6 @@ async function caseFor(
       externalKey: caseKey,
       subject: ref.subject,
       channel: scope.channelType,
-      status: review ? 'HUMAN_REQUIRED' : 'NEW',
       resolution: 'PENDING',
       firstMessageAt: ref.occurredAt,
       lastMessageAt: ref.occurredAt,
@@ -197,16 +223,20 @@ async function caseFor(
       ...(safePerson ? { personId: safePerson } : {}),
       ...(event.contactEmail ? { originEmail: event.contactEmail } : {}),
       ...(event.contactPhone ? { originPhone: event.contactPhone } : {}),
+      ...metadata,
+      // Identity ambiguity always forces review, regardless of untrusted status.
+      status: review ? 'HUMAN_REQUIRED' : (event.conversation.status ?? 'NEW'),
     });
     candidate = savedCase.record;
     if (!savedCase.created && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail)) {
       throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
     }
   } else {
-    const updates: Record<string, unknown> = {};
+    const updates: Record<string, unknown> = { ...metadata };
     if (safePerson && !candidate.personId) updates.personId = safePerson;
     if (safeIdentity && !candidate.externalIdentityId) updates.externalIdentityId = safeIdentity;
     if (Date.parse(ref.occurredAt) > Date.parse(string(candidate.lastMessageAt) || '')) updates.lastMessageAt = ref.occurredAt;
+    if (review) delete updates.status;
     if (Object.keys(updates).length) await store.update('supportCases', candidate.id, updates);
   }
   return { caseId: candidate.id, review };
@@ -315,6 +345,8 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     ...(ref.providerChatIdAlt ? { providerChatIdAlt: ref.providerChatIdAlt } : {}),
     ...(ref.providerAddressingMode ? { providerAddressingMode: ref.providerAddressingMode } : {}),
     ...(ref.replyToExternalId ? { replyToExternalKey: scope.ns + ':MESSAGE:' + ref.replyToExternalId } : {}),
+    ...(ref.callTranscription ? { callTranscription: ref.callTranscription } : {}),
+    ...(ref.callRecordingUrl ? { callRecording: { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' } } : {}),
   };
   const { record: created, created: didCreate } = await insertUnique(store, 'supportMessages', scope.messageKey, messageData);
   return {

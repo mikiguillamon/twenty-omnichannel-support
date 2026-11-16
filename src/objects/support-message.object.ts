@@ -18,6 +18,8 @@ export default defineObject({
     { universalIdentifier: IDS.MESSAGE_SUBJECT, name: "subject", label: "Asunto", type: FieldType.TEXT, icon: "IconMail" },
     { universalIdentifier: IDS.MESSAGE_BODY, name: "body", label: "Contenido", type: FieldType.TEXT, icon: "IconMessage2" },
     { universalIdentifier: IDS.MESSAGE_OCCURREDAT, name: "occurredAt", label: "Fecha del mensaje", type: FieldType.DATE_TIME, icon: "IconCalendarTime" },
+    { universalIdentifier: IDS.MESSAGE_CALL_TRANSCRIPTION, name: 'callTranscription', label: 'Transcripción de la llamada', type: FieldType.TEXT, icon: 'IconMicrophone' },
+    { universalIdentifier: IDS.MESSAGE_CALL_RECORDING, name: 'callRecording', label: 'Audio de la llamada', type: FieldType.LINKS, icon: 'IconPlayerPlay', description: 'URL HTTPS de la grabación de este mensaje o llamada.' },
     { universalIdentifier: IDS.MESSAGE_DELIVERYSTATUS, name: "deliveryStatus", label: "Estado del envío", type: FieldType.SELECT, icon: "IconSend", options: [{ value: "RECEIVED", label: "Recibido", position: 0, color: "gray" }, { value: "PENDING", label: "Pendiente", position: 1, color: "blue" }, { value: "SENT", label: "Enviado", position: 2, color: "green" }, { value: "DELIVERED", label: "Entregado", position: 3, color: "orange" }, { value: "FAILED", label: "Fallido", position: 4, color: "red" }] },
     { universalIdentifier: IDS.MESSAGE_PROVIDER, name: "provider", label: "Proveedor", type: FieldType.TEXT, icon: "IconPlug" },
     { universalIdentifier: IDS.MESSAGE_N8NEXECUTIONID, name: "n8nExecutionId", label: "Ejecución n8n", type: FieldType.TEXT, icon: "IconTerminal2" },

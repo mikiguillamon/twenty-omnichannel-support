@@ -140,3 +140,73 @@ No encadenes nodos de búsqueda/creación de Persona, identidad, Consulta y Mens
 Una llamada HTTP no equivale a una transacción única de base de datos. Las claves externas con índices únicos ayudan a recuperarse de reintentos, pero los fallos entre la creación de Persona, Consulta y Mensaje pueden dejar datos parciales. Un reintento con ID estable debe recuperar el estado anterior.
 
 Los tests unitarios de este repositorio usan un almacén de memoria. **No sustituyen una prueba de integración sobre una instalación real de Twenty**, especialmente para comprobar filtros REST, representación de campos compuestos (`emails`, `name`), joins de relaciones y resolución del workspace de las funciones.
+
+
+## Campos de conversación opcionales en cada mensaje
+
+El endpoint admite `conversation` además de `message`. Se aplica al crear la conversación o al **añadir un mensaje nuevo a una conversación existente**. Si se omite un campo, mantiene su valor; `null` permite borrar ciertos campos. Los reintentos de un mensaje ya registrado no vuelven a escribir sus metadatos ni revierten estados más recientes. Los eventos `message.status` solo gestionan la entrega del mensaje y rechazan `conversation`.
+
+```json
+{
+  "channelCode": "email-soporte",
+  "channelType": "EMAIL",
+  "provider": "gmail",
+  "accountId": "soporte@ejemplo.com",
+  "contact": { "email": "cliente@ejemplo.com" },
+  "message": {
+    "externalId": "msg-234",
+    "threadId": "thread-100",
+    "body": "Necesito información."
+  },
+  "conversation": {
+    "status": "WAITING_INTERNAL",
+    "followUp": "REQUIRED",
+    "followUpAt": "2026-11-20T09:00:00Z",
+    "categoryCode": "SOPORTE",
+    "summary": "Información solicitada",
+    "comments": "Contactar con responsable",
+    "language": "es"
+  }
+}
+```
+
+| Campo | Valores admitidos |
+|---|---|
+| `status` | `NEW`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `HUMAN_REQUIRED`, `RESOLVED`, `CLOSED`, `AUTOMATED`, `INFORMATIONAL`, `WAITING_INTERNAL` |
+| `followUp` | `NONE`, `REQUIRED`, `SCHEDULED`, `WAITING_RESPONSE`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` (también `null`) |
+| `followUpAt` | Fecha/hora ISO 8601 o `null` |
+| `categoryId` o `categoryCode` | UUID o código exacto de una categoría existente y habilitada en el workspace, o `null` para borrar |
+| `summary`, `comments`, `transcription` | Texto opcional, máximo 100.000 caracteres; `null` borra |
+| `language` | Etiqueta de idioma BCP 47, por ejemplo `es`, `ca`, `en-US` o `null` |
+| `recordingUrl` | URL HTTPS, sin credenciales incrustadas, o `null` |
+
+La asociación segura tiene prioridad: un conflicto de identidad o una referencia ambigua implica revisión humana, aunque el evento indique `INFORMATIONAL`. El estado de la conversación y la confirmación técnica de entrega son dimensiones distintas. Si necesitas actualizar una conversación **sin insertar un nuevo mensaje**, usa `PATCH /rest/supportCases/{id}` con el rol apropiado.
+
+### Llamadas telefónicas
+
+Crea un Canal `PHONE` para la línea o centralita correspondiente. Envía `message.externalId` único para cada llamada, así como un `issueKey` o referencia verificable al hilo, si procede.
+
+```json
+{
+  "channelCode": "centralita",
+  "channelType": "PHONE",
+  "provider": "voip",
+  "accountId": "linea-1",
+  "contact": { "externalId": "caller-123", "name": "Cliente" },
+  "message": {
+    "externalId": "call-234",
+    "issueKey": "call-234",
+    "body": "Llamada entrante",
+    "callTranscription": "Buenos días, quisiera consultar…",
+    "callRecordingUrl": "https://audio.ejemplo.com/call-234"
+  },
+  "conversation": {
+    "status": "INFORMATIONAL",
+    "followUp": "NONE",
+    "transcription": "Buenos días, quisiera consultar…",
+    "recordingUrl": "https://audio.ejemplo.com/call-234"
+  }
+}
+```
+
+**Grabación** es un enlace, no un archivo binario. Las políticas de acceso, autorización para grabar y retención corresponden a la integración del proveedor. Evita enlaces públicos permanentes y credenciales embebidas. La app no realiza ni graba llamadas.

@@ -1,16 +1,18 @@
 # Omnichannel Support for Twenty
 
-Manage customer enquiries and conversation history in Twenty CRM.
+Manage conversations across email, chat and phone channels in Twenty CRM.
 
 Omnichannel Support gives your team a place to follow support cases, read messages in context, and keep track of what still needs attention. Cases live alongside your existing Twenty contacts, so you can see the history of an issue without maintaining a separate support database.
 
 ## What you can do
 
 - **Follow each enquiry.** Keep incoming and outgoing messages together, with the case's status, category, owner and resolution.
-- **Work across channels.** Set up separate email inboxes, WhatsApp numbers, Instagram accounts and Telegram bots for each workspace.
+- **Work across channels.** Connect email inboxes, WhatsApp, Instagram, Telegram and phone systems separately in each workspace.
+- **Update conversations through the API.** Set status, follow-up, category, language, summary or comments as each new message arrives; preserve call recordings and transcriptions.
+- **Open history from People.** Find related conversations and channel identities in the Omnichannel tab on a Person.
 - **Choose how conversations become cases.** Keep email replies in the same thread, or group chat messages by activity and topic. Each channel has its own settings.
 - **Use your team's knowledge.** Maintain FAQs for connected bots and review automated replies before or after they are sent.
-- **See what needs attention.** Find cases waiting for a person, inspect technical errors and review support activity from Twenty.
+- **See what needs attention.** Choose which KPIs to show in the workspace summary, and create additional graphs and dashboards with Twenty's native editor.
 
 WhatsApp integrations can associate number-based JIDs and LIDs with the same customer identity when the provider supplies reliable matching information.
 
@@ -29,7 +31,7 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 
 ## Ingestion API
 
-The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram and Telegram events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
+The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram, Telegram and phone events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
 
 [Read the ingestion API guide](docs/INGESTION_API.md) for payload examples, authentication and rollout considerations.
 
