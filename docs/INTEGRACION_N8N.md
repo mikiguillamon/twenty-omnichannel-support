@@ -1,110 +1,186 @@
 # Integrar Omnichannel Support con n8n y Twenty
 
-## Alcance
+Omnichannel Support recibe eventos normalizados de email, WhatsApp, Instagram, Telegram y llamadas telefónicas. n8n se encarga de hablar con el proveedor, autenticar el evento y preparar los datos. La aplicación registra la Persona, la identidad externa, la conversación y el mensaje en Twenty mediante un único endpoint.
 
-La app registra historial, consultas, conocimiento y supervisión en el workspace de Twenty. El transporte de email, WhatsApp, Instagram y Telegram y la ejecución del bot corresponden a n8n y a los proveedores. Se recomienda utilizar el **nodo Twenty de n8n** para las operaciones de CRM que soporte la versión instalada. Antes de diseñar el flujo, comprobar en ese nodo que permite buscar, crear y actualizar los objetos personalizados `supportChannels`, `supportExternalIdentities`, `supportIdentityAliases`, `supportCases`, `supportMessages`, `supportFaqs` y sus relaciones.
+Este procedimiento corresponde al contrato de la versión de código \`0.3.0-beta.12\`. La [referencia de API](API_REFERENCE.md) contiene todos los parámetros y códigos de error.
 
-No se debe asumir soporte para objetos personalizados solo porque el nodo conecte con Twenty. Si una operación no aparece, documentar la incompatibilidad y revisar la versión del nodo; no presentar un ejemplo basado en HTTP como si fuera una acción oficial del nodo. El API Playground del workspace sirve para inspeccionar los nombres y los filtros generados, incluso cuando la implementación utiliza el nodo Twenty.
+## Preparar el workspace
 
-## Preparación
+Instala Omnichannel Support en una versión compatible de Twenty (el paquete declara \`>=2.50.0 <2.51.0\`). Abre **Omnichannel → Canales** y crea una instancia por buzón de correo, número, cuenta o centralita.
 
-1. Crear en Twenty un Canal por buzón, número, bot o cuenta real, con `code`, `channelType`, `provider` y `externalIdentifier`. Dejarlo desactivado hasta probar la conexión.
-2. Crear las categorías y FAQs necesarias. Solo las FAQs `PUBLISHED` deben usarse para responder.
-3. Crear una credencial Twenty en n8n con una API key propia de ese workspace y permisos mínimos.
-4. Comprobar operaciones de lectura, búsqueda, creación y actualización de objetos personalizados en el nodo Twenty; validar relaciones en el API Playground.
-5. Crear un subworkflow común de escritura en Twenty, llamado por los triggers de cada proveedor. Mantener el envío en el nodo del proveedor.
-6. Hacer pruebas con datos ficticios y activar el Canal solo cuando el flujo pueda comprobar `status=ACTIVE` antes de enviar.
+Cada Canal necesita un \`code\` único. Define también \`channelType\`, \`provider\` y \`externalIdentifier\` para delimitar su ámbito. Mantén el Canal desactivado mientras pruebas la integración. Configura la política de agrupación por hilo, mensaje, periodo de actividad o revisión.
 
-Los valores de un mismo workspace nunca se consultan con credenciales de otro. Los tokens y claves de proveedor se guardan en el gestor de credenciales de n8n, no en `supportSettings`.
+Si vas a clasificar conversaciones, crea las Categorías en Twenty con \`code\` y \`enabled=true\`. Las FAQs también se gestionan desde el workspace. Ninguna de estas configuraciones necesita guardar un token de proveedor en Twenty.
 
-## Flujo de recepción
+En n8n crea una credencial de tipo Bearer para el workspace, con los permisos adecuados. Comprueba la URL externa de la función antes de construir el flujo:
 
-```text
-Trigger de email / webhook de chat
- -> validar origen, tipo de evento, dirección y duplicados
- -> normalizar cuenta, alias, mensaje y referencia al hilo
- -> nodo Twenty: obtener Canal y su política por code
- -> nodo Twenty: resolver Identidad externa y alias; vincular Persona solo si es fiable
- -> localizar Consultas candidatas y aplicar agrupación por Canal
- -> continuar, reabrir, crear o enviar a revisión la Consulta
- -> nodo Twenty: buscar o crear Mensaje por externalKey
- -> nodo Twenty: leer FAQs publicadas y Ajustes
- -> bot: REPLY / SKIP / ESCALATE / PENDING_REVIEW
- -> si REPLY: crear borrador, comprobar Canal de nuevo, enviar
- -> nodo Twenty: actualizar Mensaje y Consulta con el resultado real
-```
+\`\`\`http
+POST https://TU_TWENTY/s/omnichannel/v1/ingest
+Authorization: Bearer TOKEN_DEL_WORKSPACE
+Content-Type: application/json
+\`\`\`
 
-### Mapeo de entrada
+La app registra internamente la ruta \`/omnichannel/v1/ingest\`. La URL pública puede variar con el dominio de funciones de Twenty y el routing del workspace.
 
-| Evento normalizado | Twenty |
-|---|---|
-| Identificador del interlocutor | buscar `supportExternalIdentities` y, si corresponde, sus `supportIdentityAliases` |
-| Contacto confirmado | vincular `personId`; registrar `originEmail` o `originPhone` cuando sean datos válidos |
-| Cuenta receptora | `supportChannels.code` y relación `channelInstanceId` |
-| Tipo de transporte | `supportCases.channel` (`EMAIL`, `WHATSAPP`, `INSTAGRAM` o `TELEGRAM`) |
-| Hilo o asunto elegido | `supportCases.externalKey`: una clave única por Consulta, no el JID del contacto |
-| ID único del mensaje | `supportMessages.externalKey` |
-| ID interno de la Consulta | `supportMessages.supportCaseId` |
-| Dirección y autor | `direction=INBOUND`, `senderType=CUSTOMER` |
-| Cuerpo y fecha | `body`, `occurredAt` |
-| Recepción real | `deliveryStatus=RECEIVED` |
+## Subworkflow común
 
-Los campos de relación declarados en el código incluyen `personId`, `externalIdentityId`, `channelInstanceId`, `categoryId`, `supportCaseId` y `taskId`. La interfaz del nodo puede representar la relación como un selector o como un campo ID: comprobarlo en la versión instalada.
+\`\`\`text
+Trigger de proveedor (email / chat / VoIP)
+  → Validar firma, autenticación y tipo de evento
+  → Normalizar datos en Edit Fields / Code
+  → HTTP Request a Omnichannel /ingest
+  → Comprobar status y reviewRequired
+  → Si procede, buscar FAQs y ejecutar bot
+  → Enviar la respuesta mediante el proveedor
+  → Registrar un evento message.sent o message.status
+\`\`\`
 
-## Claves externas y agrupación
+El subworkflow no necesita llamar por separado a las operaciones de creación de Personas, identidades, conversaciones y mensajes. Esas búsquedas y relaciones se resuelven desde la aplicación en el contexto del workspace.
 
-Cada Consulta y Mensaje tiene su propia `externalKey` única, estable y con ámbito de proveedor y canal. Ejemplos ficticios:
+Si el Canal está \`PAUSED\` o \`DISABLED\`, bloquea el envío automático desde el flujo. El endpoint de ingestión no consulta el estado operativo para rechazar eventos entrantes. Mantén el registro entrante si tu política lo requiere, pero aplica la prohibición de envío donde corresponde.
 
-- Consulta email: `EMAIL:proveedor:cuenta:thread-123`.
-- Mensaje email: `EMAIL:proveedor:cuenta:msg-789`.
-- Consulta WhatsApp: `WHATSAPP:proveedor:numeroCanal:caso-456`.
-- Mensaje WhatsApp: `WHATSAPP:proveedor:numeroCanal:wamid-789`.
+## Formato de entrada
 
-El correo puede agruparse por el identificador de hilo del proveedor y las cabeceras `Message-ID`, `In-Reply-To` y `References`. El `Message-ID` por sí solo identifica un correo, no toda la conversación. En WhatsApp, el PN JID y el LID son alias que pueden representar al mismo interlocutor. Su correspondencia se resuelve antes de buscar Consultas; ninguno debe convertirse en la clave permanente de un caso. Aplicar las reglas del Canal para continuar, reabrir o crear una Consulta.
+Envía siempre una clave idempotente. Lo habitual es utilizar el ID original del proveedor en \`message.externalId\`. Cuando no exista, genera una \`idempotencyKey\` estable de tu sistema.
 
-Buscar antes de crear y, cuando una inserción falle por índice único, recuperar el registro existente. Dos ejecuciones concurrentes pueden superar a la vez la búsqueda previa. Los IDs de ejecución de n8n sirven para diagnóstico, no como claves de idempotencia.
+\`\`\`json
+{
+  "channelCode": "email-soporte",
+  "channelType": "EMAIL",
+  "provider": "gmail",
+  "accountId": "soporte@example.com",
+  "contact": { "email": "cliente@example.com", "name": "Alex" },
+  "message": {
+    "externalId": "msg-123",
+    "threadId": "thread-45",
+    "direction": "INBOUND",
+    "body": "Hola, quisiera información."
+  },
+  "conversation": {
+    "status": "IN_PROGRESS",
+    "categoryCode": "INFORMACION",
+    "followUp": "REQUIRED",
+    "language": "es"
+  }
+}
+\`\`\`
 
-## Respuesta y confirmaciones
+\`conversation\` es opcional. Puedes utilizarlo tanto para el primer mensaje de una conversación como para un nuevo mensaje que actualice sus metadatos. Se aceptan \`status\`, \`followUp\`, \`followUpAt\`, \`categoryCode\` o \`categoryId\`, \`summary\`, \`comments\`, \`language\`, \`transcription\` y \`recordingUrl\`.
 
-- `REPLY`: crear o actualizar un Mensaje `OUTBOUND`, `senderType=BOT`, `draftBody` y `deliveryStatus=PENDING`.
-- `SKIP`: registrar decisión y no inventar una salida.
-- `ESCALATE`: poner Consulta `HUMAN_REQUIRED`, fijar `escalatedAt` y asignar responsable cuando se sepa.
-- `PENDING_REVIEW`: guardar borrador hasta aprobación; no enviarlo automáticamente.
+Un campo omitido mantiene el valor anterior. Los reintentos con el mismo identificador de mensaje no vuelven a aplicar el bloque \`conversation\`. Para cambiar solo el estado, sin crear mensaje, usa \`PATCH /rest/supportCases/{id}\` mediante la API REST estándar de Twenty.
 
-Antes de enviar, volver a consultar `supportChannels.status`. Cuando el proveedor acepte el envío, poner el contenido efectivamente enviado en `body`, `deliveryStatus=SENT` y `sentAt`. Con acuse explícito de entrega, actualizar el mismo Mensaje a `DELIVERED` y añadir `deliveredAt`. Un rechazo debe producir `FAILED`, no `SENT`.
+### Actualizar una conversación al añadir un mensaje
 
-Los proveedores pueden enviar notificaciones de mensajes propios y eventos de estado. Correlacionar por el ID de origen para actualizar el Mensaje saliente, sin crear un nuevo Mensaje `INBOUND`. El esquema incluye `supportMessages.providerMessageId` para guardar el ID original del mensaje del proveedor y `providerChatId`/`providerChatIdAlt` para conservar las direcciones recibidas. Usar estas referencias para correlacionar acuses, conservando estable `externalKey`. El campo `externalKey` no debe cambiar a mitad de un envío.
+Mantén la referencia a la misma conversación, pero utiliza otro \`externalId\` para el mensaje. El correo puede usar \`threadId\`; los chats pueden indicar \`issueKey\`, \`caseId\` o \`replyToExternalId\`. La función valida que la conversación pertenece al Canal y al interlocutor correcto.
 
-## Estados y supervisión
+\`\`\`json
+{
+  "channelCode": "email-soporte",
+  "channelType": "EMAIL",
+  "provider": "gmail",
+  "accountId": "soporte@example.com",
+  "contact": { "email": "cliente@example.com" },
+  "message": {
+    "externalId": "msg-124",
+    "threadId": "thread-45",
+    "direction": "OUTBOUND",
+    "senderType": "BOT",
+    "deliveryStatus": "SENT",
+    "body": "Hemos recibido tu solicitud."
+  },
+  "conversation": {
+    "status": "AUTOMATED",
+    "followUp": "NONE",
+    "summary": "Se ha enviado una respuesta informativa."
+  }
+}
+\`\`\`
 
-`supportCases.status` indica el trabajo pendiente; `resolution` indica si el problema quedó solucionado; `technicalStatus` indica si el workflow funcionó; `automation` registra cuánto se automatizó. No mezclar sus métricas. `supportEvaluations.verdict` registra una evaluación humana separada.
+Los estados disponibles incluyen \`AUTOMATED\` e \`INFORMATIONAL\` para comunicaciones que no requieren atención humana. Si la identidad o la relación con el hilo es ambigua, la función obliga a revisar el caso.
 
-Actualizar la salud de cada Canal solamente con hechos observados: `lastEventAt` por evento, `lastHeartbeatAt` tras comprobación, `health` desde una regla explícita, y `errorSummary` sin información privada. `staleAfterMinutes` no ejecuta ninguna comprobación por sí mismo.
+## Confirmación de envío y entrega
 
-## Pruebas antes de producción
+Después de enviar un mensaje, el proveedor puede devolver un acuse de entrega. Regístralo como \`message.status\`, conservando exactamente su ID:
 
-- Dos entregas del mismo webhook producen un solo Mensaje.
-- Un mismo asunto genera una Consulta con varios Mensajes; un nuevo asunto puede crear otra.
-- Los mensajes emitidos por el bot no regresan como mensajes del cliente.
-- Un borrador pendiente no figura como enviado y `SKIP` no genera mensajes falsos.
-- Los acuses de entrega actualizan el mismo registro.
-- Una pausa del Canal impide nuevos envíos.
-- Un error técnico puede coexistir con una resolución todavía pendiente.
-- Las credenciales y los datos permanecen aislados por workspace.
-- Las operaciones y relaciones del nodo Twenty están verificadas en esa instalación.
+\`\`\`json
+{
+  "channelCode": "email-soporte",
+  "channelType": "EMAIL",
+  "provider": "gmail",
+  "accountId": "soporte@example.com",
+  "eventType": "message.status",
+  "message": {
+    "externalId": "msg-124",
+    "deliveryStatus": "DELIVERED"
+  }
+}
+\`\`\`
 
-## Limitaciones que hay que contemplar
+Este evento actualiza el mensaje existente. No crea otro, ni cambia el estado de la conversación. El flujo no debe incluir un bloque \`conversation\` en estas notificaciones.
 
-La aplicación no tiene compositor de salida propio, no almacena archivos adjuntos en una relación específica de Mensajes, y el visor cronológico muestra como máximo 100 Mensajes. El manejo de HTML, multimedia y conversaciones largas requiere un procedimiento complementario. Las actualizaciones de esquema y del nodo Twenty deben comprobarse en un entorno de pruebas.
+Los estados \`DELIVERED\` y \`FAILED\` se consideran terminales en la función; un acuse tardío de \`SENT\` no debe retroceder una entrega confirmada. Los mensajes salientes con un ID nuevo deben coincidir con los que se registran después en los acuses.
 
-Consulta [ARQUITECTURA.md](ARQUITECTURA.md), [OPERATIVA.md](OPERATIVA.md), [CONFIGURACION_CANALES.md](CONFIGURACION_CANALES.md) y [CHECKLIST_PILOTO.md](CHECKLIST_PILOTO.md).
+## WhatsApp, PN y LID
 
-## Políticas e identidades externas
+Cuando el proveedor entrega \`remoteJid\` y \`remoteJidAlt\`, consérvalos en \`contact\` o en \`message\`. La función reconoce los alias \`@s.whatsapp.net\` y \`@lid\` para una identidad externa del Canal. Nunca los utilices como clave única de la conversación completa.
 
-Antes de buscar la Persona, obtener el Canal por `code` con **Record → Get Many** y leer su política de agrupación. Resolver `supportIdentityAliases` mediante todas las direcciones recibidas (incluidos PN JID/LID), recuperar la identidad lógica en `supportExternalIdentities` y crear registros solo cuando falten y vincularlo a Persona solo si existe evidencia fiable. Las Consultas nuevas pueden incluir `externalIdentityId` aunque no haya una Persona identificada. Canal y Consulta admiten `EMAIL`, `WHATSAPP`, `INSTAGRAM` y `TELEGRAM`. La compatibilidad del modelo no configura automáticamente el transporte externo.
+Ante alias que ya apuntan a identidades diferentes, la aplicación requiere revisión. No fusiona Personas arbitrariamente. Los chats de grupos \`@g.us\` quedan excluidos del endpoint de Personas.
 
-Para email, usar el `groupingMode=THREAD` por defecto y las cabeceras/ID de hilo, conservando respuestas dentro de la misma Consulta. Para chats, aplicar `HYBRID` o el modo seleccionado; un clasificador opcional se ejecuta en n8n, nunca dentro de Twenty. `ambiguousAction=REVIEW` exige persistir el mensaje y crear una revisión segura. Las políticas de los Canales antiguos pueden ser nulas hasta que se guarden desde la interfaz. [Procedimiento completo](POLITICAS_CONVERSACION.md).
+Consulta [Identificadores WhatsApp](IDENTIFICADORES_WHATSAPP.md) para los casos de PN/LID y cambios de direccionamiento.
 
-## WhatsApp: identificadores PN y LID
+## Llamadas telefónicas
 
-Para Evolution API, no asumir que `remoteJid` siempre contiene el teléfono. `remoteJidAlt` puede traer el PN o el LID y ambos pueden intercambiarse. Leer los dos, consultar `supportIdentityAliases` con el nodo Twenty CRM y reutilizar la misma identidad lógica cuando exista una vinculación fiable. No fusionar identidades en conflicto. Conservar en el Mensaje `providerChatId`, `providerChatIdAlt` y `providerMessageId` para trazabilidad; la clave idempotente del Mensaje se deriva del ID de mensaje y Canal, no de un JID. Véase [IDENTIFICADORES_WHATSAPP.md](IDENTIFICADORES_WHATSAPP.md).
+La integración de llamadas funciona con un Canal \`PHONE\`. Tu centralita sigue siendo responsable de iniciar, recibir, grabar y transcribir. Envía el ID único de llamada en \`message.externalId\`.
+
+\`\`\`json
+{
+  "channelCode": "centralita",
+  "channelType": "PHONE",
+  "provider": "voip",
+  "accountId": "linea-1",
+  "contact": { "externalId": "caller-1", "name": "Cliente" },
+  "message": {
+    "externalId": "call-123",
+    "issueKey": "call-123",
+    "body": "Llamada recibida",
+    "callTranscription": "Buenos días, llamo por una factura.",
+    "callRecordingUrl": "https://audio.example.com/call-123"
+  },
+  "conversation": {
+    "status": "WAITING_INTERNAL",
+    "followUp": "REQUIRED",
+    "transcription": "Buenos días, llamo por una factura.",
+    "recordingUrl": "https://audio.example.com/call-123"
+  }
+}
+\`\`\`
+
+Twenty almacena referencias HTTPS, no el archivo de audio. Protege las grabaciones, establece una retención adecuada y cumple los requisitos aplicables para grabar llamadas.
+
+## Interpretar la respuesta
+
+El endpoint puede devolver \`201 created\`, \`200 duplicate\` o \`200 status_updated\`. Las respuestas incluyen \`channelId\`, \`identityId\`, \`personId\`, \`caseId\`, \`messageId\`, \`reviewRequired\` y \`stableId\`.
+
+Un \`reviewRequired=true\` obliga a revisar la asociación o la conversación antes de automatizar su respuesta. Si devuelve \`stableId=false\`, faltó el identificador estable: no actives reintentos automáticos en esas condiciones.
+
+Un error \`502 INGESTION_FAILED\` puede ocurrir después de escribir parte de los registros. Reintenta con el mismo ID estable. No inventes otro identificador para evitar un duplicado: esa práctica multiplica las conversaciones.
+
+## Leer datos para bots y dashboards
+
+La función de ingestión se ocupa de registrar. Para leer FAQs, categorías, políticas o listas utiliza las operaciones del nodo Twenty que soporte tu versión, o la REST API generada. Comprueba los nombres y permisos en el API Playground.
+
+En **Omnichannel → Resumen** los KPIs se consultan por REST, y puedes elegir los contadores visibles por workspace. Para gráficas y filtros de periodo utiliza los dashboards nativos de Twenty.
+
+## Pruebas recomendadas
+
+- Un mensaje entrante y su repetición producen un solo mensaje en Twenty.
+- Una respuesta con un nuevo ID se incorpora a la misma conversación cuando se identifica con seguridad.
+- El segundo mensaje puede actualizar el estado sin borrar resumen o categoría no incluidos.
+- Una notificación de entrega modifica el mensaje existente y deja intacto el estado de la conversación.
+- Un chat con PN y LID no crea dos identidades incompatibles.
+- Una vinculación dudosa se deriva a revisión sin asociar una Persona por suposición.
+- Un Canal desactivado impide el envío desde n8n.
+- Una llamada registra su transcripción y el enlace protegido al audio.
+- Los tokens de cada workspace están aislados y no se guardan en el JSON.
+
+Documentación relacionada: [API Reference](API_REFERENCE.md), [Arquitectura](ARQUITECTURA.md), [Políticas por canal](POLITICAS_CONVERSACION.md), [Seguridad](SEGURIDAD.md) y [Checklist de pruebas](CHECKLIST_PILOTO.md).
