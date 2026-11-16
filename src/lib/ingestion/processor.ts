@@ -36,11 +36,11 @@ async function first(store: IngestionStore, resource: string, filter: Filter) {
 }
 async function insertUnique(
   store: IngestionStore, resource: string, key: string, data: Record<string, unknown>,
-): Promise<DbRecord> {
-  try { return await store.create(resource, data); } catch (error) {
+): Promise<{record: DbRecord; created: boolean}> {
+  try { return {record: await store.create(resource, data), created: true}; } catch (error) {
     if (!duplicateKey(error)) throw error;
     const existing = await first(store, resource, { externalKey: key });
-    if (existing) return existing;
+    if (existing) return {record: existing, created: false};
     throw error;
   }
 }
@@ -92,7 +92,7 @@ async function identityFor(
   if (matches.length > 1) return { identityId: null, review: true };
   let identityId = matches[0] || null;
   if (!identityId && scope.identityKey) {
-    const created = await insertUnique(store, 'supportExternalIdentities', scope.identityKey, {
+    const { record: created } = await insertUnique(store, 'supportExternalIdentities', scope.identityKey, {
       externalKey: scope.identityKey, provider: scope.provider,
       externalUserId: event.externalUserId, externalAccountId: scope.accountId,
       displayName: event.contactName || event.contactEmail || event.externalUserId,
@@ -109,7 +109,7 @@ async function identityFor(
     for (let i = 0; i < scope.aliases.length; i++) {
       if (aliasMatches[i]) continue;
       const alias = scope.aliases[i];
-      const record = await insertUnique(store, 'supportIdentityAliases', alias.externalKey, {
+      const { record } = await insertUnique(store, 'supportIdentityAliases', alias.externalKey, {
         externalKey: alias.externalKey, aliasValue: alias.aliasValue, aliasType: alias.aliasType,
         evidence: 'Provider event: remoteJid/remoteJidAlt',
         lastSeenAt: event.message.occurredAt, externalIdentityId: identityId,
@@ -166,7 +166,7 @@ async function caseFor(
     candidate = null;
   }
   // Never attach to an unrelated case when no trustworthy reference identifies the subject.
-  if (!candidate && (mode === 'MANUAL' || (mode === 'HYBRID' && channel.ambiguousAction !== 'NEW') ||
+  if (!candidate && (mode === 'MANUAL' || (mode === 'HYBRID' && !issueKey && !ref.caseId && !ref.replyToExternalId && channel.ambiguousAction !== 'NEW') ||
     (mode === 'THREAD' && !ref.threadId && !issueKey))) review = true;
 
   const caseKey = candidate?.externalKey ? text(candidate.externalKey)
@@ -174,7 +174,7 @@ async function caseFor(
       : issueKey || (mode === 'THREAD' ? threadKey : '') || scope.ns + ':CASE-MESSAGE:' + event.messageKey);
 
   if (!candidate) {
-    candidate = await insertUnique(store, 'supportCases', caseKey, {
+    const savedCase = await insertUnique(store, 'supportCases', caseKey, {
       externalKey: caseKey,
       subject: ref.subject,
       channel: scope.channelType,
@@ -183,11 +183,15 @@ async function caseFor(
       firstMessageAt: ref.occurredAt,
       lastMessageAt: ref.occurredAt,
       channelInstanceId: channel.id,
-      ...(safeIdentity && !review ? { externalIdentityId: safeIdentity } : {}),
-      ...(safePerson && !review ? { personId: safePerson } : {}),
+      ...(safeIdentity ? { externalIdentityId: safeIdentity } : {}),
+      ...(safePerson ? { personId: safePerson } : {}),
       ...(event.contactEmail ? { originEmail: event.contactEmail } : {}),
       ...(event.contactPhone ? { originPhone: event.contactPhone } : {}),
     });
+    candidate = savedCase.record;
+    if (!verifyCase(candidate, channel.id, safeIdentity, safePerson)) {
+      throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
+    }
   } else {
     const updates: Record<string, unknown> = {};
     if (safePerson && !candidate.personId) updates.personId = safePerson;
@@ -200,7 +204,7 @@ async function caseFor(
 const deliveryRank: Record<string, number> = { PENDING: 0, SENT: 1, DELIVERED: 2, RECEIVED: 2 };
 async function statusChange(store: IngestionStore, existing: DbRecord, newStatus: string) {
   const current = string(existing.deliveryStatus);
-  if (current === newStatus || (current === 'DELIVERED' && newStatus !== 'FAILED')) return false;
+  if (current === newStatus || current === 'DELIVERED') return false;
   if (current !== 'FAILED' && newStatus !== 'FAILED' && (deliveryRank[newStatus] ?? 0) < (deliveryRank[current] ?? 0)) return false;
   await store.update('supportMessages', existing.id, {
     deliveryStatus: newStatus,
@@ -269,10 +273,10 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     ...(ref.providerAddressingMode ? { providerAddressingMode: ref.providerAddressingMode } : {}),
     ...(ref.replyToExternalId ? { replyToExternalKey: scope.ns + ':MESSAGE:' + ref.replyToExternalId } : {}),
   };
-  const created = await insertUnique(store, 'supportMessages', scope.messageKey, messageData);
+  const { record: created, created: didCreate } = await insertUnique(store, 'supportMessages', scope.messageKey, messageData);
   return {
     ok: true,
-    status: created.supportCaseId === selectedCase.caseId ? 'created' : 'duplicate',
+    status: didCreate ? 'created' : 'duplicate',
     channelId: channel.id, caseId: recordId(created.supportCaseId) || selectedCase.caseId,
     identityId: review ? null : identity.identityId,
     personId: review ? null : link.personId,
