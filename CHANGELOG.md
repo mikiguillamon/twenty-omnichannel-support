@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0-beta.11 — Channel deletion permission fix
+
+- Grant the application's role `Destroy` for Support Channels only, while keeping conversations and identities protected.
+- Surface HTTP and validation failures when Twenty rejects channel removal.
+- Preserve the confirmation step, disabled-only restriction and historical messages.
+
+
 ## 0.3.0-beta.9 — Safe channel removal
 
 - Add explicitly confirmed removal for disabled channels, with re-validation before deletion.
