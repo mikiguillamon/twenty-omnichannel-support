@@ -28,7 +28,7 @@ Cambiar el estado en Twenty no crea conexiones ni desactiva por sí mismo los tr
 
 Solo se destruye el registro del Canal. Las Consultas, Mensajes, Personas, Identidades externas y Alias permanecen intactos. Las relaciones de las Consultas e Identidades hacia el Canal usan `SET_NULL`, por lo que dejan de apuntar a ese Canal. Los filtros que dependan de la instancia dejarán de encontrar ese historial, aunque los registros sigan existiendo.
 
-La operación utiliza la API REST de Twenty con `soft_delete=false`, para liberar también el código único. El usuario debe tener permiso **Destroy** sobre Canales. El rol técnico de la app no recibe permisos nuevos de eliminación. En caso de rechazo de la API, revisar permisos y dependencias sin borrar manualmente los registros relacionados.
+La operación utiliza la API REST de Twenty con `soft_delete=false`, para liberar también el código único. El usuario debe tener permiso **Destroy** sobre Canales. El rol de aplicación tiene permiso **Destroy** exclusivamente sobre Canales; sigue sin poder eliminar Consultas, Mensajes ni Identidades. Twenty aplica los permisos efectivos del usuario y de la aplicación. En caso de rechazo de la API, revisar permisos y dependencias sin borrar manualmente los registros relacionados.
 
 ## Integración y supervisión
 
