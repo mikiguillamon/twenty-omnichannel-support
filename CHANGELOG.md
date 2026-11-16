@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0-beta.9 — Safe channel removal
+
+- Add explicitly confirmed removal for disabled channels, with re-validation before deletion.
+- Preserve Cases, Messages and External Identities using existing SET_NULL relations.
+- Require the current user’s Twenty Destroy permission; external n8n workflows are not changed.
+- Document data retention and installed-app update controls.
+
 ## 0.3.0-beta.8 - Marketplace copy and documentation
 
 - Rework the README for Marketplace visitors, with a concise explanation of customer support workflows and working links to the guides.

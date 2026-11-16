@@ -35,6 +35,6 @@ Consulta [INTEGRACION_N8N.md](INTEGRACION_N8N.md) y [CHECKLIST_PILOTO.md](CHECKL
 
 ## Actualizaciones y reversión
 
-Actualizar desde Twenty cuando haya una versión compatible, conservando los datos existentes. Comprobar el cambio previamente en un workspace o instancia aislada, en particular cuando cambia el origen de instalación entre distribución privada y catálogo público. No desinstalar la versión anterior como método habitual de actualización.
+Actualizar desde Twenty cuando haya una versión compatible, conservando los datos existentes. Si el workspace tiene activada la actualización automática para esta app, la nueva versión compatible puede aplicarse después de sincronizar el catálogo; si no, el administrador debe actualizarla desde la ficha de la app. Publicar en npm no fuerza las actualizaciones existentes. Comprobar el cambio previamente en un workspace o instancia aislada, en particular cuando cambia el origen de instalación entre distribución privada y catálogo público. No desinstalar la versión anterior como método habitual de actualización.
 
 Verificar después de actualizar los nueve objetos, las relaciones, el historial, las vistas, los permisos, el nodo de n8n y una operación de prueba. Ante una regresión, detener los envíos automáticos y preparar una reversión compatible con el esquema de datos y la política de copias de seguridad, sin asumir que desinstalar restaura automáticamente el estado anterior.

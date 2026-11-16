@@ -19,6 +19,17 @@ n8n o el monitor externo deben actualizar `lastEventAt` tras eventos reales y `l
 
 Cambiar el estado en Twenty no crea conexiones ni desactiva por sí mismo los triggers del proveedor. Tampoco cancela los workflows que ya estén en ejecución.
 
+## Eliminar un canal sin borrar las conversaciones
+
+1. Detener primero las automatizaciones externas de n8n que trabajan con ese canal, incluidas las ejecuciones pendientes. Desactivar un canal en Twenty **no detiene n8n**.
+2. Guardar una copia del historial si hace falta, y desactivar el canal en **Atención al cliente → Canales**.
+3. Pulsar **Eliminar canal**, confirmar que la automatización externa está detenida y escribir el código único del canal.
+4. Pulsar **Eliminar definitivamente**. La app comprueba otra vez que el canal mantiene su ID, su código y el estado `DISABLED`.
+
+Solo se destruye el registro del Canal. Las Consultas, Mensajes, Personas, Identidades externas y Alias permanecen intactos. Las relaciones de las Consultas e Identidades hacia el Canal usan `SET_NULL`, por lo que dejan de apuntar a ese Canal. Los filtros que dependan de la instancia dejarán de encontrar ese historial, aunque los registros sigan existiendo.
+
+La operación utiliza la API REST de Twenty con `soft_delete=false`, para liberar también el código único. El usuario debe tener permiso **Destroy** sobre Canales. El rol técnico de la app no recibe permisos nuevos de eliminación. En caso de rechazo de la API, revisar permisos y dependencias sin borrar manualmente los registros relacionados.
+
 ## Integración y supervisión
 
 En cada Consulta, mantener `channel` (`EMAIL`, `WHATSAPP`, `INSTAGRAM` o `TELEGRAM`) y `channelInstanceId` (relación al Canal concreto) coherentes. Conservar histórico cuando se pause o desactive un Canal. Los recuentos acumulados pueden incluir casos de Canales ya desactivados.
