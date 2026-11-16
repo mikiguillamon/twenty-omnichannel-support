@@ -236,6 +236,7 @@ async function caseFor(
     if (safePerson && !candidate.personId) updates.personId = safePerson;
     if (safeIdentity && !candidate.externalIdentityId) updates.externalIdentityId = safeIdentity;
     if (Date.parse(ref.occurredAt) > Date.parse(string(candidate.lastMessageAt) || '')) updates.lastMessageAt = ref.occurredAt;
+    if (review) delete updates.status;
     if (Object.keys(updates).length) await store.update('supportCases', candidate.id, updates);
   }
   return { caseId: candidate.id, review };

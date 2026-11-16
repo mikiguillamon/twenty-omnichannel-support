@@ -153,7 +153,7 @@ export function normalizeConversation(raw: unknown): ConversationPatch {
   if (Object.hasOwn(input, 'categoryCode')) {
     if (input.categoryCode === null) patch.categoryCode = null;
     else {
-      const candidate = string(input.categoryCode).toLowerCase();
+      const candidate = string(input.categoryCode);
       if (!/^[a-z0-9][a-z0-9_-]{0,119}$/.test(candidate))
         throw new IngestError('INVALID_CATEGORY', 'categoryCode must be a valid code or null');
       patch.categoryCode = candidate;

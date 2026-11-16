@@ -42,3 +42,11 @@ test('human evaluation captures corrections and source reference',()=>{
   const src=read('src/objects/support-evaluation.object.ts');
   for(const name of ['proposedCorrection','targetScope','verdict','linkedTaskId'])assert(src.includes(name));
 });
+
+test('new omnichannel fields, person relations and labels are stable',()=>{
+  const source=read('src/objects/support-case.object.ts');
+  for(const field of ['followUp','followUpAt','comments','language','transcription','recording'])assert(source.includes("name: '"+field+"'"));
+  assert(source.includes("labelPlural: 'Conversaciones'"));
+  assert(read('src/page-layouts/person-omnichannel.page.ts').includes('personRecordPage'));
+  assert(read('src/front-components/support-overview.tsx').includes('/rest/supportCases'));
+});
