@@ -86,8 +86,14 @@ function CaseTimeline() {
             <div style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{message.body || message.draftBody || '(Sin contenido)'}</div>
             {message.callTranscription && <details><summary>Transcripción de la llamada</summary>
               <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{message.callTranscription}</p></details>}
-            {message.callRecording?.primaryLinkUrl?.startsWith('https://') && <a href={message.callRecording.primaryLinkUrl}
-              target="_blank" rel="noreferrer noopener">Escuchar grabación</a>}
+            {message.callRecording?.primaryLinkUrl?.startsWith('https://') && <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:6}}>
+              <strong style={{fontSize:12}}>Grabación de la llamada</strong>
+              <audio controls preload="none" src={message.callRecording.primaryLinkUrl} style={{width:'100%',maxWidth:360}}>
+                Tu navegador no admite reproducción de audio.
+              </audio>
+              <a href={message.callRecording.primaryLinkUrl} target="_blank" rel="noreferrer noopener"
+                style={{fontSize:12}}>Abrir grabación</a>
+            </div>}
             <div style={{marginTop:'8px',display:'flex',gap:'8px',fontSize:'11px',color:dark?'#CBD5E1':'#475569'}}>
               {message.deliveryStatus && <span>{message.deliveryStatus}</span>}
               {message.replyDecision && <span>· {message.replyDecision}</span>}

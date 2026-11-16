@@ -47,7 +47,7 @@ El ámbito de las claves externas se deriva de `channelType:provider:accountId`.
 | `externalId` o `externalUserId` | string | ID estable del usuario en el proveedor. También se admite `externalUserId` en la raíz. Se normaliza a minúsculas, máximo 300 caracteres. |
 | `email` | string | Dirección de correo validada; se normaliza a minúsculas. Alternativa plana: `customerEmail`. Para email puede derivarse del remitente o destinatario según la dirección. |
 | `phone` | string | Número de origen, máximo 80 caracteres; alternativa `originPhone` en raíz. El endpoint no valida E.164 ni fusiona Personas por teléfono. |
-| `name` | string | Nombre visible, máximo 500 caracteres; alternativa `displayName` en raíz. |
+| `name` | string | Nombre visible, máximo 500 caracteres; alternativa `displayName` en raíz. No se divide automáticamente en nombre y apellidos. |\n| `firstName` | string | Nombre de pila explícito, máximo 255 caracteres. Alternativa plana: `firstName`. |\n| `lastName` | string | Apellidos explícitos, máximo 255 caracteres. Alternativa plana: `lastName`. Se guardan en `people.name.lastName` cuando la Persona se puede identificar de forma segura. |
 | `personId` | string | UUID de Persona de Twenty. Solo se usa para vinculación directa cuando `verified: true`. |
 | `verified` | boolean | Señal explícita de comprobación del interlocutor; `true` habilita la búsqueda o vinculación segura de Persona para canales que no son email. |
 | `remoteJid`, `remoteJidAlt` | string | Direcciones de WhatsApp PN y LID. También se admiten en `message` y en raíz; se convierten en alias de identidad cuando son válidas. |
@@ -231,7 +231,7 @@ Los JID y LID se guardan como alias observados de una identidad externa. Los gru
 }
 ```
 
-La app registra metadatos de llamadas. No realiza llamadas ni graba el audio: el archivo permanece en el almacenamiento de tu proveedor. Protege el acceso a la URL y aplica la normativa de grabación y retención correspondiente.
+La app registra metadatos de llamadas y reproduce las grabaciones HTTPS desde la pestaña Conversación, usando el reproductor de audio del navegador. También añade automáticamente la transcripción y la URL al caso telefónico si el evento no aporta un valor explícito para ellos. No realiza llamadas ni graba o sube el audio: el archivo permanece en el almacenamiento de tu proveedor. El endpoint de ingesta sigue siendo JSON, no multipart. La reproducción requiere un enlace accesible para el navegador autenticado (y un formato de audio compatible), por lo que no deben enviarse credenciales incrustadas, enlaces públicos permanentes ni URLs internas. Las URLs firmadas con caducidad pueden dejar de funcionar después. Protege el acceso y aplica las políticas de consentimiento y retención que correspondan.
 
 ## Respuesta de éxito
 

@@ -154,7 +154,7 @@ El endpoint admite `conversation` además de `message`. Se aplica al crear la co
   "channelType": "EMAIL",
   "provider": "gmail",
   "accountId": "soporte@ejemplo.com",
-  "contact": { "email": "cliente@ejemplo.com" },
+  "contact": { "email": "cliente@ejemplo.com", "firstName": "María", "lastName": "García López" },
   "message": {
     "externalId": "msg-234",
     "threadId": "thread-100",
@@ -211,4 +211,4 @@ Crea un Canal `PHONE` para la línea o centralita correspondiente. Envía `messa
 }
 ```
 
-**Grabación** es un enlace, no un archivo binario. Las políticas de acceso, autorización para grabar y retención corresponden a la integración del proveedor. Evita enlaces públicos permanentes y credenciales embebidas. La app no realiza ni graba llamadas.
+**Grabación** es un enlace, no un archivo binario. El historial incorpora un reproductor de audio HTML para enlaces HTTPS que el navegador pueda consultar directamente, además de la opción de abrir el enlace. Si el mensaje telefónico incluye `callRecordingUrl` y/o `callTranscription`, estos datos también se incorporan a la conversación, salvo que el bloque `conversation` especifique lo contrario.\n\nEl contrato acepta `contact.firstName` y `contact.lastName` como campos estructurados (o alternativas planas de igual nombre). Los apellidos se guardan en el campo nativo `people.name.lastName` al crear o identificar de forma fiable una Persona; se completan campos vacíos sin sustituir datos ya existentes. No se separan automáticamente los nombres completos, porque los apellidos compuestos pueden quedar mal interpretados. Para canales no email debe verificarse la identidad antes de vincular una Persona.\n\nEl endpoint **no acepta subidas de archivos** ni almacena audios. Para grabaciones procedentes de ficheros locales, primero súbelas a un almacenamiento privado del proveedor o compatible con S3 y envía una URL HTTPS de acceso autorizado. Las URLs temporales caducan y un enlace accesible mediante una sesión del proveedor puede no funcionar en el reproductor de Twenty. Las políticas de acceso, autorización para grabar y retención corresponden a la integración del proveedor. Evita enlaces públicos permanentes y credenciales embebidas. La app no realiza ni graba llamadas.

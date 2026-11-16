@@ -61,10 +61,38 @@ const verifyCase = (
 };
 
 type PersonResolution = { personId: string | null; review: boolean };
+/**
+ * Enrich a Person only when their identity was verified or the message's email matches.
+ * Both native name parts must be present in the REST representation before a partial
+ * update, otherwise we risk wiping a curated value that was omitted from a projection.
+ */
+async function fillMissingPersonName(
+  event: IngestEvent, store: IngestionStore, person: DbRecord, channelType: string,
+): Promise<void> {
+  const firstName = event.contactFirstName;
+  const lastName = event.contactLastName;
+  if (!firstName && !lastName) return;
+  const personEmail = person.emails && typeof person.emails === 'object'
+    ? text((person.emails as Record<string, unknown>).primaryEmail).toLowerCase() : '';
+  const verifiedId = event.personVerified && event.personId === person.id;
+  const verifiedEmail = Boolean(event.contactEmail) && personEmail === event.contactEmail &&
+    (channelType === 'EMAIL' || event.personVerified);
+  if (!verifiedId && !verifiedEmail) return;
+
+  const current = person.name && typeof person.name === 'object' ? person.name : (await store.get('people', person.id))?.name;
+  if (!current || typeof current !== 'object') return;
+  const existing = current as Record<string, unknown>;
+  if (!Object.hasOwn(existing, 'firstName') || !Object.hasOwn(existing, 'lastName')) return;
+  const nextFirst = text(existing.firstName) || firstName;
+  const nextLast = text(existing.lastName) || lastName;
+  if (nextFirst === text(existing.firstName) && nextLast === text(existing.lastName)) return;
+  await store.update('people', person.id, { name: { firstName: nextFirst, lastName: nextLast } });
+}
 async function personFor(event: IngestEvent, store: IngestionStore, channelType: string): Promise<PersonResolution> {
   if (event.personId && event.personVerified) {
     const person = await store.get('people', event.personId);
     if (!person) throw new IngestError('UNKNOWN_PERSON', 'The supplied verified personId was not found', 409);
+    await fillMissingPersonName(event, store, person, channelType);
     return { personId: person.id, review: false };
   }
   // Transport-derived email is trustworthy for EMAIL. Other channels need an explicit verification signal.
@@ -73,11 +101,14 @@ async function personFor(event: IngestEvent, store: IngestionStore, channelType:
   if (!email) return { personId: null, review: false };
   const existing = await store.list('people', { 'emails.primaryEmail': email }, 2);
   if (existing.length > 1) return { personId: null, review: true };
-  if (existing[0]) return { personId: existing[0].id, review: false };
-  const rawName = event.contactName;
-  const space = rawName.indexOf(' ');
-  const firstName = space < 0 ? rawName : rawName.slice(0, space);
-  const lastName = space < 0 ? '' : rawName.slice(space + 1);
+  if (existing[0]) {
+    await fillMissingPersonName(event, store, existing[0], channelType);
+    return { personId: existing[0].id, review: false };
+  }
+  // Full display names are ambiguous (compound given names and surnames).
+  // Use explicit firstName/lastName when possible; otherwise preserve name as display-first-name.
+  const firstName = event.contactFirstName || (event.contactLastName ? '' : event.contactName);
+  const lastName = event.contactLastName;
   try {
     const person = await store.create('people', {
       emails: { primaryEmail: email },
@@ -88,7 +119,10 @@ async function personFor(event: IngestEvent, store: IngestionStore, channelType:
     // An independent execution may have created the same person between read and create.
     if (!duplicateKey(error)) throw error;
     const reread = await store.list('people', { 'emails.primaryEmail': email }, 2);
-    if (reread.length === 1) return { personId: reread[0].id, review: false };
+    if (reread.length === 1) {
+      await fillMissingPersonName(event, store, reread[0], channelType);
+      return { personId: reread[0].id, review: false };
+    }
     return { personId: null, review: true };
   }
 }
@@ -178,6 +212,13 @@ async function caseFor(
   const safePerson = review ? null : personId;
   const ref = event.message;
   const metadata = await conversationUpdates(event.conversation, store);
+  // Keep a convenient case-level link for telephone calls, without changing other channels.
+  if (scope.channelType === 'PHONE' && ref.callRecordingUrl && !Object.hasOwn(metadata, 'recording')) {
+    metadata.recording = { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' };
+  }
+  if (scope.channelType === 'PHONE' && ref.callTranscription && !Object.hasOwn(metadata, 'transcription')) {
+    metadata.transcription = ref.callTranscription;
+  }
   const threadKey = ref.threadId ? scope.ns + ':THREAD:' + ref.threadId : '';
   const issueKey = ref.issueKey ? scope.ns + ':ISSUE:' + ref.issueKey : '';
   let candidate: DbRecord | null = null;
@@ -281,6 +322,12 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     let identityId = recordId(previous?.externalIdentityId) || null;
     let personId = recordId(previous?.personId) || null;
     let reviewRequired = false;
+    if (personId && previous && recordId(previous.channelInstanceId) === channel.id) {
+      const linkedPerson = await store.get('people', personId);
+      if (linkedPerson && (event.personVerified || scope.channelType === 'EMAIL')) {
+        await fillMissingPersonName(event, store, linkedPerson, scope.channelType);
+      }
+    }
     if (previous && recordId(previous.channelInstanceId) === channel.id && !personId) {
       const previousEmail = text(previous.originEmail).toLowerCase();
       if (previousEmail && previousEmail !== event.contactEmail) {
@@ -296,6 +343,10 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
         const linkedId = recordId(identity?.personId);
         const resolved = linkedId ? { personId: linkedId, review: false }
           : await personFor(event, store, scope.channelType);
+        if (linkedId && (event.personVerified || scope.channelType === 'EMAIL')) {
+          const linkedPerson = await store.get('people', linkedId);
+          if (linkedPerson) await fillMissingPersonName(event, store, linkedPerson, scope.channelType);
+        }
         if (resolved.review) reviewRequired = true;
         else if (resolved.personId) {
           const attached = await connectIdentity(store, identityId, resolved.personId);
@@ -323,6 +374,11 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
   const link = identity.review || resolvedPerson.review
     ? { personId: null, review: true }
     : await connectIdentity(store, identity.identityId, resolvedPerson.personId);
+  if (!identity.review && !link.review && link.personId && link.personId !== resolvedPerson.personId &&
+      (event.personVerified || scope.channelType === 'EMAIL')) {
+    const linkedPerson = await store.get('people', link.personId);
+    if (linkedPerson) await fillMissingPersonName(event, store, linkedPerson, scope.channelType);
+  }
   const review = identity.review || resolvedPerson.review || link.review;
   const selectedCase = await caseFor(withIdentity, store, scoped, channel,
     identity.identityId, link.personId, review);

@@ -1,3 +1,10 @@
+## Unreleased
+
+- La ingestión admite nombres y apellidos explícitos y completa los campos nativos vacíos de la Persona sin sobrescribir datos existentes.
+- Los eventos de llamadas telefónicas pueden llevar grabación HTTPS y transcripción, que se incorporan también al detalle de conversación.
+- El historial permite reproducir las grabaciones de llamadas directamente desde el navegador, siempre que la URL sea accesible y el formato compatible.
+- Se amplían las pruebas de ingesta, vinculación segura e idempotencia de contactos y llamadas.
+
 # Changelog
 
 ## 0.3.0-beta.12 - Conversation metadata, phone calls and workspace overview

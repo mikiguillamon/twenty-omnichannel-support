@@ -47,3 +47,10 @@ The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoin
 - [Source code and developer documentation](https://github.com/mikiguillamon/twenty-omnichannel-support)
 
 Free and open source under the [MIT license](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/LICENSE).
+
+
+### Personas y llamadas
+
+La API de ingestión admite `contact.firstName` y `contact.lastName`. Se guardan en el nombre nativo de la Persona de Twenty y, cuando se identifica de forma segura una Persona existente, se completan los campos vacíos sin sobrescribir los datos que ya tenga.
+
+Los canales `PHONE` registran llamadas y sus transcripciones. Una `message.callRecordingUrl` HTTPS se muestra con reproductor de audio en el historial de la conversación; no hace falta adjuntar el archivo a Twenty. Para mantener los audios protegidos, almacénalos en un servicio con control de acceso y revisa la caducidad de sus enlaces. Consulta [API reference](docs/API_REFERENCE.md) para el contrato completo.
