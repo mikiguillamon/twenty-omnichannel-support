@@ -236,9 +236,36 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     };
   }
   if (existing) {
+    // A retry may repair an older case that was stored before a Person was resolved.
+    // Never replace a Person or identity that is already linked.
+    const caseId = recordId(existing.supportCaseId) || null;
+    const previous = caseId ? await store.get('supportCases', caseId) : null;
+    let identityId = recordId(previous?.externalIdentityId) || null;
+    let personId = recordId(previous?.personId) || null;
+    let reviewRequired = false;
+    if (previous && recordId(previous.channelInstanceId) === channel.id && !personId) {
+      const identity = identityId ? await store.get('supportExternalIdentities', identityId) : null;
+      const knownExternalId = text(identity?.externalUserId);
+      if (knownExternalId && event.externalUserId && knownExternalId !== event.externalUserId) {
+        reviewRequired = true;
+      } else {
+        const linkedId = recordId(identity?.personId);
+        const resolved = linkedId ? { personId: linkedId, review: false }
+          : await personFor(event, store, scope.channelType);
+        if (resolved.review) reviewRequired = true;
+        else if (resolved.personId) {
+          const attached = await connectIdentity(store, identityId, resolved.personId);
+          if (attached.review) reviewRequired = true;
+          else if (attached.personId) {
+            personId = attached.personId;
+            await store.update('supportCases', caseId!, { personId });
+          }
+        }
+      }
+    }
     return { ok: true, status: 'duplicate', channelId: channel.id,
-      caseId: recordId(existing.supportCaseId) || null, identityId: null, personId: null,
-      messageId: existing.id, reviewRequired: false, stableId: event.stableId };
+      caseId, identityId, personId: personId || null,
+      messageId: existing.id, reviewRequired, stableId: event.stableId };
   }
   const withIdentity = {
     ...event, externalUserId: event.externalUserId || (scope.channelType === 'EMAIL' ? event.contactEmail : ''),
