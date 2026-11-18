@@ -2,7 +2,7 @@
 
 Omnichannel Support recibe eventos normalizados de email, WhatsApp, Instagram, Telegram y llamadas telefónicas. n8n se encarga de hablar con el proveedor, autenticar el evento y preparar los datos. La aplicación registra la Persona, la identidad externa, la conversación y el mensaje en Twenty mediante un único endpoint.
 
-Este procedimiento corresponde al contrato de la versión de código `0.3.0-beta.12`. La [referencia de API](API_REFERENCE.md) contiene todos los parámetros y códigos de error.
+Este procedimiento corresponde al contrato de la versión de código `0.3.0-beta.14`. La [referencia de API](API_REFERENCE.md) contiene todos los parámetros y códigos de error.
 
 ## Preparar el workspace
 
