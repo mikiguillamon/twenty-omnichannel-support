@@ -73,7 +73,7 @@ export function replyLinkFor(
     case 'EMAIL': {
       const recipient = validEmail(record.originEmail) ?? validEmail(identity?.externalUserId);
       if (!recipient) return null;
-      const subject = (record.subject ?? '').replace(/[\r\n]/g, ' ').trim().slice(0, 180);
+      const subject = (record.subject ?? '').replace(/[\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
       const title = subject ? (/^(?:re|aw|sv):/i.test(subject) ? subject : 'Re: ' + subject) : '';
       return {
         channel: 'EMAIL',
