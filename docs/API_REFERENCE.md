@@ -159,6 +159,16 @@ Para añadir una respuesta al mismo hilo, mantén `threadId: "thread-120"` y usa
 
 En un Canal `THREAD`, el segundo mensaje puede compartir conversación con el primero si supera las comprobaciones de titularidad. El estado cambia al procesar el mensaje **nuevo**. Reenviar `msg-002` devuelve `duplicate` y no vuelve a sobrescribir el estado.
 
+### Agrupación automática de chats por canal
+
+Con `groupingMode=HYBRID` o `SESSION`, la API busca automáticamente una única conversación reciente y compatible del interlocutor en el mismo canal. Para ello usa la identidad externa (PN JID/LID en WhatsApp), la Persona verificada y, cuando procede, correo **verificado junto al mismo teléfono** para recuperar conversaciones antiguas sin vínculo. No mezcla conversaciones de identidades incompatibles.
+
+La búsqueda aplica `continuationHours` (72 horas por defecto) a conversaciones abiertas, incluidas `AUTOMATED` e `INFORMATIONAL`. Las `RESOLVED` pueden reabrirse durante `reopenHours` (48 horas por defecto) cuando el nuevo mensaje solicita un estado activo; `CLOSED` requiere una referencia explícita. Si hay varias conversaciones candidatas, se sigue `ambiguousAction` (`REVIEW` o `NEW`) sin elegir arbitrariamente.
+
+La API respeta `message.caseId`, `replyToExternalId`, `issueKey` y `threadId` cuando existen, validando propiedad. Una clave sintética `issueKey` con prefijo `standalone-auto:` no bloquea la agrupación automática si hay una conversación elegible. Los reintentos duplicados y eventos `message.status` no aplican cambios de estado general.
+
+Si el mensaje de WhatsApp sale de un workflow que solo conoce `contact.phone` en E.164 (por ejemplo `+34600111222`), la API puede usar el PN JID correspondiente como identidad de contacto, incluso si no se envía `channelType`. El `accountId` identifica siempre la cuenta emisora de la integración, no el teléfono ni email del cliente.
+
 ### Confirmar la entrega de un mensaje
 
 ```json
