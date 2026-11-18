@@ -444,8 +444,14 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
       caseId, identityId, personId: personId || null,
       messageId: existing.id, reviewRequired, stableId: event.stableId };
   }
+  // The caller may omit channelType. Use the resolved channel to derive the
+  // same PN identity for outbound WhatsApp events with a validated E.164 phone.
+  const phone = event.contactPhone;
+  const whatsappUser = scope.channelType === 'WHATSAPP' && /^\+[1-9]\d{7,14}$/.test(phone)
+    ? phone.slice(1) + '@s.whatsapp.net' : '';
   const withIdentity = {
-    ...event, externalUserId: event.externalUserId || (scope.channelType === 'EMAIL' ? event.contactEmail : ''),
+    ...event, externalUserId: event.externalUserId ||
+      (scope.channelType === 'EMAIL' ? event.contactEmail : whatsappUser),
   };
   const scoped = keys(withIdentity, {
     channelType: scope.channelType, provider: scope.provider, externalIdentifier: scope.accountId,
