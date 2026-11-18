@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 0.3.0-beta.16 — Accesos de respuesta por canal
+
+- Añade **Responder** debajo del historial de conversación para abrir WhatsApp, el correo, Telegram, Instagram o el marcador de llamadas en una aplicación externa cuando hay un destinatario válido.
+- Resuelve el destino desde la conversación y la identidad externa vinculada; WhatsApp también reconoce alias PN y evita abrir números a partir de LID o identificadores ambiguos.
+- Deshabilita la acción cuando falta información fiable y aclara que abrir el enlace no registra automáticamente el mensaje enviado en Twenty.
+- Incorpora pruebas del enrutamiento por canal y la validación de destinatarios. Sin cambios en el esquema ni en la API de ingestión.
+
 - La ingestión admite nombres y apellidos explícitos y completa los campos nativos vacíos de la Persona sin sobrescribir datos existentes.
 - Los eventos de llamadas telefónicas pueden llevar grabación HTTPS y transcripción, que se incorporan también al detalle de conversación.
 - El historial permite reproducir las grabaciones de llamadas directamente desde el navegador, siempre que la URL sea accesible y el formato compatible.
