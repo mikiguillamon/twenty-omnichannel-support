@@ -3,6 +3,7 @@ import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent, PageLayoutType } from 'twenty-sdk/define';
 import { useSelectedRecordIds, useColorScheme } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
+import { sortMessagesChronologically } from '../lib/sort-support-messages.ts';
 
 type SupportMessage = {
   id: string;
@@ -43,12 +44,12 @@ function CaseTimeline() {
     new RestApiClient().get('/rest/supportMessages', {
       query: {
         filter: `supportCaseId[eq]:${caseId}`,
-        orderBy: 'occurredAt[AscNullsLast]',
+        order_by: 'occurredAt[AscNullsLast]',
         limit: 100,
       },
     }).then((response: unknown) => {
       if (!active) return;
-      setItems(unwrap(response));
+      setItems(sortMessagesChronologically(unwrap(response)));
     }).catch(() => {
       if (!active) return;
       setError('No se ha podido cargar la conversación. Comprueba los permisos y el filtro REST en el API Playground.');
