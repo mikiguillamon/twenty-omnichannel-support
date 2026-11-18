@@ -387,3 +387,114 @@ test('a Person without complete native name representation is never overwritten 
   }}),store);
   assert.deepEqual(store.rowsFor('people')[0].name,{firstName:'Protected'});
 });
+
+const chatEvent = (id, options = {}) => normalizeEvent({
+  channelCode: 'wa-test',
+  channelType: 'WHATSAPP',
+  provider: 'evolution',
+  accountId: 'wa-1',
+  contact: {
+    externalId: options.userId ?? '34600111222@s.whatsapp.net',
+    ...(options.email ? {email: options.email, phone: options.phone ?? '+34600111222', verified: true} : {}),
+  },
+  message: {
+    externalId: id,
+    direction: options.direction ?? 'INBOUND',
+    body: 'message ' + id,
+    occurredAt: options.at ?? '2026-11-16T12:00:00Z',
+    ...(options.issueKey ? {issueKey: options.issueKey} : {}),
+  },
+  conversation: {
+    status: options.status ?? 'IN_PROGRESS',
+    ...(options.followUp ? {followUp: options.followUp} : {}),
+  },
+});
+
+test('HYBRID automatically continues a WhatsApp conversation and applies the new status', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('welcome-1', {
+    direction:'OUTBOUND', status:'AUTOMATED', issueKey:'standalone-auto:welcome-1',
+  }), store);
+  const reply = await ingest(chatEvent('reply-1', {
+    at:'2026-11-16T13:00:00Z', status:'IN_PROGRESS', followUp:'REQUIRED',
+  }), store);
+  assert.equal(reply.caseId, first.caseId);
+  assert.equal(store.rowsFor('supportCases').length, 1);
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+  assert.equal(store.rowsFor('supportCases')[0].status, 'IN_PROGRESS');
+  assert.equal(store.rowsFor('supportCases')[0].followUp, 'REQUIRED');
+});
+
+test('a subsequent automated notice can reuse a recent case even with a different synthetic issueKey', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('welcome-1', {
+    direction:'OUTBOUND', status:'AUTOMATED', issueKey:'standalone-auto:welcome-1',
+  }),store);
+  const second = await ingest(chatEvent('notice-2', {
+    at:'2026-11-16T13:00:00Z', direction:'OUTBOUND', status:'AUTOMATED',
+    issueKey:'standalone-auto:notice-2',
+  }),store);
+  assert.equal(first.caseId, second.caseId);
+  assert.equal(store.rowsFor('supportCases').length,1);
+});
+
+test('automatic grouping does not mix different WhatsApp identities', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('a1'),store);
+  const second = await ingest(chatEvent('b1',{userId:'34600999888@s.whatsapp.net',at:'2026-11-16T13:00:00Z'}),store);
+  assert.notEqual(first.caseId,second.caseId);
+  assert.equal(store.rowsFor('supportCases').length,2);
+});
+
+test('an expired activity window starts a fresh conversation', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('a1'),store);
+  const second = await ingest(chatEvent('a2',{at:'2026-11-21T12:00:00Z'}),store);
+  assert.notEqual(first.caseId,second.caseId);
+});
+
+test('a verified contact can safely recover a legacy unlinked case by matching email and phone', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people',[{id:'known-1',emails:{primaryEmail:'client@example.com'},name:{firstName:'Alex',lastName:''}}]);
+  const old = await ingest(chatEvent('old-message',{userId:'',email:undefined,status:'AUTOMATED'}),store);
+  // Simulate an older case created without a recognized identity.
+  const stored = store.rowsFor('supportCases')[0];
+  delete stored.externalIdentityId;
+  delete stored.personId;
+  stored.originEmail='client@example.com';
+  stored.originPhone='+34600111222';
+  const result = await ingest(chatEvent('new-message',{email:'client@example.com',at:'2026-11-16T13:00:00Z'}),store);
+  assert.equal(result.caseId,old.caseId);
+  assert.equal(stored.personId,'known-1');
+});
+
+test('ambiguous multiple open WhatsApp cases require review rather than choosing arbitrarily', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('case-1',{issueKey:'topic-1'}),store);
+  const second = await ingest(chatEvent('case-2',{issueKey:'topic-2',at:'2026-11-16T12:30:00Z'}),store);
+  assert.notEqual(first.caseId,second.caseId);
+  const incoming = await ingest(chatEvent('case-3',{at:'2026-11-16T13:00:00Z'}),store);
+  assert.equal(incoming.reviewRequired,true);
+  assert.equal(store.rowsFor('supportCases').length,3);
+  assert.equal(store.rowsFor('supportCases')[2].status,'HUMAN_REQUIRED');
+});
+
+test('resolved conversation is reopened within the configured window, but CLOSED is not', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(chatEvent('case-1',{status:'RESOLVED'}),store);
+  const second = await ingest(chatEvent('case-2',{status:'IN_PROGRESS',at:'2026-11-16T13:00:00Z'}),store);
+  assert.equal(second.caseId,first.caseId);
+  const third = await ingest(chatEvent('case-3',{status:'CLOSED',at:'2026-11-16T14:00:00Z'}),store);
+  assert.equal(third.caseId,first.caseId);
+  const fourth = await ingest(chatEvent('case-4',{status:'IN_PROGRESS',at:'2026-11-16T15:00:00Z'}),store);
+  assert.notEqual(fourth.caseId,first.caseId);
+});
+
+test('duplicate WhatsApp delivery retries never rewrite a newer conversation status', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  await ingest(chatEvent('a1',{status:'AUTOMATED'}),store);
+  await ingest(chatEvent('a2',{status:'IN_PROGRESS',at:'2026-11-16T13:00:00Z'}),store);
+  const duplicated = await ingest(chatEvent('a1',{status:'CLOSED'}),store);
+  assert.equal(duplicated.status,'duplicate');
+  assert.equal(store.rowsFor('supportCases')[0].status,'IN_PROGRESS');
+});
