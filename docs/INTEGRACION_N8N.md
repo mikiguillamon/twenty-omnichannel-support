@@ -98,6 +98,18 @@ Mantén la referencia a la misma conversación, pero utiliza otro `externalId` p
 
 Los estados disponibles incluyen `AUTOMATED` e `INFORMATIONAL` para comunicaciones que no requieren atención humana. Si la identidad o la relación con el hilo es ambigua, la función obliga a revisar el caso.
 
+## Agrupación automática por canal
+
+Desde la configuración del canal, selecciona **Agrupación automática: identidad y continuidad (HYBRID)** o **Por sesión de actividad (SESSION)**. El endpoint de Omnichannel aplica la política sin que n8n tenga que buscar previamente Personas o Conversaciones. La ventana de continuidad predeterminada es de 72 horas; la de reapertura de conversaciones `RESOLVED` es de 48 horas. Se aplican las horas guardadas en cada canal, no límites universales de WhatsApp.
+
+Al recibir un mensaje nuevo, Twenty resuelve la identidad en el ámbito del canal y de su cuenta y busca conversaciones elegibles. Una sola coincidencia segura se reutiliza; varias coincidencias compatibles con la actividad reciente se envían a revisión o generan una consulta nueva, según `ambiguousAction`. Las conversaciones `AUTOMATED` e `INFORMATIONAL` también pueden continuar. Las `CLOSED` no se reabren automáticamente. Las `RESOLVED` solo pueden reabrirse dentro de la ventana configurada cuando el nuevo evento solicita un estado activo.
+
+Las notificaciones autónomas cuyo `issueKey` empieza por `standalone-auto:` pueden continuar una conversación elegible a pesar de generar claves distintas por mensaje. Si no hay ninguna elegible, se crea una nueva. Un `caseId`, una referencia a mensaje o un `issueKey` de negocio explícitos conservan prioridad y se verifican contra canal e interlocutor.
+
+Para WhatsApp saliente, `contact.phone` en formato **E.164**, como `+34600111222`, se normaliza a la identidad PN `34600111222@s.whatsapp.net`, incluso si el caller omite `channelType`. Para mensajes entrantes, pasa `contact.externalId` o los `remoteJid`/`remoteJidAlt` reales del proveedor. Cuando el proveedor solo entrega un LID sin alias PN conocido, la app no puede deducir con seguridad el número asociado. No se fusionan personas por un teléfono sin identidad verificable.
+
+Cada nuevo mensaje debe tener su `externalId` (o `idempotencyKey`) propio y conservar el mismo `channelCode` y `accountId` de la cuenta. El bloque `conversation` actualiza el estado y seguimiento de la conversación reutilizada. La retransmisión del mismo ID no reescribe el estado. Los eventos `message.status` modifican únicamente la entrega. El caso nunca debe identificarse usando exclusivamente el teléfono como clave permanente.
+
 ## Confirmación de envío y entrega
 
 Después de enviar un mensaje, el proveedor puede devolver un acuse de entrega. Regístralo como `message.status`, conservando exactamente su ID:

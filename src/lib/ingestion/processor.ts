@@ -23,7 +23,15 @@ export type IngestResult = {
 const string = (value: unknown): string => typeof value === 'string' ? value : '';
 const text = (value: unknown): string => string(value).trim();
 const recordId = (value: unknown): string => text(value);
-const isOpen = (value: unknown) => ['NEW', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'HUMAN_REQUIRED', 'WAITING_INTERNAL'].includes(string(value));
+const isContinuable = (value: unknown) => [
+  'NEW', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'HUMAN_REQUIRED', 'WAITING_INTERNAL',
+  'AUTOMATED', 'INFORMATIONAL',
+].includes(string(value));
+const digits = (value: string) => value.replace(/\D/g, '');
+const hours = (raw: unknown, fallback: number, min: number): number => {
+  const value = raw === null || raw === undefined ? fallback : Number(raw);
+  return Number.isInteger(value) && value >= min && value <= 8760 ? value : fallback;
+};
 
 function duplicateKey(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -47,17 +55,18 @@ async function insertUnique(
 const verifyCase = (
   candidate: DbRecord | null, channelId: string,
   identityId: string | null, personId: string | null, email: string,
+  allowEmailMatch: boolean,
 ): boolean => {
   if (!candidate || recordId(candidate.channelInstanceId) !== channelId) return false;
-  if (!identityId && !personId && !email) return false;
+  if (!identityId && !personId && !(allowEmailMatch && email)) return false;
   const linkedIdentity = recordId(candidate.externalIdentityId);
   const linkedPerson = recordId(candidate.personId);
   if (linkedIdentity && linkedIdentity !== identityId) return false;
   if (linkedPerson && linkedPerson !== personId) return false;
-  // A case ID alone does not establish who owns a conversation.
+  // An unverified email from a chat never authorizes attaching to a known case.
   return (Boolean(identityId) && linkedIdentity === identityId)
     || (Boolean(personId) && linkedPerson === personId)
-    || (Boolean(email) && text(candidate.originEmail).toLowerCase() === email.toLowerCase());
+    || (allowEmailMatch && Boolean(email) && text(candidate.originEmail).toLowerCase() === email.toLowerCase());
 };
 
 type PersonResolution = { personId: string | null; review: boolean };
@@ -203,6 +212,70 @@ async function conversationUpdates(
   return data;
 }
 
+/**
+ * Auto-group chats inside a channel's configured activity window.
+ * Never choose between multiple eligible cases: neither a phone number nor a
+ * Person is enough to identify which of two open conversations is the subject.
+ */
+async function continuableCaseFor(
+  event: IngestEvent, store: IngestionStore, channel: DbRecord,
+  identityId: string | null, personId: string | null,
+): Promise<{ record: DbRecord | null; ambiguous: boolean }> {
+  const allowEmailMatch = event.personVerified && Boolean(event.contactEmail);
+  if (!identityId && !personId && !(allowEmailMatch && event.contactPhone)) {
+    return { record: null, ambiguous: false };
+  }
+  const filters: Filter[] = [];
+  if (identityId) filters.push({ externalIdentityId: identityId, channelInstanceId: channel.id });
+  if (personId) filters.push({ personId, channelInstanceId: channel.id });
+  // Backward compatibility for cases created before their Person/identity was linked:
+  // verified email AND the same phone are required, never email alone.
+  if (allowEmailMatch && event.contactPhone) {
+    filters.push({ originEmail: event.contactEmail, channelInstanceId: channel.id });
+  }
+  const batches = await Promise.all(filters.map(filter => store.list('supportCases', filter, 60)));
+  // The REST API caps list results. A truncated candidate set is unsafe to auto-select.
+  if (batches.some(batch => batch.length >= 60)) return { record: null, ambiguous: true };
+  const candidates = [...new Map(batches.flat().map(row => [row.id, row])).values()];
+  const eventTime = Date.parse(event.message.occurredAt);
+  const continuationMs = hours(channel.continuationHours, 72, 1) * 3_600_000;
+  const reopenMs = hours(channel.reopenHours, 48, 0) * 3_600_000;
+  const active: DbRecord[] = [];
+  const resolved: DbRecord[] = [];
+
+  for (const candidate of candidates) {
+    if (!verifyCase(candidate, channel.id, identityId, personId, event.contactEmail, allowEmailMatch)) continue;
+    const byIdentity = Boolean(identityId) && recordId(candidate.externalIdentityId) === identityId;
+    const byPerson = Boolean(personId) && recordId(candidate.personId) === personId;
+    const savedPhone = digits(text(candidate.originPhone));
+    const receivedPhone = digits(event.contactPhone);
+    if (!byIdentity && !byPerson && (!savedPhone || !receivedPhone || savedPhone !== receivedPhone)) continue;
+    // A Person may use several numbers: never join different phone lines on Person alone.
+    if (!byIdentity && savedPhone && receivedPhone && savedPhone !== receivedPhone) continue;
+
+    const last = Date.parse(text(candidate.lastMessageAt));
+    if (!Number.isFinite(last) || !Number.isFinite(eventTime)) continue;
+    const elapsed = eventTime - last;
+    // Allow a small provider timestamp skew, but not stale events from a prior session.
+    if (elapsed < -5 * 60_000) continue;
+    if (isContinuable(candidate.status) && elapsed <= continuationMs) {
+      active.push(candidate);
+    } else if (string(candidate.status) === 'RESOLVED' &&
+      reopenMs > 0 && elapsed <= reopenMs &&
+      event.conversation.status &&
+      !['RESOLVED', 'CLOSED'].includes(event.conversation.status)) {
+      // A resolved case is reopened only when the new event explicitly requests
+      // an active status. CLOSED remains terminal without an explicit reference.
+      resolved.push(candidate);
+    }
+  }
+  if (active.length === 1) return { record: active[0], ambiguous: false };
+  if (active.length > 1) return { record: null, ambiguous: true };
+  if (resolved.length === 1) return { record: resolved[0], ambiguous: false };
+  if (resolved.length > 1) return { record: null, ambiguous: true };
+  return { record: null, ambiguous: false };
+}
+
 async function caseFor(
   event: IngestEvent, store: IngestionStore, scope: ReturnType<typeof keys>,
   channel: DbRecord, identityId: string | null, personId: string | null, review: boolean,
@@ -231,21 +304,30 @@ async function caseFor(
   if (!review && !candidate && mode === 'THREAD' && threadKey) {
     candidate = await first(store, 'supportCases', { externalKey: threadKey });
   }
-  if (!review && !candidate && mode === 'SESSION' && safeIdentity) {
-    const cases = await store.list('supportCases', { externalIdentityId: safeIdentity, channelInstanceId: channel.id }, 50);
-    const limit = Number(channel.continuationHours ?? 72) * 3_600_000;
-    const time = Date.parse(event.message.occurredAt);
-    candidate = cases
-      .filter(c => isOpen(c.status) && Date.parse(string(c.lastMessageAt) || '') >= time - limit)
-      .sort((a, b) => Date.parse(string(b.lastMessageAt)) - Date.parse(string(a.lastMessageAt)))[0] ?? null;
+  const standaloneNotice = ref.issueKey.startsWith('standalone-auto:');
+  const automatic = (mode === 'HYBRID' || mode === 'SESSION') &&
+    (!ref.issueKey || standaloneNotice) && !ref.caseId && !ref.replyToExternalId;
+  if (!review && !candidate && automatic) {
+    const found = await continuableCaseFor(event, store, channel, safeIdentity, safePerson);
+    if (found.ambiguous) {
+      if (string(channel.ambiguousAction) !== 'NEW') review = true;
+    } else {
+      candidate = found.record;
+    }
   }
-  if (candidate && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail)) {
+  const allowEmailMatch = scope.channelType === 'EMAIL' || event.personVerified;
+  if (candidate && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
     review = true;
     candidate = null;
   }
-  // Never attach to an unrelated case when no trustworthy reference identifies the subject.
-  if (!candidate && (mode === 'MANUAL' || (mode === 'HYBRID' && !issueKey && !ref.caseId && !ref.replyToExternalId && channel.ambiguousAction !== 'NEW') ||
-    (mode === 'THREAD' && !ref.threadId && !issueKey))) review = true;
+  // A new, unreferenced chat with an identified interlocutor is a legitimate
+  // first case. Unidentified or ambiguous chats follow the channel's policy.
+  const identifiable = Boolean(safeIdentity || safePerson);
+  if (!candidate && !review && (
+    mode === 'MANUAL' ||
+    (mode === 'THREAD' && !ref.threadId && !issueKey) ||
+    (automatic && !identifiable && !standaloneNotice && string(channel.ambiguousAction) !== 'NEW')
+  )) review = true;
 
   const caseKey = candidate?.externalKey ? text(candidate.externalKey)
     : (review ? scope.ns + ':REVIEW-MESSAGE:' + event.messageKey
@@ -269,7 +351,7 @@ async function caseFor(
       status: review ? 'HUMAN_REQUIRED' : (event.conversation.status ?? 'NEW'),
     });
     candidate = savedCase.record;
-    if (!savedCase.created && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail)) {
+    if (!savedCase.created && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
       throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
     }
   } else {
@@ -362,8 +444,14 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
       caseId, identityId, personId: personId || null,
       messageId: existing.id, reviewRequired, stableId: event.stableId };
   }
+  // The caller may omit channelType. Use the resolved channel to derive the
+  // same PN identity for outbound WhatsApp events with a validated E.164 phone.
+  const phone = event.contactPhone;
+  const whatsappUser = scope.channelType === 'WHATSAPP' && /^\+[1-9]\d{7,14}$/.test(phone)
+    ? phone.slice(1) + '@s.whatsapp.net' : '';
   const withIdentity = {
-    ...event, externalUserId: event.externalUserId || (scope.channelType === 'EMAIL' ? event.contactEmail : ''),
+    ...event, externalUserId: event.externalUserId ||
+      (scope.channelType === 'EMAIL' ? event.contactEmail : whatsappUser),
   };
   const scoped = keys(withIdentity, {
     channelType: scope.channelType, provider: scope.provider, externalIdentifier: scope.accountId,

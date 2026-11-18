@@ -48,7 +48,7 @@ function ChannelPolicies() {
     setSaving(true);setError('');setFeedback('');
     try {
       await updateChannelPolicy(current.id,kind,policy);
-      setFeedback('Configuración guardada. Los workflows de n8n deben leer y aplicar estas reglas.');
+      setFeedback('Configuración guardada. Omnichannel aplicará automáticamente la continuidad y reapertura al registrar mensajes nuevos.');
       setRevision(n=>n+1);
     }catch {
       setError('No se pudo guardar. Comprueba los permisos y que el workspace tenga el esquema actualizado.');
@@ -57,7 +57,7 @@ function ChannelPolicies() {
   return <div style={{padding:14,display:'flex',flexDirection:'column',gap:16}}>
     <header>
       <strong style={{fontSize:18}}>Gestión de consultas por canal</strong>
-      <p style={{fontSize:13,color:muted}}>Cada buzón, cuenta o número puede agrupar sus mensajes de forma distinta. Esta configuración se guarda en Twenty y la interpreta n8n; la app no llama a modelos de IA ni envía mensajes.</p>
+      <p style={{fontSize:13,color:muted}}>La API de Omnichannel aplica estas reglas al recibir cada mensaje nuevo. No necesitas buscar previamente la conversación desde n8n. La clasificación semántica con IA, si se utiliza, sigue siendo externa.</p>
     </header>
     {loading&&<p>Cargando canales…</p>}
     {loadError&&<p role="alert">{loadError}</p>}
@@ -81,13 +81,14 @@ function ChannelPolicies() {
               <option value="MESSAGE">Una consulta por correo entrante</option>
               <option value="MANUAL">Decisión manual</option>
             </>:<>
-              <option value="HYBRID">Inteligente: continuidad y asunto (recomendado)</option>
-              <option value="SESSION">Por periodo de actividad</option>
+              <option value="HYBRID">Agrupación automática: identidad y continuidad (recomendado)</option>
+              <option value="SESSION">Agrupación por sesión de actividad</option>
               <option value="MESSAGE">Una consulta por mensaje entrante</option>
               <option value="MANUAL">Decisión manual</option>
             </>}
           </select>
         </label>
+        {kind!=='EMAIL'&&<p style={{fontSize:12,color:muted,margin:0}}>En Agrupación automática, Twenty conserva el hilo del mismo contacto y canal si existe una única conversación compatible dentro de la ventana de continuidad. Las notificaciones automáticas también pueden continuarla; cuando hay varias conversaciones posibles, aplica la política de dudas. Las consultas resueltas solo se reabren dentro de la ventana indicada y con un nuevo estado activo. La app no clasifica semánticamente el contenido.</p>}
         {kind==='EMAIL'&&<p style={{fontSize:12,color:muted,margin:0}}>
           Por hilo: el correo original y sus respuestas se guardan en una consulta, usando el identificador de hilo o cabeceras del proveedor.
           Por mensaje: cada correo entrante inicia una consulta, pero las respuestas a ese correo deben vincularse a su consulta.

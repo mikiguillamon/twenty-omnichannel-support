@@ -229,8 +229,16 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     (suppliedType === 'EMAIL' ? (direction === 'OUTBOUND' ? toAddress : fromAddress) : ''));
   if (email && !EMAIL.test(email)) throw new IngestError('INVALID_EMAIL', 'Invalid contact.email');
   const type = suppliedType as ChannelType | '';
+  // Outbound WhatsApp automations often know only the E.164 recipient number.
+  // Canonicalize it to the same PN JID used by inbound Evolution API events.
+  // Never derive a WhatsApp identity from an unvalidated/short phone string.
+  const phoneForIdentity = string(contact.phone ?? top.originPhone);
+  const phoneDigits = phoneForIdentity.startsWith('+') && /^\+[1-9]\d{7,14}$/.test(phoneForIdentity)
+    ? phoneForIdentity.slice(1) : '';
+  const phoneJid = suppliedType === 'WHATSAPP' && phoneDigits
+    ? phoneDigits + '@s.whatsapp.net' : '';
   const userId = max(lower(contact.externalId ?? contact.externalUserId ?? top.externalUserId) ||
-    (type === 'EMAIL' ? email : ''), 300, 'externalUserId');
+    (type === 'EMAIL' ? email : phoneJid), 300, 'externalUserId');
 
   const primaryJid = jid(contact.remoteJid ?? message.remoteJid ?? top.remoteJid);
   const altJid = jid(contact.remoteJidAlt ?? message.remoteJidAlt ?? top.remoteJidAlt);
