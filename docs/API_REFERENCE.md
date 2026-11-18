@@ -1,6 +1,6 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con el código de la app **0.3.0-beta.12**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con el código de la app **0.3.0-beta.14**. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
