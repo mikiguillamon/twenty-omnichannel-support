@@ -4,6 +4,8 @@ import { defineFrontComponent, PageLayoutType } from 'twenty-sdk/define';
 import { useSelectedRecordIds, useColorScheme } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import { sortMessagesChronologically } from '../lib/sort-support-messages.ts';
+import { replyLinkFor, replyUnavailableReason } from '../lib/reply-link.ts';
+import type { ReplyCase, ReplyIdentity, ReplyAlias } from '../lib/reply-link.ts';
 
 type SupportMessage = {
   id: string;
@@ -17,6 +19,21 @@ type SupportMessage = {
   externalKey?: string | null;
   callTranscription?: string | null;
   callRecording?: { primaryLinkUrl?: string | null; primaryLinkLabel?: string | null } | null;
+};
+
+const unwrapRecord = <T,>(response: unknown, name: string): T | null => {
+  if (!response || typeof response !== 'object') return null;
+  const root = response as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object' ? root.data as Record<string, unknown> : root;
+  const record = data[name] ?? data.record;
+  return record && typeof record === 'object' && !Array.isArray(record) ? record as T : null;
+};
+
+const unwrapAliases = (response: unknown): ReplyAlias[] => {
+  if (!response || typeof response !== 'object') return [];
+  const root = response as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object' ? root.data as Record<string, unknown> : root;
+  return Array.isArray(data.supportIdentityAliases) ? data.supportIdentityAliases as ReplyAlias[] : [];
 };
 
 const unwrap = (response: unknown): SupportMessage[] => {
@@ -35,6 +52,11 @@ function CaseTimeline() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const [replyCase, setReplyCase] = useState<ReplyCase | null>(null);
+  const [replyIdentity, setReplyIdentity] = useState<ReplyIdentity | null>(null);
+  const [replyAliases, setReplyAliases] = useState<ReplyAlias[]>([]);
+  const [replyLoading, setReplyLoading] = useState(false);
+  const [replyError, setReplyError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -56,6 +78,46 @@ function CaseTimeline() {
     }).finally(() => {if(active)setLoading(false);});
     return () => {active=false;};
   },[caseId,revision]);
+
+  useEffect(() => {
+    let active = true;
+    setReplyCase(null);
+    setReplyIdentity(null);
+    setReplyAliases([]);
+    setReplyError('');
+    if (!caseId) { setReplyLoading(false); return; }
+    setReplyLoading(true);
+    const api = new RestApiClient();
+    void (async () => {
+      try {
+        const caseResponse: unknown = await api.get('/rest/supportCases/' + encodeURIComponent(caseId));
+        const record = unwrapRecord<ReplyCase>(caseResponse, 'supportCase');
+        if (!record || !active) {
+          if (active) setReplyError('No se ha podido consultar el destinatario de esta conversación.');
+          return;
+        }
+        setReplyCase(record);
+        if (!record.externalIdentityId) return;
+        const identityId = encodeURIComponent(record.externalIdentityId);
+        // The case's linked identity, not an arbitrary Person's contacts, determines the recipient.
+        const identityResponse: unknown = await api.get('/rest/supportExternalIdentities/' + identityId);
+        if (!active) return;
+        setReplyIdentity(unwrapRecord<ReplyIdentity>(identityResponse, 'supportExternalIdentity'));
+        if (record.channel !== 'WHATSAPP') return;
+        const aliasResponse: unknown = await api.get('/rest/supportIdentityAliases', {
+          query: { filter: 'externalIdentityId[eq]:' + JSON.stringify(record.externalIdentityId), limit: 60 },
+        });
+        if (active) setReplyAliases(unwrapAliases(aliasResponse));
+      } catch {
+        if (active) setReplyError('No se pudo cargar la identidad externa. Comprueba los permisos REST de Twenty.');
+      } finally {
+        if (active) setReplyLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [caseId, revision]);
+
+  const reply = replyCase ? replyLinkFor(replyCase, replyIdentity, replyAliases) : null;
 
   const label = (message:SupportMessage) => {
     if (message.senderType==='BOT') return 'Bot';
@@ -104,6 +166,14 @@ function CaseTimeline() {
         );
       })}
       {items.length>=100 && <p style={{fontSize:'12px'}}>Se muestran los primeros 100 mensajes. Para el historial completo, usa la relación Mensajes.</p>}
+      {!!caseId && <footer style={{borderTop:dark?'1px solid #475569':'1px solid #CBD5E1',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
+        {reply ? <a href={reply.href} target={reply.newTab?'_blank':undefined} rel={reply.newTab?'noopener noreferrer':undefined}
+          style={{display:'inline-block',textAlign:'center',padding:'10px 14px',borderRadius:8,background:dark?'#2563EB':'#1D4ED8',color:'#FFFFFF',fontWeight:600,textDecoration:'none'}}>
+          Responder · {reply.channel==='EMAIL'?'Email':reply.channel==='WHATSAPP'?'WhatsApp':reply.channel==='PHONE'?'Llamar':reply.channel==='TELEGRAM'?'Telegram':'Instagram'}
+        </a> : <button type="button" disabled style={{padding:'10px 14px',borderRadius:8,opacity:0.55,cursor:'not-allowed'}}>Responder</button>}
+        {reply && <span style={{fontSize:12,color:dark?'#CBD5E1':'#64748B'}}>Abre {reply.destination} en una aplicación externa. La respuesta no se registra automáticamente en Twenty.</span>}
+        {!reply && <span style={{fontSize:12,color:dark?'#CBD5E1':'#64748B'}} role={replyError?'alert':undefined}>{replyLoading?'Buscando destinatario…':replyError||replyUnavailableReason(replyCase?.channel)}</span>}
+      </footer>}
     </div>
   );
 }
