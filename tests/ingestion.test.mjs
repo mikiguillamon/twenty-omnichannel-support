@@ -498,3 +498,27 @@ test('duplicate WhatsApp delivery retries never rewrite a newer conversation sta
   assert.equal(duplicated.status,'duplicate');
   assert.equal(store.rowsFor('supportCases')[0].status,'IN_PROGRESS');
 });
+
+test('outbound WhatsApp E.164 phone and inbound PN JID resolve the same identity and conversation', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const sent = normalizeEvent({
+    channelCode:'wa-test',channelType:'WHATSAPP',provider:'evolution',accountId:'wa-1',
+    contact:{phone:'+34600111222'},
+    eventType:'message.sent',
+    message:{externalId:'out-1',body:'Bienvenida',occurredAt:'2026-11-16T12:00:00Z'},
+    conversation:{status:'AUTOMATED'},
+  });
+  assert.equal(sent.externalUserId,'34600111222@s.whatsapp.net');
+  const first = await ingest(sent,store);
+  const received = await ingest(chatEvent('reply-2',{
+    userId:'34600111222@s.whatsapp.net',at:'2026-11-16T13:00:00Z',
+  }),store);
+  assert.equal(received.caseId,first.caseId);
+});
+
+test('a malformed or unverified phone is not used as a WhatsApp identity', () => {
+  const raw = {channelCode:'wa-test',channelType:'WHATSAPP',
+    contact:{phone:'600 111 222'},message:{externalId:'x',body:'Hola'}};
+  const event = normalizeEvent(raw);
+  assert.equal(event.externalUserId,'');
+});
