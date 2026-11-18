@@ -16,6 +16,18 @@ El seguimiento tiene su propio selector: `NONE`, `REQUIRED`, `SCHEDULED`, `WAITI
 
 Los campos `resolution`, `automation` y `technicalStatus` son independientes del estado de atención. Un envío técnico correcto no significa que la incidencia esté resuelta.
 
+## Responder desde una conversación
+
+Debajo del historial de mensajes aparece **Responder**. Es un acceso directo al programa correspondiente, no un sistema de envío desde el CRM:
+
+- **WhatsApp:** abre `wa.me` con el teléfono internacional de la conversación. Si no existe, intenta resolver un alias PN asociado a su identidad externa. Un LID por sí solo nunca se convierte en número.
+- **Email:** abre la aplicación de correo predeterminada mediante `mailto:`, con la dirección del interlocutor y el asunto de la consulta prefijado por «Re:» cuando corresponde.
+- **Telegram:** abre `t.me` únicamente si la identidad externa contiene un nombre de usuario público válido.
+- **Instagram:** utiliza `ig.me/m` cuando la identidad contiene un nombre de usuario reconocible. Los IDs numéricos de proveedor no se consideran nombres de usuario.
+- **Teléfono:** abre el marcador mediante `tel:` con un número internacional válido.
+
+Cuando no hay un destino suficientemente fiable, el botón permanece deshabilitado y muestra el motivo. El enlace abre una app o web externa: **no envía mensajes, no actualiza el estado de la conversación ni registra automáticamente la respuesta en Twenty**. Para registrar envíos sigue siendo necesario que la integración de n8n/proveedor reporte el evento a la API de ingestión.
+
 ## Ver el historial de una Persona
 
 Abre la ficha de Persona y entra en la pestaña **Omnichannel**. Encontrarás las conversaciones y las identidades externas que se han vinculado con seguridad. Si la integración no puede identificar a la Persona, la conversación sigue disponible en Omnichannel y su identidad externa puede consultarse por separado.
