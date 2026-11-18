@@ -233,7 +233,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   // Canonicalize it to the same PN JID used by inbound Evolution API events.
   // Never derive a WhatsApp identity from an unvalidated/short phone string.
   const phoneForIdentity = string(contact.phone ?? top.originPhone);
-  const phoneDigits = phoneForIdentity.startsWith('+') && /^\\+[1-9]\\d{7,14}$/.test(phoneForIdentity)
+  const phoneDigits = phoneForIdentity.startsWith('+') && /^\+[1-9]\d{7,14}$/.test(phoneForIdentity)
     ? phoneForIdentity.slice(1) : '';
   const phoneJid = suppliedType === 'WHATSAPP' && phoneDigits
     ? phoneDigits + '@s.whatsapp.net' : '';
