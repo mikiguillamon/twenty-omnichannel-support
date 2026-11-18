@@ -29,6 +29,10 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 3. In **Conversation management**, choose how messages should be grouped into cases.
 4. Connect your provider to n8n and call the app's authenticated ingestion API. Test an incoming message, a retry and a reply before enabling the channel.
 
+## Automatic chat grouping
+
+Choose **Automatic grouping** (HYBRID) or **Activity session** (SESSION) in each channel's conversation settings. The ingestion API can append new inbound and outbound messages to the same eligible conversation, including automated notices, without a separate search in n8n. It respects the channel's continuity and reopening windows, never guesses between multiple active cases, and applies `conversation.status` when a new message is recorded.
+
 ## Ingestion API
 
 The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram, Telegram and phone events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
