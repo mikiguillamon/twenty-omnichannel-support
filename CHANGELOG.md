@@ -1,5 +1,14 @@
 ## Unreleased
 
+## 0.3.0-beta.22 — Gestor visual de FAQs
+
+- Añade un gestor de FAQs dentro de Omnichannel con tarjetas agrupadas por categoría, búsqueda textual, filtros de estado, idioma y alcance, y listado paginado visualmente.
+- Permite crear y editar preguntas y respuestas desde la misma pantalla, con opciones avanzadas para variantes, etiquetas y referencias.
+- Permite publicar, pasar a borrador, archivar y restaurar sin eliminar datos. Conserva también el acceso a las vistas nativas de Twenty.
+- Respeta el usuario y los permisos del workspace mediante RestApiClient sin credenciales de aplicación, y usa paginación REST por cursor para cargar registros completos sin ocultar resultados silenciosamente.
+- Mantiene los objetos y sus identificadores universales; no modifica el endpoint de búsqueda de bots ni los flujos de n8n.
+
+
 ## 0.3.0-beta.21 — Filtro REST validado en EGORA
 
 - Corrige el error 502 persistente del buscador: Twenty 2.50 rechaza también `containsIlike` en el parser REST para `scopeTags` aunque su tipo sea ARRAY.
