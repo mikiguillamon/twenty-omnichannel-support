@@ -1,6 +1,6 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con el código de la app **0.3.0-beta.14**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.18**. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
@@ -89,7 +89,7 @@ Los siguientes campos pueden enviarse tanto con el primer mensaje como con uno n
 | --- | --- | --- |
 | `subject` | string o null | Título de la conversación, máximo 500 caracteres. `null` limpia el asunto; si no se indica, se conserva el título inicial. |
 | `typeId` | UUID o null | Tipo de conversación existente en el workspace; usa la relación `caseTypeId`. |
-| `typeCode` | string o null | Código exacto de tipo existente y activo. Usa `typeId` o `typeCode`, nunca ambos. |
+| `typeCode` | string o null | Código exacto del tipo. Si no existe, se crea automáticamente con `code` y `name` iguales; usa `typeId` o `typeCode`, nunca ambos. |
 | `tags` | string[] | Sustituye las etiquetas estándar de la conversación. Valores: `URGENT`, `REPEAT`, `VIP`, `ESCALATED`, `FOLLOWUP`. `[]` las limpia. |
 | `customTags` | string[] | Etiquetas de texto libres (máximo 30, 64 caracteres cada una), independientes de `tags`. `[]` las limpia. |
 | `resolution` | enum | `PENDING`, `SOLVED`, `UNSOLVED`, `NOT_APPLICABLE`. |
@@ -100,16 +100,16 @@ Los siguientes campos pueden enviarse tanto con el primer mensaje como con uno n
 | `followUp` | enum o null | `NONE`, `REQUIRED`, `SCHEDULED`, `WAITING_RESPONSE`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`. |
 | `followUpAt` | ISO 8601 o null | Fecha y hora del seguimiento; exige zona horaria `Z` u offset y se normaliza a UTC. |
 | `categoryId` | UUID o null | Categoría ya creada en el workspace. |
-| `categoryCode` | string o null | Código exacto, con distinción de mayúsculas, de categoría existente. No envíes `categoryId` y `categoryCode` juntos. |
+| `categoryCode` | string o null | Código exacto de categoría. Si no existe, se crea automáticamente con `code` y `name` iguales. No envíes `categoryId` y `categoryCode` juntos. |
 | `summary` | string o null | Resumen libre, máximo 100.000 caracteres. |
 | `comments` | string o null | Comentarios operativos, máximo 100.000 caracteres. |
 | `language` | string o null | Etiqueta de idioma, por ejemplo `es`, `ca`, `en` o `es-ES`. Máximo 48 caracteres, validación sintáctica tipo BCP 47. |
 | `transcription` | string o null | Transcripción a nivel conversación, máximo 100.000 caracteres. |
 | `recordingUrl` | string o null | Enlace HTTPS a la grabación, máximo 2.048 caracteres. Se transforma al campo `LINKS` `supportCases.recording`. |
 
-El tipo y la categoría se gestionan como registros distintos: `supportTypes` y `supportCategories`, cada uno con `code` único, `enabled` y `description`. Para la API, el código debe coincidir exactamente con un registro habilitado. Las etiquetas predefinidas (`tags`) y libres (`customTags`) son dos campos diferentes.
+El tipo y la categoría se gestionan como registros independientes del workspace: `supportTypes` y `supportCategories`. Ambos tienen un `code` único y un `name` (campo base de Twenty). Al enviar un **código nuevo** válido, la app crea el registro automáticamente con `name = code` y `enabled = true` y lo vincula a la conversación. Un código ya existente se reutiliza sin cambiar su nombre, descripción ni configuración. Si dos mensajes intentan crearlo a la vez, el índice único evita duplicados.
 
-La categoría debe existir y no estar desactivada (`enabled: false`). Si se detecta ambigüedad de identidad o agrupación y se crea una conversación nueva para revisión, la app fuerza `HUMAN_REQUIRED`, incluso si el evento solicitaba otro estado.
+Los códigos distinguen mayúsculas y minúsculas y admiten letras ASCII, números, guion y guion bajo, hasta 120 caracteres. Los valores `null` borran el vínculo; un UUID enviado con `categoryId` o `typeId` **nunca** crea registros. Una categoría o tipo ya desactivado (`enabled: false`) no se reactiva automáticamente y se rechaza como no disponible. Las etiquetas predefinidas (`tags`) y libres (`customTags`) son dos campos diferentes. Si se detecta ambigüedad de identidad o agrupación y se crea una conversación nueva para revisión, la app fuerza `HUMAN_REQUIRED`, incluso si el evento solicitaba otro estado.
 
 Los estados de la conversación son distintos de `deliveryStatus` (envío del mensaje), `resolution` (resultado del caso) y `technicalStatus` (funcionamiento del bot). El bloque `conversation` no admite claves arbitrarias ni valores anidados adicionales.
 
@@ -161,7 +161,7 @@ Codifica el parámetro `filter` con URL encoding en tu cliente HTTP. `GENERAL` e
 }
 ```
 
-El tipo y la categoría deben estar creados previamente. Los cambios del bloque `conversation` se aplican al crear el mensaje nuevo en la conversación existente; no hace falta un PATCH REST adicional desde n8n. Los campos omitidos mantienen sus valores. El reintento de un mensaje con la misma clave idempotente no vuelve a sobrescribir sus metadatos.
+Si `CONSULTA` o `RESERVAS` no existen en ese workspace, el primer mensaje los crea automáticamente con el mismo código y nombre. Los cambios del bloque `conversation` se aplican al crear el mensaje nuevo en la conversación existente; no hace falta un PATCH REST adicional desde n8n. Los campos omitidos mantienen sus valores. El reintento de un mensaje con la misma clave idempotente no vuelve a sobrescribir sus metadatos.
 
 ## Ejemplos completos
 

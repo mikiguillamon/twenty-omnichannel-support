@@ -186,6 +186,44 @@ async function connectIdentity(
   return { personId: selected || null, review: false };
 }
 
+/**
+ * Categories and conversation types are workspace-scoped records, not SELECT options.
+ * The unique code index is authoritative: if two integrations create the same code,
+ * reuse the row committed by the winner without modifying its curated name or state.
+ */
+async function catalogByIdOrCode(
+  store: IngestionStore, resource: 'supportCategories' | 'supportTypes',
+  id: string | null | undefined, code: string | null | undefined,
+  kind: 'CATEGORY' | 'TYPE',
+): Promise<DbRecord | null> {
+  if (id === null || code === null) return null;
+  let record = id
+    ? await store.get(resource, id)
+    : code ? await first(store, resource, { code }) : null;
+
+  // Only a valid *code* may create new records; an unknown UUID never does.
+  if (!record && code) {
+    try {
+      // `name` is a built-in base field automatically provided by Twenty.
+      record = await store.create(resource, { name: code, code, enabled: true });
+    } catch (error) {
+      if (!duplicateKey(error)) throw error;
+      // Another request inserted the same code after our read. Resolve it.
+      record = await first(store, resource, { code });
+      if (!record) {
+        throw new IngestError(kind + '_CREATE_CONFLICT',
+          'The catalog record was created concurrently but is not yet readable; retry the same message ID', 409);
+      }
+    }
+  }
+  // Never silently reactivate an intentionally disabled catalog entry.
+  if (!record || record.enabled === false) {
+    throw new IngestError('UNKNOWN_' + kind,
+      kind === 'CATEGORY' ? 'Category is not available in this workspace' : 'Type is not available in this workspace', 422);
+  }
+  return record;
+}
+
 /** Resolve caller-supplied metadata only after the channel and record ownership were verified. */
 async function conversationUpdates(
   patch: ConversationPatch, store: IngestionStore,
@@ -201,23 +239,13 @@ async function conversationUpdates(
       : null;
   }
   if (Object.hasOwn(patch, 'categoryId') || Object.hasOwn(patch, 'categoryCode')) {
-    let category: DbRecord | null = null;
-    if (patch.categoryId) category = await store.get('supportCategories', patch.categoryId);
-    else if (patch.categoryCode) category = await first(store, 'supportCategories', { code: patch.categoryCode });
-    if (patch.categoryId || patch.categoryCode) {
-      if (!category || category.enabled === false)
-        throw new IngestError('UNKNOWN_CATEGORY', 'Category is not available in this workspace', 422);
-    }
+    const category = await catalogByIdOrCode(store, 'supportCategories',
+      patch.categoryId, patch.categoryCode, 'CATEGORY');
     data.categoryId = category?.id ?? null;
   }
   if (Object.hasOwn(patch, 'typeId') || Object.hasOwn(patch, 'typeCode')) {
-    let type: DbRecord | null = null;
-    if (patch.typeId) type = await store.get('supportTypes', patch.typeId);
-    else if (patch.typeCode) type = await first(store, 'supportTypes', { code: patch.typeCode });
-    if (patch.typeId || patch.typeCode) {
-      if (!type || type.enabled === false)
-        throw new IngestError('UNKNOWN_TYPE', 'Type is not available in this workspace', 422);
-    }
+    const type = await catalogByIdOrCode(store, 'supportTypes',
+      patch.typeId, patch.typeCode, 'TYPE');
     data.caseTypeId = type?.id ?? null;
   }
   return data;
@@ -295,14 +323,6 @@ async function caseFor(
   const safeIdentity = review ? null : identityId;
   const safePerson = review ? null : personId;
   const ref = event.message;
-  const metadata = await conversationUpdates(event.conversation, store);
-  // Keep a convenient case-level link for telephone calls, without changing other channels.
-  if (scope.channelType === 'PHONE' && ref.callRecordingUrl && !Object.hasOwn(metadata, 'recording')) {
-    metadata.recording = { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' };
-  }
-  if (scope.channelType === 'PHONE' && ref.callTranscription && !Object.hasOwn(metadata, 'transcription')) {
-    metadata.transcription = ref.callTranscription;
-  }
   const threadKey = ref.threadId ? scope.ns + ':THREAD:' + ref.threadId : '';
   const issueKey = ref.issueKey ? scope.ns + ':ISSUE:' + ref.issueKey : '';
   let candidate: DbRecord | null = null;
@@ -339,6 +359,17 @@ async function caseFor(
     (mode === 'THREAD' && !ref.threadId && !issueKey) ||
     (automatic && !identifiable && !standaloneNotice && string(channel.ambiguousAction) !== 'NEW')
   )) review = true;
+
+  // Resolve taxonomy only after the candidate has passed ownership checks, so
+  // a mismatched case reference cannot mutate metadata on that case.
+  const metadata = await conversationUpdates(event.conversation, store);
+  // Keep a convenient case-level link for telephone calls, without changing other channels.
+  if (scope.channelType === 'PHONE' && ref.callRecordingUrl && !Object.hasOwn(metadata, 'recording')) {
+    metadata.recording = { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' };
+  }
+  if (scope.channelType === 'PHONE' && ref.callTranscription && !Object.hasOwn(metadata, 'transcription')) {
+    metadata.transcription = ref.callTranscription;
+  }
 
   const caseKey = candidate?.externalKey ? text(candidate.externalKey)
     : (review ? scope.ns + ':REVIEW-MESSAGE:' + event.messageKey

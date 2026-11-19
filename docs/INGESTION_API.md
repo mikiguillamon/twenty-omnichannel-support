@@ -177,7 +177,7 @@ El endpoint admite `conversation` además de `message`. Se aplica al crear la co
 | `status` | `NEW`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `HUMAN_REQUIRED`, `RESOLVED`, `CLOSED`, `AUTOMATED`, `INFORMATIONAL`, `WAITING_INTERNAL` |
 | `followUp` | `NONE`, `REQUIRED`, `SCHEDULED`, `WAITING_RESPONSE`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` (también `null`) |
 | `followUpAt` | Fecha/hora ISO 8601 o `null` |
-| `categoryId` o `categoryCode` | UUID o código exacto de una categoría existente y habilitada en el workspace, o `null` para borrar |
+| `categoryId` o `categoryCode` | UUID existente o código exacto de categoría; los códigos nuevos crean la categoría automáticamente con nombre y código iguales. `null` borra el vínculo |
 | `summary`, `comments`, `transcription` | Texto opcional, máximo 100.000 caracteres; `null` borra |
 | `language` | Etiqueta de idioma BCP 47, por ejemplo `es`, `ca`, `en-US` o `null` |
 | `recordingUrl` | URL HTTPS, sin credenciales incrustadas, o `null` |
@@ -220,7 +220,7 @@ El bloque `conversation` ahora admite `subject`, `status`, `categoryId`/`categor
 
 Todos los campos son opcionales. Al enviar un mensaje nuevo, los proporcionados actualizan la misma conversación asociada al hilo o a la agrupación automática. `tags` y `customTags` se sustituyen por los arrays enviados, incluyendo `[]` para vaciar. Los campos omitidos no se tocan. El reintento del mismo mensaje no cambia metadatos de la conversación.
 
-Los Tipos son registros independientes de las Categorías, configurables en el menú **Tipos** del workspace. Si un código no existe o está inactivo, la ingestión devuelve `UNKNOWN_TYPE`.
+Los Tipos son registros independientes de las Categorías, configurables en el menú **Tipos** del workspace. Cuando se envía un `typeCode` o `categoryCode` nuevo, Omnichannel crea el registro correspondiente con `name = code` y `enabled = true`. Si existe, lo reutiliza sin sobrescribir su nombre ni descripción. El índice único evita duplicados por llamadas simultáneas. Si está inactivo, se devuelve `UNKNOWN_TYPE` o `UNKNOWN_CATEGORY` sin reactivarlo. Los identificadores `typeId` y `categoryId` nunca crean registros.
 
 ## Alcance de FAQs
 
