@@ -2,6 +2,8 @@ name: Publish Omnichannel Support to npm
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
@@ -19,11 +21,12 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish npm]'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Check Release prerelease flag
+        if: github.event_name == 'release'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
@@ -39,10 +42,11 @@ jobs:
           esac
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - name: Require the release commit on main
+        if: github.event_name == 'release'
         run: |
           git fetch origin main
           git merge-base --is-ancestor HEAD origin/main || { echo "Release tag commit is not in main"; exit 1; }
@@ -57,7 +61,19 @@ jobs:
       - name: Validate public release metadata and tag
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: node scripts/release-preflight.mjs --public --tag "$RELEASE_TAG"
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            node scripts/release-preflight.mjs --public --tag "$RELEASE_TAG"
+          else
+            node scripts/release-preflight.mjs --public
+            CURRENT="$(node -p "require('./package.json').version")"
+            PREVIOUS="$(git show HEAD^:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+            test "$CURRENT" != "$PREVIOUS" || { echo "Package version was not changed"; exit 1; }
+            case "$CURRENT" in *-beta.[0-9]*) ;; *) echo "Expected a beta version"; exit 1;; esac
+            if npm view "twenty-omnichannel-support@$CURRENT" version --json >/dev/null 2>&1; then
+              echo "Version already published, refusing to overwrite"; exit 1
+            fi
+          fi
       - name: Tests, types and Twenty SDK build
         run: |
           corepack yarn check
@@ -80,26 +96,24 @@ jobs:
       - name: Install npm with OIDC support
         run: npm install --global 'npm@^11.21.0'
       - name: Publish beta to npm
-        if: github.event.release.prerelease == true
+        if: github.event_name == 'push' || github.event.release.prerelease == true
         run: corepack yarn twenty app:publish --tag beta
       - name: Publish stable to npm
-        if: github.event.release.prerelease == false
+        if: github.event_name == 'release' && github.event.release.prerelease == false
         run: corepack yarn twenty app:publish
 
       - name: Promote released beta to npm latest
-        if: github.event.release.prerelease == true
+        if: github.event_name == 'push' || github.event.release.prerelease == true
         id: promote_latest
-        continue-on-error: true
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         shell: bash
         run: |
           npm dist-tag add "twenty-omnichannel-support@${RELEASE_TAG#v}" latest
           npm dist-tag ls twenty-omnichannel-support
-      - name: Warn if npm latest promotion failed
-        if: steps.promote_latest.outcome == 'failure'
-        run: |
-          echo "::warning title=npm latest not updated::Beta was published, but moving latest failed. Enable 'Allow npm dist-tag' on npm Trusted Publishing for publish.yml, or promote this version manually."
+          VERSION="$(node -p "require('./package.json').version")"
+          npm view "twenty-omnichannel-support" dist-tags --json > /tmp/dist-tags.json
+          node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"
 
   promote_existing:
     if: github.event_name == 'workflow_dispatch'
