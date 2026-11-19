@@ -109,17 +109,19 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         shell: bash
         run: |
-          npm dist-tag add "twenty-omnichannel-support@${RELEASE_TAG#v}" latest
+          VERSION="$(node -p "require('./package.json').version")"
+          npm dist-tag add "twenty-omnichannel-support@$VERSION" latest
           npm dist-tag ls twenty-omnichannel-support
           VERSION="$(node -p "require('./package.json').version")"
           npm view "twenty-omnichannel-support" dist-tags --json > /tmp/dist-tags.json
           node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"
 
   promote_existing:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[promote npm]'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24.5.0'
@@ -131,9 +133,14 @@ jobs:
           PACKAGE_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
+          if [ -z "$PACKAGE_VERSION" ]; then
+            PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          fi
           if [[ ! "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
             echo "Expected a valid published version (for example 0.3.0-beta.8)"
             exit 1
           fi
           npm dist-tag add "twenty-omnichannel-support@$PACKAGE_VERSION" latest
           npm dist-tag ls twenty-omnichannel-support
+          npm view twenty-omnichannel-support dist-tags --json > /tmp/promoted-tags.json
+          node -e "const tags=require('/tmp/promoted-tags.json'); const v=process.argv[1]; if(tags.beta!==v || tags.latest!==v)process.exit(1)" "$PACKAGE_VERSION"
