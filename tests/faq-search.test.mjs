@@ -1,20 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { authorizeFaqBot, candidateFilter, conceptsFor, normalizeText, parseFaqSearchRequest,
+import { candidateFilter, conceptsFor, normalizeText, parseFaqSearchRequest,
   rankFaq, searchFaqs, FaqSearchError } from '../src/lib/faq-search.ts';
 
-const secret='a'.repeat(43);
-const bot={id:'bot1',code:'EGORA_EMAIL',enabled:true,allowedScopes:['VERANO'],
-  secretHash:createHash('sha256').update(secret).digest('hex')};
 const faq=(id,question,answer,language='CA',scopeTags=['GENERAL'],status='PUBLISHED',variants='')=>
   ({id,question,answer,language,scopeTags,status,variants});
 
 class MemoryFaqStore {
-  constructor(rows=[],configuredBot=bot) {
-    this.rows=rows; this.bot=configuredBot;this.calls=0;this.filters=[];
-  }
-  async lookupBot(code) {this.calls++;return this.bot?.code===code?this.bot:null;}
+  constructor(rows=[]) {this.rows=rows;this.calls=0;this.filters=[];}
   async searchCandidates(filter,limit,cursor) {
     this.calls++;this.filters.push(filter);
     const start=cursor?this.rows.findIndex(r=>r.id===cursor)+1:0;
@@ -22,43 +15,34 @@ class MemoryFaqStore {
     return {records:rows,nextCursor:rows.length===limit?rows.at(-1).id:null};
   }
 }
-const req=(query,overrides={})=>parseFaqSearchRequest({query,botCode:'EGORA_EMAIL',...overrides});
+const req=(query,overrides={})=>parseFaqSearchRequest({query,...overrides});
 
-test('normalization removes accents, case, punctuation; validates strict parameters',()=>{
+test('normalizes Unicode, verifies scope array and validates strict parameters',()=>{
   assert.equal(normalizeText('INSCRIPCIÓ · BAIXA!'),'inscripcio baixa');
-  assert.deepEqual(parseFaqSearchRequest({query:'  baixa  ',botCode:'EGORA_EMAIL'}),
-    {query:'baixa',botCode:'EGORA_EMAIL',language:'auto',limit:5});
+  assert.deepEqual(req('  baixa  '),{query:'baixa',scopeTags:[],language:'auto',limit:5});
+  assert.deepEqual(req('hola',{scopeTags:['Verano','verano']}),{
+    query:'hola',scopeTags:['VERANO'],language:'auto',limit:5});
   for(const payload of [
-    {query:'hola',botCode:'EGORA_EMAIL',scopeTags:['SECRET']},
-    {query:'hola',botCode:'EGORA_EMAIL',limit:11},
-    {query:'hola',botCode:'EGORA_EMAIL',limit:1.5},
-    {query:'hola',botCode:'EGORA_EMAIL',language:'es'},
-    {query:'a'.repeat(321),botCode:'EGORA_EMAIL'},
-    {query:'ok',botCode:'../../PRIVATE'},
+    {query:'hola',scopeTags:'VERANO'}, {query:'hola',scopeTags:[123]},
+    {query:'hola',scopeTags:['']}, {query:'hola',scopeTags:['x") OR true']},
+    {query:'hola',scopeTags:Array.from({length:13},(_,i)=>'scope'+i)},
+    {query:'hola',filter:'status[eq]:"DRAFT"'},
+    {query:'hola',limit:11}, {query:'hola',limit:1.5},
+    {query:'hola',language:'es'}, {query:'a'.repeat(321)},
   ])assert.throws(()=>parseFaqSearchRequest(payload),FaqSearchError);
 });
 
-test('a bot code alone cannot authorize access, wrong secrets fail closed',()=>{
-  assert.throws(()=>authorizeFaqBot(bot,undefined),/credentials/);
-  assert.throws(()=>authorizeFaqBot(bot,'b'.repeat(43)),/credentials/);
-  assert.throws(()=>authorizeFaqBot({...bot,secretHash:'bad'},secret),/credentials/);
-  assert.throws(()=>authorizeFaqBot({...bot,allowedScopes:null},secret),/credentials/);
-  assert.throws(()=>authorizeFaqBot({...bot,enabled:false},secret),/credentials/);
-  assert.deepEqual(authorizeFaqBot(bot,secret),['GENERAL','VERANO']);
-  assert.deepEqual(authorizeFaqBot({...bot,allowedScopes:[]},secret),['GENERAL']);
-});
-
-test('candidate filter is always composed from published, authorized scopes and server terms',()=>{
-  const filter=candidateFilter('Com puc donar-me de baixa?', ['GENERAL','VERANO']);
+test('candidate filter always includes publication and GENERAL; request adds scopes',()=>{
+  const filter=candidateFilter('Com puc donar-me de baixa?', ['VERANO']);
   assert(filter.startsWith('and(status[eq]:"PUBLISHED",scopeTags[containsAny]:["GENERAL","VERANO"],or('));
   assert(filter.includes('question[ilike]:'));
   assert(filter.includes('variants[ilike]:'));
   assert(filter.includes('answer[ilike]:'));
   assert(!filter.includes('INTERNAS'));
-  const injected=candidateFilter('hello") OR id[neq]:"', ['GENERAL']);
+  assert(candidateFilter('baixa',[]).includes('scopeTags[containsAny]:["GENERAL"]'));
+  const injected=candidateFilter('hello") OR id[neq]:"', []);
   assert(injected.startsWith('and(status[eq]:"PUBLISHED"'));
   assert(!injected.includes('id[neq]'));
-  assert.throws(()=>candidateFilter('hola',['SECRET']),/general/);
 });
 
 test('bilingual Spanish-Catalan equivalents and FAQ variants rank correctly',()=>{
@@ -76,7 +60,7 @@ test('bilingual Spanish-Catalan equivalents and FAQ variants rank correctly',()=
   assert(ca && ca.score>0);
 });
 
-test('retrieval rejects unauthorized scopes, drafts, archives, and unscoped FAQs',async()=>{
+test('filters drafts, archives and unrelated or unscoped FAQs',async()=>{
   const store=new MemoryFaqStore([
     faq('a','Baixa de l abonament','Pots donar-te de baixa','CA',['GENERAL']),
     faq('b','Baja de abono','Información de la baja','ES',['VERANO']),
@@ -85,86 +69,68 @@ test('retrieval rejects unauthorized scopes, drafts, archives, and unscoped FAQs
     faq('e','Baja de abono','Archivada','ES',['GENERAL'],'ARCHIVED'),
     faq('f','Baja de abono','Sin alcance','ES',[]),
   ]);
-  const result=await searchFaqs(req('baja abono'),secret,store);
-  assert.deepEqual(result.results.map(x=>x.id).sort(),['a','b']);
-  assert.equal(result.count,2);
+  const onlyGeneral=await searchFaqs(req('baja abono'),store);
+  assert.deepEqual(onlyGeneral.results.map(x=>x.id),['a']);
+  const summer=await searchFaqs(req('baja abono',{scopeTags:['VERANO']}),store);
+  assert.deepEqual(summer.results.map(x=>x.id).sort(),['a','b']);
   assert.equal(store.calls,2);
-  assert.equal(store.filters.length,1);
-  assert(store.filters[0].includes('scopeTags[containsAny]:["GENERAL","VERANO"]'));
+  assert(store.filters[0].includes('scopeTags[containsAny]:["GENERAL"]'));
+  assert(store.filters[1].includes('scopeTags[containsAny]:["GENERAL","VERANO"]'));
 });
 
-test('query ranking favors exact, variants, multiple concepts and question over answer',async()=>{
+test('query ranking favors exact match, variants, multiple concepts and questions',async()=>{
   const rows=[
     faq('answer','Pregunta general','Inscripción cuota horarios baja abonament','ES'),
     faq('question','Cuota y horario de inscripción','Detalles de inscripción','ES'),
     faq('variant','Pregunta de ayuda','Detalles','ES',['GENERAL'],'PUBLISHED','Cuota y horario de inscripción'),
     faq('exact','Cuota y horario de inscripción?','Más detalles','ES'),
   ];
-  const result=await searchFaqs(req('Cuota y horario de inscripción?',{limit:3}),secret,new MemoryFaqStore(rows));
+  const result=await searchFaqs(req('Cuota y horario de inscripción?',{limit:3}),new MemoryFaqStore(rows));
   assert.equal(result.results[0].id,'exact');
   assert(result.results.some(x=>x.id==='variant'));
   assert(!result.results.some(x=>x.id==='answer'));
-  assert.equal(result.count,3);
   assert(result.results.every(x=>Number.isInteger(x.score)&&x.matchedFields.length>0));
 });
 
-test('empty results return ok true, not an error',async()=>{
-  const result=await searchFaqs(req('renovación'),secret,
-    new MemoryFaqStore([faq('a','Saludo','Hola','ES',['GENERAL'])]));
-  assert.deepEqual(result,{ok:true,query:'renovación',results:[],count:0});
+test('valid search with no match returns an empty result',async()=>{
+  assert.deepEqual(await searchFaqs(req('renovación'),
+    new MemoryFaqStore([faq('a','Saludo','Hola','ES',['GENERAL'])])),
+    {ok:true,query:'renovación',results:[],count:0});
 });
 
-test('pagination, deduplication, caps and query counts are bounded',async()=>{
+test('bounded pagination avoids incomplete ranking and duplicate records',async()=>{
   const rows=Array.from({length:97},(_,i)=>faq(String(i+1).padStart(4,'0'),
     'Baja de abonament '+i,'Tramitar baixa','CA',['GENERAL']));
   const store=new MemoryFaqStore(rows);
-  const out=await searchFaqs(req('baja abonament',{limit:5}),secret,store);
+  const out=await searchFaqs(req('baja abonament',{limit:5}),store);
   assert.equal(out.results.length,5);
   assert.equal(new Set(out.results.map(x=>x.id)).size,5);
-  assert.equal(store.calls,3); // one lookup + two pages of candidates
+  assert.equal(store.calls,2);
   const huge=new MemoryFaqStore(Array.from({length:201},(_,i)=>
     faq(String(i+1).padStart(4,'0'),'Abonament '+i,'Abonament','CA',['GENERAL'])));
-  await assert.rejects(()=>searchFaqs(req('abonament'),secret,huge),
+  await assert.rejects(()=>searchFaqs(req('abonament'),huge),
     e=>e instanceof FaqSearchError && e.code==='SEARCH_TOO_BROAD');
-  assert.equal(huge.calls,5); // bounded: bot + four 50-record pages
+  assert.equal(huge.calls,4);
 });
 
-test('workspace isolation is enforced by per-workspace store and second credential',async()=>{
-  const a=new MemoryFaqStore([faq('a','Baixa del abono','A','CA',['GENERAL'])]);
-  const b=new MemoryFaqStore([faq('b','Baixa del abono','B','CA',['GENERAL'])],
-    {...bot,secretHash:createHash('sha256').update('b'.repeat(43)).digest('hex')});
-  const first=await searchFaqs(req('baixa abono'),secret,a);
-  assert.equal(first.results[0].id,'a');
-  await assert.rejects(()=>searchFaqs(req('baixa abono'),secret,b),
-    e=>e instanceof FaqSearchError && e.code==='BOT_NOT_AUTHORIZED');
-  assert.equal(b.calls,1); // authorization precedes FAQ search
-});
-
-test('store failures propagate without disclosing private FAQ details',async()=>{
-  const store=new MemoryFaqStore();
-  store.searchCandidates=async()=>{throw Error('private token or FAQ details');};
-  await assert.rejects(()=>searchFaqs(req('abono'),secret,store),/private token/);
-  // HTTP handler returns a sanitized generic 502; it does not send the underlying message.
-});
-
-test('language acts as preference, not a hard language restriction',async()=>{
+test('language is a rank hint, never a hard exclusion',async()=>{
   const store=new MemoryFaqStore([
     faq('es','Información sobre el abono','Información general','ES',['GENERAL']),
     faq('ca','Informació sobre l abonament','Informació general','CA',['GENERAL']),
   ]);
-  const result=await searchFaqs(req('abono',{language:'ES'}),secret,store);
+  const result=await searchFaqs(req('abono',{language:'ES'}),store);
   assert(result.results.some(row=>row.id==='ca'));
   assert(result.results.some(row=>row.id==='es'));
 });
 
-test('measures bounded in-memory search time and number of repository calls',async t=>{
+test('measures bounded in-memory search time and repository calls',async t=>{
   const store=new MemoryFaqStore(Array.from({length:76},(_,i)=>
     faq('r'+i,'Horario del abono '+i,'Horari abonament','CA',['GENERAL'])));
   const start=performance.now();
-  const result=await searchFaqs(req('horario abono'),secret,store);
+  const result=await searchFaqs(req('horario abono'),store);
   const elapsedMs=performance.now()-start;
   t.diagnostic('in-memory search: '+elapsedMs.toFixed(2)+' ms; '+store.calls+' repository calls');
   assert(elapsedMs>=0 && elapsedMs<1000);
-  assert.equal(store.calls,3);
+  assert.equal(store.calls,2);
   assert.equal(result.count,5);
 });

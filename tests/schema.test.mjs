@@ -81,9 +81,7 @@ test('FAQ search route and configurable bot authorization stay workspace scoped'
   const f=read('src/logic-functions/omnichannel-faq-search.logic-function.ts');
   assert(f.includes("path:'/omnichannel/v1/faqs/search'"));
   assert(f.includes("isAuthRequired:true"));
-  assert(f.includes("forwardedRequestHeaders:['x-omnichannel-bot-secret']"));
-  const bot=read('src/objects/support-faq-bot.object.ts');
-  for(const name of ['secretHash','allowedScopes','enabled','code']) assert(bot.includes(name));
-  assert(read('src/indexes/faq-bot-code-unique.index.ts').includes('isUnique: true'));
+  assert(!f.includes('x-omnichannel-bot-secret'));
+  assert(read('src/lib/faq-search.ts').includes('scopeTags'));
   assert(read('src/lib/faq-search.ts').includes('status[eq]:"PUBLISHED"'));
 });

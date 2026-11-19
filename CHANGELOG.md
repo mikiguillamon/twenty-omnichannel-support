@@ -1,10 +1,11 @@
 ## Unreleased
 
-### Preparado para 0.3.0-beta.19 (no publicado)
+## 0.3.0-beta.19 — Búsqueda inteligente de FAQs
 
-- Nueva API autenticada de búsqueda de FAQs por lenguaje natural, con doble control (credencial de Twenty y secreto por bot), alcances administrados en el workspace y resultados compactos.
-- Recuperación acotada y ranking determinista multilingüe ES/CA mediante preguntas, variantes y respuestas; validación estricta y pruebas de aislamiento.
-- Configuración por bot con hashes SHA-256 y documentación de integración n8n sin nodos Code.
+- Nuevo endpoint de búsqueda de FAQs por lenguaje natural, autenticado mediante la API Bearer habitual de Twenty.
+- `scopeTags` como filtro de la petición; incluye `GENERAL` y excluye borradores, FAQs sin alcance y resultados fuera de filtro.
+- Recuperación acotada y relevancia determinista multilingüe ES/CA basada en preguntas, variantes y respuestas.
+- Documentación y pruebas para integración desde n8n sin nodos Code. No se añade un registro de bots ni secretos adicionales.
 
 
 ## 0.3.0-beta.18 — Creación automática de Categorías y Tipos
