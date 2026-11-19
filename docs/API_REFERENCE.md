@@ -51,7 +51,7 @@ Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si ha
 
 Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento `FAQ_SEARCH_UNAVAILABLE` (`502`). Twenty puede devolver `401`/`403` antes de llamar al endpoint.
 
-**Compatibilidad:** Twenty 2.50 trata `scopeTags` como `ARRAY`, por lo que se usa `containsIlike` por alcance y `or(...)` entre alcances. `containsAny` es exclusivo de otros tipos y devuelve 400. Se conservan grafías acentuadas y se usan cursores REST opacos. Validar la integración real después de instalar la versión.
+**Compatibilidad Twenty 2.50 comprobada en EGORA:** el parser REST rechaza `containsAny` y `containsIlike` sobre `scopeTags`. Solo se filtran en REST el estado y las coincidencias textuales; la aplicación comprueba los alcances sobre el conjunto acotado, antes de devolver resultados. Las pruebas reales con la API de EGORA confirmaron HTTP 200 para `status[eq]`, `question[ilike]` y filtros combinados `and`/`or`. Tras actualizar el paquete, debe verificarse el endpoint de búsqueda completo.
 
 ## Requisitos y autenticación
 
@@ -181,7 +181,7 @@ El editor normaliza los nombres introducidos a códigos estables en mayúsculas 
 Para un bot con alcance `VERANO`, pide solo FAQs publicadas con al menos uno de `GENERAL` o `VERANO`. Ejemplo de filtro REST de Twenty:
 
 ```http
-GET /rest/supportFaqs?filter=and(status[eq]:"PUBLISHED",scopeTags[containsAny]:["GENERAL","VERANO"])
+GET /rest/supportFaqs?filter=and(status[eq]:"PUBLISHED",question[ilike]:"%quota%")
 Authorization: Bearer TOKEN_DEL_WORKSPACE
 ```
 
