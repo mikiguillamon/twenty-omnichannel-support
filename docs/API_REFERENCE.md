@@ -4,6 +4,55 @@ Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresp
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
+## Búsqueda inteligente de FAQs (beta.19)
+
+La API de búsqueda reutiliza **únicamente el token Bearer del workspace de Twenty**. El alcance es un filtro solicitado en cada petición, no un sistema de permisos separado ni un registro de bots.
+
+```http
+POST /s/omnichannel/v1/faqs/search
+Authorization: Bearer TWENTY_WORKSPACE_TOKEN
+Content-Type: application/json
+
+{
+  "query": "¿Cómo puedo darme de baja del abono?",
+  "scopeTags": ["VERANO"],
+  "language": "auto",
+  "limit": 5
+}
+```
+
+**Parámetros:** `query` (obligatoria, 1–320 caracteres); `scopeTags` (opcional, array de hasta 12 nombres, normalizado a códigos como `VERANO`); `language` (`auto`, `ES`, `CA`, `EN`, por defecto `auto`); `limit` (1–10, por defecto 5).
+
+La búsqueda añade siempre el alcance `GENERAL`, aunque no aparezca en `scopeTags`. Si el campo está omitido o vacío, **solo** busca en `GENERAL`. Una FAQ sin alcance nunca se devuelve. Las FAQs con estado `DRAFT` o `ARCHIVED` se excluyen siempre. No se aceptan expresiones REST, filtros arbitrarios ni campos adicionales enviados por el cliente.
+
+El servidor construye el filtro de origen con `status=PUBLISHED`, `scopeTags[containsAny]` y condiciones `ilike` sobre pregunta, variantes y respuesta, y vuelve a comprobar el estado y alcance de cada candidata antes de responder. La búsqueda utiliza equivalencias ES/CA, normalización lingüística, sinónimos editoriales de `variants`, deduplicación y relevancia determinista. `score` **no** es una probabilidad de veracidad.
+
+Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si hay más coincidencias devuelve `SEARCH_TOO_BROAD` (`422`) en lugar de un resultado parcial potencialmente engañoso. Una búsqueda válida sin coincidencias devuelve `ok: true` con `results: []`.
+
+```json
+{
+  "ok": true,
+  "query": "¿Cómo puedo darme de baja del abono?",
+  "results": [
+    {
+      "id": "fa4d0011-9988-4a51-af11-d9e439140f03",
+      "question": "Com puc donar-me de baixa de l'abonament?",
+      "answer": "Per tramitar la baixa...",
+      "language": "CA",
+      "score": 103,
+      "matchedFields": ["question", "variants"]
+    }
+  ],
+  "count": 1
+}
+```
+
+**Seguridad:** `scopeTags` **no establece una autorización**. Cualquier cliente con acceso a este endpoint mediante un token válido de Twenty podrá solicitar otros alcances, por ejemplo `INTERNAS`. Por tanto, no debe utilizarse para separar información confidencial entre bots que comparten un token. Utiliza tokens y workspaces con los permisos apropiados, y no guardes datos confidenciales únicamente detrás de una etiqueta. No se registran cuerpos de consulta ni tokens en logs de aplicación.
+
+Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento `FAQ_SEARCH_UNAVAILABLE` (`502`). Twenty puede devolver `401`/`403` antes de llamar al endpoint.
+
+**Pendiente de validar tras la publicación:** compatibilidad real del filtro REST `containsAny`/`ilike` y la paginación en la instancia Twenty 2.50 instalada. Las pruebas automatizadas cubren la lógica y el contrato, pero no son una prueba de integración con una base de datos real.
+
 ## Requisitos y autenticación
 
 - Instala la app en el workspace de destino. La compatibilidad declarada del paquete es Twenty `>=2.50.0 <2.51.0` y Node `^24.5.0`.

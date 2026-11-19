@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.3.0-beta.19 — Búsqueda inteligente de FAQs
+
+- Nuevo endpoint de búsqueda de FAQs por lenguaje natural, autenticado mediante la API Bearer habitual de Twenty.
+- `scopeTags` como filtro de la petición; incluye `GENERAL` y excluye borradores, FAQs sin alcance y resultados fuera de filtro.
+- Recuperación acotada y relevancia determinista multilingüe ES/CA basada en preguntas, variantes y respuestas.
+- Documentación y pruebas para integración desde n8n sin nodos Code. No se añade un registro de bots ni secretos adicionales.
+
+
 ## 0.3.0-beta.18 — Creación automática de Categorías y Tipos
 
 - Permite crear automáticamente Categorías y Tipos al recibir códigos nuevos en la API de ingestión, usando el mismo valor para nombre y código.

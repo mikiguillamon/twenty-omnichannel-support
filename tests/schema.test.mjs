@@ -76,3 +76,12 @@ test('FAQ detail view retains existing editorial and publication fields', () => 
     assert(source.includes('IDS.' + field), 'Missing ' + field);
   }
 });
+
+test('FAQ search route and configurable bot authorization stay workspace scoped',()=>{
+  const f=read('src/logic-functions/omnichannel-faq-search.logic-function.ts');
+  assert(f.includes("path:'/omnichannel/v1/faqs/search'"));
+  assert(f.includes("isAuthRequired:true"));
+  assert(!f.includes('x-omnichannel-bot-secret'));
+  assert(read('src/lib/faq-search.ts').includes('scopeTags'));
+  assert(read('src/lib/faq-search.ts').includes('status[eq]:"PUBLISHED"'));
+});

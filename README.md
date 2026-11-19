@@ -39,6 +39,12 @@ A conversation's **Type** uses a workspace-managed catalog, just like **Category
 
 FAQs have an independent multi-value **Scope** field. For example, a summer bot may fetch FAQs scoped to GENERAL or VERANO, while skipping other scopes and draft FAQs. Scope filtering is an integration rule, not a replacement for workspace access controls.
 
+## Search approved FAQs from a bot
+
+Your bot can ask the authenticated `POST /s/omnichannel/v1/faqs/search` endpoint a natural-language question and receive a short list of relevant approved answers. The search is deterministic and works across Spanish and Catalan, including FAQ variants and common equivalents. It uses no LLM, embedding provider or separate database.
+
+Each request can specify `scopeTags` (for example `["VERANO"]`) alongside the question. `GENERAL` is always included; if omitted, the scope filter is restricted to `GENERAL` alone. The endpoint reuses Twenty's workspace Bearer authentication and has no bot secrets or bot registry. Scope tags are query filters, not authorization boundaries: a valid client can request other scopes. See [API reference](docs/API_REFERENCE.md) and [n8n integration](docs/INTEGRACION_N8N.md).
+
 ## Ingestion API
 
 The application exposes an authenticated `POST /s/omnichannel/v1/ingest` endpoint for integrations. It accepts email, WhatsApp, Instagram, Telegram and phone events and handles contact matching, conversation linking and message deduplication inside Twenty. Sending messages still happens through your chosen provider.
