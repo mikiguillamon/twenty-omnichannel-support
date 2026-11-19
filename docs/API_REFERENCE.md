@@ -4,6 +4,68 @@ Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresp
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
+## Búsqueda inteligente de FAQs (nueva en beta.19)
+
+```http
+POST /s/omnichannel/v1/faqs/search
+Authorization: Bearer TWENTY_WORKSPACE_TOKEN
+X-Omnichannel-Bot-Secret: CLAVE_ALEATORIA_DEL_BOT
+Content-Type: application/json
+
+{
+  "query": "¿Cómo puedo darme de baja del abono?",
+  "botCode": "EGORA_EMAIL",
+  "language": "auto",
+  "limit": 5
+}
+```
+
+El token Bearer debe ser válido para **el workspace de destino**; adicionalmente, el secreto de bot se valida contra el verificador SHA-256 almacenado en `supportFaqBots` de ese mismo workspace. El header `X-Omnichannel-Bot-Secret` se reenvía expresamente a la Logic Function. `botCode` identifica una configuración, **no concede acceso por sí mismo**.
+
+La configuración por bot consiste en `code` único (mayúsculas, números y `_`), `allowedScopes` (array de códigos), `enabled: true` y `secretHash` (SHA-256 hexadecimal de un secreto aleatorio de 32 bytes). Los responsables del workspace crean y gestionan estos registros en **Bots de FAQs**. El secreto original se conserva exclusivamente en las credenciales del bot/n8n, no en el objeto de Twenty ni en el cuerpo JSON. Para generar una clave y su hash desde una máquina de administración:
+
+```bash
+node -e "const c=require('node:crypto');const k=c.randomBytes(32).toString('base64url');console.log('Clave (guardar en n8n):',k);console.log('SHA-256 (guardar en Twenty):',c.createHash('sha256').update(k).digest('hex'))"
+```
+
+El endpoint limita la petición a 8 KiB, `query` a 320 caracteres, `limit` a 1–10 (5 por defecto) y `language` a `auto`, `ES`, `CA` o `EN`. Se rechazan claves JSON desconocidas, filtros arbitrarios y alcances enviados por el cliente. La búsqueda bilingüe examina FAQs de cualquier idioma; `language` queda como pista de presentación, no una barrera que impida hallar una pregunta equivalente en otro idioma.
+
+Los filtros de publicación y alcance se construyen **en el servidor**:
+
+```text
+status[eq]:"PUBLISHED"
+scopeTags[containsAny]:["GENERAL", ...allowedScopes]
+or(question[ilike]:"%term%",variants[ilike]:"%term%",answer[ilike]:"%term%", ...)
+```
+
+`GENERAL` se añade al conjunto de alcances permitidos del bot. Las FAQs no publicadas, sin alcance, o con alcances ajenos nunca se devuelven, incluso si el motor REST devolviese una candidata inesperada. La API consulta como aplicación del workspace y vuelve a comprobar estado y alcance antes de puntuar.
+
+**Búsqueda:** los términos se normalizan con Unicode NFKD; se eliminan palabras vacías en ES/CA y se usan equivalencias configurables en código además de las variantes libres de las FAQs. Se priorizan coincidencias exactas de pregunta, variantes exactas, número de conceptos cubiertos, coincidencias en pregunta/variantes y, con menor peso, en respuesta. `score` es una puntuación determinista **sin calibración probabilística**. Los resultados se deduplican y ordenan por puntuación, pregunta e ID. La búsqueda funciona sin embeddings ni servicios de pago.
+
+El endpoint recupera como máximo **200 candidatas** en páginas de 50 (una consulta de bot y hasta cuatro de FAQs). Si aún quedan páginas devuelve `SEARCH_TOO_BROAD` (`422`) en lugar de presentar un ranking incompleto. No descarga toda la colección. No hay una petición por palabra.
+
+Respuesta:
+
+```json
+{
+  "ok": true,
+  "query": "¿Cómo puedo darme de baja del abono?",
+  "results": [{
+    "id": "fa4d0011-9988-4a51-af11-d9e439140f03",
+    "question": "Com puc donar-me de baixa de l'abonament?",
+    "answer": "Per tramitar la baixa...",
+    "language": "CA",
+    "score": 103,
+    "matchedFields": ["question", "variants"]
+  }],
+  "count": 1
+}
+```
+
+Las búsquedas válidas sin coincidencias devuelven `200` con `results: []`. Errores: `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_BOT`, `INVALID_LANGUAGE`, `INVALID_LIMIT` (`400`); `PAYLOAD_TOO_LARGE` (`413`); `BOT_NOT_AUTHORIZED` (`403`); `SEARCH_TOO_BROAD` (`422`); `SEARCH_UNAVAILABLE` o `FAQ_SEARCH_UNAVAILABLE` (`502`). Errores de autenticación de Twenty pueden ser `401`/`403` antes de ejecutar la función.
+
+**Limitaciones:** la equivalencia entre idiomas utiliza un léxico extensible y variantes editoriales, no traducción universal ni un modelo semántico. Las búsquedas con muchas coincidencias retornan `SEARCH_TOO_BROAD`; pueden requerir una pregunta más específica. La compatibilidad práctica de los filtros `containsAny`, `ilike` y de la paginación debe verificarse en un workspace aislado de Twenty 2.50 antes de habilitar esta API en producción.
+
 ## Requisitos y autenticación
 
 - Instala la app en el workspace de destino. La compatibilidad declarada del paquete es Twenty `>=2.50.0 <2.51.0` y Node `^24.5.0`.

@@ -196,3 +196,31 @@ En **Omnichannel → Resumen** los KPIs se consultan por REST, y puedes elegir l
 - Los tokens de cada workspace están aislados y no se guardan en el JSON.
 
 Documentación relacionada: [API Reference](API_REFERENCE.md), [Arquitectura](ARQUITECTURA.md), [Políticas por canal](POLITICAS_CONVERSACION.md), [Seguridad](SEGURIDAD.md) y [Checklist de pruebas](CHECKLIST_PILOTO.md).
+
+
+## Buscar FAQs aprobadas desde un bot (beta.19)
+
+El bot se identifica con un `botCode` estable; el código **no es una credencial**. Cada workspace tiene sus propios registros `Bots de FAQs` con código, alcances autorizados, verificador SHA-256 y estado activo. Un administrador genera un secreto aleatorio de 32 bytes, guarda el SHA-256 en la ficha del bot y conserva el secreto original solo en las credenciales de n8n.
+
+En un nodo **HTTP Request** de n8n:
+
+- **Method**: POST
+- **URL**: `https://TU-TWENTY/s/omnichannel/v1/faqs/search`
+- **Authentication**: credencial Bearer del workspace Twenty, con los permisos apropiados
+- **Header**: `X-Omnichannel-Bot-Secret`, tomado de una credencial segura (no del JSON ni de un nodo Set)
+- **Body Content Type**: JSON
+
+```json
+{
+  "query": "{{ $('Preparar consulta').item.json.pregunta }}",
+  "botCode": "EGORA_EMAIL",
+  "language": "auto",
+  "limit": 5
+}
+```
+
+El `botCode` debe corresponder a la misma configuración cuyo secreto se utiliza. El workflow entrega al agente únicamente `results`; si está vacío, el agente no debe inventar respuestas de FAQs. Un error `BOT_NOT_AUTHORIZED` indica que el secreto, el bot o sus alcances no están correctamente configurados; no repetir la búsqueda sin alcance.
+
+El endpoint aplica `status=PUBLISHED` y los alcances del bot, sin que n8n genere filtros REST. `GENERAL` se incluye siempre, pero debe aparecer como etiqueta explícita en cada FAQ compartida. Las coincidencias se puntúan de forma determinista entre pregunta, variantes y respuesta. El valor `score` no significa una probabilidad de verdad y el agente debe valorar si la respuesta aprobada es suficiente.
+
+No es necesario modificar los workflows existentes. Antes de activar esta integración, prueba en un workspace aislado tanto las respuestas autorizadas como los intentos con secretos incorrectos y alcances ajenos.

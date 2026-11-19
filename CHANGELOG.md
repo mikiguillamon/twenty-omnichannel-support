@@ -1,5 +1,12 @@
 ## Unreleased
 
+### Preparado para 0.3.0-beta.19 (no publicado)
+
+- Nueva API autenticada de búsqueda de FAQs por lenguaje natural, con doble control (credencial de Twenty y secreto por bot), alcances administrados en el workspace y resultados compactos.
+- Recuperación acotada y ranking determinista multilingüe ES/CA mediante preguntas, variantes y respuestas; validación estricta y pruebas de aislamiento.
+- Configuración por bot con hashes SHA-256 y documentación de integración n8n sin nodos Code.
+
+
 ## 0.3.0-beta.18 — Creación automática de Categorías y Tipos
 
 - Permite crear automáticamente Categorías y Tipos al recibir códigos nuevos en la API de ingestión, usando el mismo valor para nombre y código.
