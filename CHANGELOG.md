@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 0.3.0-beta.18 — Creación automática de Categorías y Tipos
+
+- Permite crear automáticamente Categorías y Tipos al recibir códigos nuevos en la API de ingestión, usando el mismo valor para nombre y código.
+- Reutiliza entradas existentes y resuelve concurrencia mediante índices únicos, sin generar duplicados ni reactivar registros deshabilitados.
+- Evita que los UUID desconocidos creen registros y actualiza las pruebas, la referencia de API y la guía de n8n.
+
+
 ## 0.3.0-beta.17 — Tipos de conversación y alcance de FAQs
 
 - Añade un catálogo configurable de Tipos para conversaciones, separado del de Categorías, con asignación por código o ID desde la API.
