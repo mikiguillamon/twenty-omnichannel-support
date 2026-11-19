@@ -68,3 +68,11 @@ test('conversation types mirror categories and FAQ scope tags are independent', 
   assert(read('src/front-components/faq-scope-editor.tsx').includes('Guardar alcance'));
   assert(read('src/page-layouts/support-faq-record.page.ts').includes('IDS.FRONT_FAQ_SCOPE_EDITOR'));
 });
+
+test('FAQ detail view retains existing editorial and publication fields', () => {
+  const source = read('src/page-layouts/support-faq-record.page.ts');
+  for (const field of ['FAQ_VARIANTS', 'FAQ_TAGS', 'FAQ_CUSTOM_TAGS', 'FAQ_SOURCEURL',
+    'FAQ_UPDATEDBYREFERENCE', 'FAQ_REVISION', 'FAQ_PUBLISHED_AT', 'FAQ_SYNCED_AT']) {
+    assert(source.includes('IDS.' + field), 'Missing ' + field);
+  }
+});
