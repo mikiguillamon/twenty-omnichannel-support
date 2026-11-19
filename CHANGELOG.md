@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.3.0-beta.20 — Búsqueda de FAQs compatible con Twenty 2.50
+
+- Corrige el error 502 causado por `scopeTags[containsAny]` sobre campos ARRAY: utiliza el operador `containsIlike` con scopes combinados mediante `or`.
+- Conserva términos acentuados y distribuye el presupuesto de búsqueda entre conceptos.
+- Corrige la paginación con cursores opacos y evita rechazar exactamente 200 coincidencias.
+- Añade pruebas de regresión y documentación de integración.
+
+
 ## 0.3.0-beta.19 — Búsqueda inteligente de FAQs
 
 - Nuevo endpoint de búsqueda de FAQs por lenguaje natural, autenticado mediante la API Bearer habitual de Twenty.
