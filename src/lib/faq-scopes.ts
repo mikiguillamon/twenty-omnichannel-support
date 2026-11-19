@@ -28,10 +28,7 @@ export function normalizeFaqScopes(values: string[]): string[] {
 export function faqScopePredicate(scopes: string[]): string {
   const allowed = normalizeFaqScopes([GENERAL_FAQ_SCOPE, ...scopes]);
   const clauses = allowed.map(scope =>
-    'scopeTags[containsIlike]:' + JSON.stringify(scope.replace(/[\\%_]/g, '\\export function publishedFaqScopeFilter(scopes: string[]): string {
-  const allowed = normalizeFaqScopes([GENERAL_FAQ_SCOPE, ...scopes]);
-  return 'and(status[eq]:"PUBLISHED",scopeTags[containsAny]:' + JSON.stringify(allowed) + ')';
-}')));
+    'scopeTags[containsIlike]:' + JSON.stringify(scope.replace(/[\\%_]/g, '\\$&')));
   return clauses.length === 1 ? clauses[0] : 'or(' + clauses.join(',') + ')';
 }
 
