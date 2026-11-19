@@ -125,6 +125,9 @@ export function rankFaq(faq: FaqRecord, query: string, concepts: string[][]): Fa
   let score = 0;
   const fields: string[] = [];
   if (question === q) {score += 100;fields.push('question');}
+  // A literal match wins a tie with a normalized punctuation/accent match.
+  if ((faq.question || '').trim().toLocaleLowerCase() === query.trim().toLocaleLowerCase())
+    score += 8;
   if (variants.includes(q)) {score += 85;fields.push('variants');}
   const qMatches=concepts.filter(c=>includesConcept(question,c)).length;
   const vMatches=concepts.filter(c=>variants.some(line=>includesConcept(line,c))).length;
@@ -152,7 +155,13 @@ export function candidateFilter(query: string, authorizedScopes: string[]): stri
   if(!scopes.includes('GENERAL'))
     throw new FaqSearchError('BOT_NOT_AUTHORIZED','Missing general scope.',403);
   const concepts=conceptsFor(query);
-  const terms=[...new Set(concepts.flat())].slice(0,12);
+  // Keep accent-bearing spellings and stems: PostgreSQL ILIKE is not inherently
+  // accent-insensitive (ES inscripción / CA inscripció), even if local ranking is.
+  const terms=[...new Set(concepts.flatMap(list=>list.flatMap(term=>{
+    const roots=term.length>=7?[stem(term)]:[];
+    const spellings=Object.values(EQUIVALENCES).flat().filter(value=>normalizeText(value)===term);
+    return [term,...roots,...spellings];
+  })))].filter(term=>term.length>=3).slice(0,20);
   const clauses=terms.flatMap(t=>['question','variants','answer']
     .map(field=>field+'[ilike]:'+JSON.stringify('%'+safeIlikeTerm(t)+'%')));
   return 'and(status[eq]:"PUBLISHED",scopeTags[containsAny]:'+JSON.stringify(scopes)+
