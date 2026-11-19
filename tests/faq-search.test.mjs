@@ -34,12 +34,12 @@ test('normalizes Unicode, verifies scope array and validates strict parameters',
 
 test('candidate filter always includes publication and GENERAL; request adds scopes',()=>{
   const filter=candidateFilter('Com puc donar-me de baixa?', ['VERANO']);
-  assert(filter.startsWith('and(status[eq]:"PUBLISHED",scopeTags[containsAny]:["GENERAL","VERANO"],or('));
+  assert(filter.startsWith('and(status[eq]:"PUBLISHED",or(scopeTags[containsIlike]:"GENERAL",scopeTags[containsIlike]:"VERANO"),or('));
   assert(filter.includes('question[ilike]:'));
   assert(filter.includes('variants[ilike]:'));
   assert(filter.includes('answer[ilike]:'));
   assert(!filter.includes('INTERNAS'));
-  assert(candidateFilter('baixa',[]).includes('scopeTags[containsAny]:["GENERAL"]'));
+  assert(candidateFilter('baixa',[]).includes('scopeTags[containsIlike]:"GENERAL"'));
   const injected=candidateFilter('hello") OR id[neq]:"', []);
   assert(injected.startsWith('and(status[eq]:"PUBLISHED"'));
   assert(!injected.includes('id[neq]'));
@@ -74,8 +74,8 @@ test('filters drafts, archives and unrelated or unscoped FAQs',async()=>{
   const summer=await searchFaqs(req('baja abono',{scopeTags:['VERANO']}),store);
   assert.deepEqual(summer.results.map(x=>x.id).sort(),['a','b']);
   assert.equal(store.calls,2);
-  assert(store.filters[0].includes('scopeTags[containsAny]:["GENERAL"]'));
-  assert(store.filters[1].includes('scopeTags[containsAny]:["GENERAL","VERANO"]'));
+  assert(store.filters[0].includes('scopeTags[containsIlike]:"GENERAL"'));
+  assert(store.filters[1].includes('or(scopeTags[containsIlike]:"GENERAL",scopeTags[containsIlike]:"VERANO")'));
 });
 
 test('query ranking favors exact match, variants, multiple concepts and questions',async()=>{
@@ -110,7 +110,7 @@ test('bounded pagination avoids incomplete ranking and duplicate records',async(
     faq(String(i+1).padStart(4,'0'),'Abonament '+i,'Abonament','CA',['GENERAL'])));
   await assert.rejects(()=>searchFaqs(req('abonament'),huge),
     e=>e instanceof FaqSearchError && e.code==='SEARCH_TOO_BROAD');
-  assert.equal(huge.calls,4);
+  assert.equal(huge.calls,5);
 });
 
 test('language is a rank hint, never a hard exclusion',async()=>{
@@ -133,4 +133,19 @@ test('measures bounded in-memory search time and repository calls',async t=>{
   assert(elapsedMs>=0 && elapsedMs<1000);
   assert.equal(store.calls,2);
   assert.equal(result.count,5);
+});
+
+test('source filters handle accented query terms and ARRAY scopes',()=>{
+ const f=candidateFilter('Quota matrícula discapacitat natació',['Campus Hivern']);
+ assert(!f.includes('containsAny'));
+ assert(f.includes('scopeTags[containsIlike]:"CAMPUS\\\\_HIVERN"'));
+ assert(f.includes('%matrícula%'));
+ assert(f.includes('%matricula%'));
+ assert(f.includes('%natació%'));
+});
+test('exactly 200 candidates are allowed after last page probe',async()=>{
+ const rows=Array.from({length:200},(_,i)=>faq(String(i+1).padStart(4,'0'),'Abonament '+i,'Abonament','CA',['GENERAL']));
+ const db=new MemoryFaqStore(rows);
+ const r=await searchFaqs(req('abonament'),db);
+ assert.equal(r.count,5);assert.equal(db.calls,5);
 });

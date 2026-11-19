@@ -22,7 +22,17 @@ export function normalizeFaqScopes(values: string[]): string[] {
  * A bot requests its own scopes plus GENERAL. Empty FAQ scopeTags never match.
  * This generates a REST filter but is not an authorization boundary.
  */
-export function publishedFaqScopeFilter(scopes: string[]): string {
+/** Twenty 2.50 ARRAY supports containsIlike, not MULTI_SELECT's containsAny.
+ * No % wildcards are used: match complete array elements only.
+ */
+export function faqScopePredicate(scopes: string[]): string {
   const allowed = normalizeFaqScopes([GENERAL_FAQ_SCOPE, ...scopes]);
-  return 'and(status[eq]:"PUBLISHED",scopeTags[containsAny]:' + JSON.stringify(allowed) + ')';
+  const clauses = allowed.map(scope =>
+    'scopeTags[containsIlike]:' + JSON.stringify(scope.replace(/[\\%_]/g, '\\$&')));
+  return clauses.length === 1 ? clauses[0] : 'or(' + clauses.join(',') + ')';
+}
+
+/** Scope restricts results, but is not a workspace authorization boundary. */
+export function publishedFaqScopeFilter(scopes: string[]): string {
+  return 'and(status[eq]:"PUBLISHED",' + faqScopePredicate(scopes) + ')';
 }

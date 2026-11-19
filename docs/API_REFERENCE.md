@@ -1,10 +1,10 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.18**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.20**. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
-## Búsqueda inteligente de FAQs (beta.19)
+## Búsqueda inteligente de FAQs (beta.20)
 
 La API de búsqueda reutiliza **únicamente el token Bearer del workspace de Twenty**. El alcance es un filtro solicitado en cada petición, no un sistema de permisos separado ni un registro de bots.
 
@@ -25,7 +25,7 @@ Content-Type: application/json
 
 La búsqueda añade siempre el alcance `GENERAL`, aunque no aparezca en `scopeTags`. Si el campo está omitido o vacío, **solo** busca en `GENERAL`. Una FAQ sin alcance nunca se devuelve. Las FAQs con estado `DRAFT` o `ARCHIVED` se excluyen siempre. No se aceptan expresiones REST, filtros arbitrarios ni campos adicionales enviados por el cliente.
 
-El servidor construye el filtro de origen con `status=PUBLISHED`, `scopeTags[containsAny]` y condiciones `ilike` sobre pregunta, variantes y respuesta, y vuelve a comprobar el estado y alcance de cada candidata antes de responder. La búsqueda utiliza equivalencias ES/CA, normalización lingüística, sinónimos editoriales de `variants`, deduplicación y relevancia determinista. `score` **no** es una probabilidad de veracidad.
+El servidor construye el filtro de origen con `status=PUBLISHED`, `scopeTags[containsIlike]` y condiciones `ilike` sobre pregunta, variantes y respuesta, y vuelve a comprobar el estado y alcance de cada candidata antes de responder. La búsqueda utiliza equivalencias ES/CA, normalización lingüística, sinónimos editoriales de `variants`, deduplicación y relevancia determinista. `score` **no** es una probabilidad de veracidad.
 
 Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si hay más coincidencias devuelve `SEARCH_TOO_BROAD` (`422`) en lugar de un resultado parcial potencialmente engañoso. Una búsqueda válida sin coincidencias devuelve `ok: true` con `results: []`.
 
@@ -51,7 +51,7 @@ Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si ha
 
 Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento `FAQ_SEARCH_UNAVAILABLE` (`502`). Twenty puede devolver `401`/`403` antes de llamar al endpoint.
 
-**Pendiente de validar tras la publicación:** compatibilidad real del filtro REST `containsAny`/`ilike` y la paginación en la instancia Twenty 2.50 instalada. Las pruebas automatizadas cubren la lógica y el contrato, pero no son una prueba de integración con una base de datos real.
+**Compatibilidad:** Twenty 2.50 trata `scopeTags` como `ARRAY`, por lo que se usa `containsIlike` por alcance y `or(...)` entre alcances. `containsAny` es exclusivo de otros tipos y devuelve 400. Se conservan grafías acentuadas y se usan cursores REST opacos. Validar la integración real después de instalar la versión.
 
 ## Requisitos y autenticación
 
