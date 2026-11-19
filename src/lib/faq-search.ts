@@ -1,4 +1,4 @@
-import { normalizeFaqScopes } from './faq-scopes.ts';
+import { normalizeFaqScopes, faqScopePredicate } from './faq-scopes.ts';
 
 export type FaqLanguage = 'ES' | 'CA' | 'EN' | 'auto';
 export type FaqSearchRequest = { query: string; scopeTags: string[]; language: FaqLanguage; limit: number };
@@ -143,14 +143,28 @@ export function candidateFilter(query: string, requestedScopes: string[]): strin
   const concepts=conceptsFor(query);
   // Keep accent-bearing spellings and stems: PostgreSQL ILIKE is not inherently
   // accent-insensitive (ES inscripción / CA inscripció), even if local ranking is.
-  const terms=[...new Set(concepts.flatMap(list=>list.flatMap(term=>{
-    const roots=term.length>=7?[stem(term)]:[];
-    const spellings=Object.values(EQUIVALENCES).flat().filter(value=>normalizeText(value)===term);
-    return [term,...roots,...spellings];
-  })))].filter(term=>term.length>=3).slice(0,20);
+  // Spread the bounded term budget across concepts, not only early synonyms.
+  // Keep original spellings: PostgreSQL ILIKE is not accent-insensitive.
+  const originalWords = query.normalize('NFC').match(/[\p{L}\p{N}·]+/gu) ?? [];
+  const knownVariants = Object.values(EQUIVALENCES).flat();
+  const perConcept = concepts.map(list => [...new Set(list.flatMap(term => [
+    term,
+    ...originalWords.filter(word => normalizeText(word) === term),
+    ...knownVariants.filter(word => normalizeText(word) === term),
+    ...(term.length >= 7 ? [stem(term)] : []),
+  ]))].filter(term => normalizeText(term).length >= 3));
+  const terms: string[] = [];
+  const rounds = Math.max(...perConcept.map(group => group.length));
+  for (let round = 0; round < rounds && terms.length < 24; round++) {
+    for (const group of perConcept) {
+      const term = group[round];
+      if (term && !terms.includes(term) && terms.length < 24) terms.push(term);
+    }
+  }
+  if (!terms.length) throw new FaqSearchError('INVALID_QUERY', 'No searchable terms.');
   const clauses=terms.flatMap(t=>['question','variants','answer']
     .map(field=>field+'[ilike]:'+JSON.stringify('%'+safeIlikeTerm(t)+'%')));
-  return 'and(status[eq]:"PUBLISHED",scopeTags[containsAny]:'+JSON.stringify(scopes)+
+  return 'and(status[eq]:"PUBLISHED",'+faqScopePredicate(scopes)+
     ',or('+clauses.join(',')+'))';
 }
 export function isAllowedFaq(faq: FaqRecord, scopes: string[]): boolean {
@@ -167,8 +181,16 @@ export async function searchFaqs(request: FaqSearchRequest, store: FaqSearchStor
   const filter=candidateFilter(request.query,scopes);
   const seen=new Set<string>(), candidates: FaqRecord[]=[];
   let cursor:string|null=null;
-  for(let page=0;page<MAX_CANDIDATES/PAGE_SIZE;page++) {
-    const result=await store.searchCandidates(filter,PAGE_SIZE,cursor);
+  for(let page=0;page<=MAX_CANDIDATES/PAGE_SIZE;page++) {
+    const probing=page===MAX_CANDIDATES/PAGE_SIZE;
+    // Probe one extra record to distinguish exactly 200 from >200 hits.
+    const result=await store.searchCandidates(filter,probing?1:PAGE_SIZE,cursor);
+    if(probing){
+      if(result.records.length || result.nextCursor)
+        throw new FaqSearchError('SEARCH_TOO_BROAD',
+          'Too many matching FAQs; try a more specific question.',422);
+      cursor=null; break;
+    }
     for(const faq of result.records){
       if(faq.id && !seen.has(faq.id) && isAllowedFaq(faq,scopes)){seen.add(faq.id);candidates.push(faq);}
     }
@@ -176,9 +198,6 @@ export async function searchFaqs(request: FaqSearchRequest, store: FaqSearchStor
     if(result.nextCursor===cursor)throw new FaqSearchError('SEARCH_UNAVAILABLE','Invalid pagination cursor.',502);
     cursor=result.nextCursor;
   }
-  // Never pretend a partial candidate set represents a complete ranked search.
-  if(cursor)throw new FaqSearchError('SEARCH_TOO_BROAD',
-    'Too many matching FAQs; try a more specific question.',422);
   const results=candidates.map(faq=>rankFaq(faq,request.query,concepts))
     .filter((row):row is FaqResult=>Boolean(row))
     .filter(row=>row.score>=12)
