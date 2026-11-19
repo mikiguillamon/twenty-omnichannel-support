@@ -10,7 +10,10 @@ const collection=(response:unknown,key:string): unknown[]=>{
   return items;
 };
 export class TwentyFaqSearchStore implements FaqSearchStore {
-  private readonly api = new RestApiClient({runAs:'application'});
+  private readonly api: RestApiClient;
+  constructor(api: RestApiClient = new RestApiClient({runAs:'application'})) {
+    this.api = api;
+  }
   async searchCandidates(filter:string,limit:number,cursor:string|null)
   :Promise<{records:FaqRecord[];nextCursor:string|null}> {
     const query:Record<string,string|number>={
@@ -20,14 +23,16 @@ export class TwentyFaqSearchStore implements FaqSearchStore {
     if(cursor)query.starting_after=cursor;
     const response:unknown=await this.api.get('/rest/supportFaqs',{query});
     const rows=collection(response,'supportFaqs') as FaqRecord[];
-    // Twenty REST pageInfo is top-level. Use its endCursor rather than assuming
-    // that the last record ID is always a valid cursor.
-    const pageInfo = (response as {pageInfo?: {hasNextPage?: boolean; endCursor?: string}}).pageInfo;
+    // Use Twenty's opaque cursor; a raw record ID may not be a valid cursor.
+    const root = response as {pageInfo?: {hasNextPage?: boolean; endCursor?: string};
+      data?: {pageInfo?: {hasNextPage?: boolean; endCursor?: string}}};
+    const pageInfo = root.pageInfo ?? root.data?.pageInfo;
     if (pageInfo) {
+      if (typeof pageInfo.hasNextPage !== 'boolean') throw Error('Invalid REST pageInfo');
       if (pageInfo.hasNextPage && !pageInfo.endCursor) throw Error('Missing REST endCursor');
-      return {records: rows, nextCursor: pageInfo.hasNextPage ? pageInfo.endCursor ?? null : null};
+      return {records: rows, nextCursor: pageInfo.hasNextPage ? pageInfo.endCursor! : null};
     }
-    // Legacy REST responses can omit pageInfo. Probe only if a full page came back.
-    return {records: rows, nextCursor: rows.length === limit ? rows.at(-1)?.id ?? null : null};
+    if (rows.length < limit) return {records: rows, nextCursor: null};
+    throw Error('Missing REST pageInfo for full page');
   }
 }
