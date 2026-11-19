@@ -24,4 +24,4 @@ La aplicación no renderiza diálogos propios: los formularios se editan dentro 
 
 ## Actualización
 
-La beta.22 solo añade interfaz, navegación, pruebas y documentación: los UUID universales y el modelo de datos permanecen sin cambios. Actualiza la app instalada desde el Marketplace sin desinstalarla, y comprueba primero con un workspace de pruebas. La publicación del paquete en npm y la sincronización del Marketplace son procesos distintos.
+La beta.23 corrige la actualización de navegación rechazada por Twenty 2.50. Conserva la entrada de menú original como OBJETO y crea otra para la página visual. No necesitas desinstalar Omnichannel Support. La beta.22 solo añadía interfaz, navegación, pruebas y documentación: los UUID universales y el modelo de datos permanecen sin cambios. Actualiza la app instalada desde el Marketplace sin desinstalarla, y comprueba primero con un workspace de pruebas. La publicación del paquete en npm y la sincronización del Marketplace son procesos distintos.

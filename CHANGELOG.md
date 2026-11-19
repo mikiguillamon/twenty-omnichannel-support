@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.3.0-beta.23 — Corrección de actualización del gestor visual de FAQs
+
+- Corrige el rechazo de Twenty 2.50 al actualizar la navegación: el identificador ya instalado de «FAQs» conserva su tipo OBJECT y abre la tabla nativa, ahora llamada «FAQs (tabla)».
+- Registra «FAQs» visual como una entrada PAGE_LAYOUT nueva, con un UUID propio. No modifica el tipo de ninguna entrada existente.
+- Elimina la definición provisional de la entrada de tabla introducida en beta.22 (que no llegó a instalarse en los workspaces afectados) y añade una prueba de regresión del tipo y del UUID estable.
+- Mantiene todos los objetos, relaciones, FAQs existentes y endpoints sin cambios. No requiere desinstalación ni migraciones de datos.
+
+
 ## 0.3.0-beta.22 — Gestor visual de FAQs
 
 - Añade un gestor de FAQs dentro de Omnichannel con tarjetas agrupadas por categoría, búsqueda textual, filtros de estado, idioma y alcance, y listado paginado visualmente.
