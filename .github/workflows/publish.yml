@@ -166,7 +166,8 @@ jobs:
             sleep 10
           done
           for attempt in $(seq 1 18); do
-            npm view twenty-omnichannel-support dist-tags --json --prefer-online > /tmp/promoted-tags.json
+            # Force a fresh npm metadata request on each verification attempt.
+            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-tag-verification-$attempt" > /tmp/promoted-tags.json
             if node -e "const tags=require('/tmp/promoted-tags.json'); const v=process.argv[1]; if(tags.beta!==v || tags.latest!==v)process.exit(1)" "$PACKAGE_VERSION"; then
               echo "Verified npm latest and beta: $PACKAGE_VERSION"
               exit 0
