@@ -3,6 +3,7 @@ import { Response, type RoutePayload } from 'twenty-sdk/logic-function';
 import { IDS } from '../constants/ids.ts';
 import { FaqSearchError, parseFaqSearchRequest, searchFaqs } from '../lib/faq-search.ts';
 import { TwentyFaqSearchStore } from '../lib/faq-search-rest-store.ts';
+import { RestApiClientError } from 'twenty-client-sdk/rest';
 
 const handler=async(request:RoutePayload)=>{
   // Never log questions, workspace tokens or customer content.
@@ -19,8 +20,20 @@ const handler=async(request:RoutePayload)=>{
     if(error instanceof FaqSearchError)
       return new Response({ok:false,error:{code:error.code,message:error.message}},
         {status:error.status,headers:{'cache-control':'no-store'}});
-    console.error('[omnichannel-faq-search] Request failed',error instanceof Error?error.name:'UnknownError');
-    return new Response({ok:false,error:{code:'FAQ_SEARCH_UNAVAILABLE',message:'FAQ search is temporarily unavailable.'}},
+    // Never log REST URLs, query strings, request bodies, tokens, or FAQ text.
+    const status = error instanceof RestApiClientError ? error.status : undefined;
+    const code = status === 400 ? 'FAQ_REST_BAD_REQUEST'
+      : status === 401 || status === 403 ? 'FAQ_REST_ACCESS_DENIED'
+      : status === 429 ? 'FAQ_REST_RATE_LIMIT'
+      : status !== undefined && status >= 500 ? 'FAQ_REST_UPSTREAM_ERROR'
+      : error instanceof RestApiClientError ? 'FAQ_REST_CLIENT_FAILURE'
+      : 'FAQ_SEARCH_UNAVAILABLE';
+    console.error('[omnichannel-faq-search] Failed', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      restStatus: status ?? null,
+      errorCode: code,
+    });
+    return new Response({ok:false,error:{code,message:'FAQ search is temporarily unavailable.'}},
       {status:502,headers:{'cache-control':'no-store'}});
   }
 };
