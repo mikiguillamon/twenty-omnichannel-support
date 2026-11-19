@@ -67,8 +67,9 @@ jobs:
           else
             node scripts/release-preflight.mjs --public
             CURRENT="$(node -p "require('./package.json').version")"
-            PREVIOUS="$(git show HEAD^:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
-            test "$CURRENT" != "$PREVIOUS" || { echo "Package version was not changed"; exit 1; }
+            # Package versions may be bumped in a reviewed PR before the
+            # separately triggered [publish npm] commit. npm immutability,
+            # release metadata and the explicit commit marker guard publishing.
             case "$CURRENT" in *-beta.[0-9]*) ;; *) echo "Expected a beta version"; exit 1;; esac
             if npm view "twenty-omnichannel-support@$CURRENT" version --json >/dev/null 2>&1; then
               echo "Version already published, refusing to overwrite"; exit 1
