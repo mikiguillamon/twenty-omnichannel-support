@@ -5,7 +5,7 @@ import { FaqSearchError, parseFaqSearchRequest, searchFaqs } from '../lib/faq-se
 import { TwentyFaqSearchStore } from '../lib/faq-search-rest-store.ts';
 
 const handler=async(request:RoutePayload)=>{
-  // Never log questions, API tokens, customer content, or bot secrets.
+  // Never log questions, workspace tokens or customer content.
   try {
     const payloadBytes = request.rawBody
       ? Buffer.byteLength(request.rawBody,'utf8')
@@ -13,8 +13,7 @@ const handler=async(request:RoutePayload)=>{
     if(payloadBytes>8192)
       throw new FaqSearchError('PAYLOAD_TOO_LARGE','Search request is too large.',413);
     const input=parseFaqSearchRequest(request.body);
-    const secret=request.headers?.['x-omnichannel-bot-secret'];
-    const result=await searchFaqs(input,secret,new TwentyFaqSearchStore());
+    const result=await searchFaqs(input,new TwentyFaqSearchStore());
     return new Response(result,{status:200,headers:{'cache-control':'no-store'}});
   }catch(error){
     if(error instanceof FaqSearchError)
@@ -34,6 +33,5 @@ export default defineLogicFunction({
     path:'/omnichannel/v1/faqs/search',
     httpMethod:'POST',
     isAuthRequired:true,
-    forwardedRequestHeaders:['x-omnichannel-bot-secret'],
   },
 });

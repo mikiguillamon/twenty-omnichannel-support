@@ -1,12 +1,9 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { normalizeFaqScopes } from './faq-scopes.ts';
 
 export type FaqLanguage = 'ES' | 'CA' | 'EN' | 'auto';
-export type FaqSearchRequest = { query: string; botCode: string; language: FaqLanguage; limit: number };
+export type FaqSearchRequest = { query: string; scopeTags: string[]; language: FaqLanguage; limit: number };
 export type FaqRecord = { id: string; question?: string; answer?: string; variants?: string; language?: string;
   status?: string; scopeTags?: string[] | null };
-export type FaqBotRecord = { id: string; code?: string; secretHash?: string; enabled?: boolean;
-  allowedScopes?: string[] | null };
 export type FaqResult = { id: string; question: string; answer: string; language: string;
   score: number; matchedFields: string[] };
 export type SearchResponse = { ok: true; query: string; results: FaqResult[]; count: number };
@@ -68,41 +65,31 @@ export function parseFaqSearchRequest(raw: unknown): FaqSearchRequest {
   if (!raw || Array.isArray(raw) || typeof raw !== 'object')
     throw new FaqSearchError('INVALID_REQUEST', 'Expected a JSON object.');
   const r = raw as Record<string, unknown>;
-  if (Object.keys(r).some(k => !['query','botCode','language','limit'].includes(k)))
+  if (Object.keys(r).some(k => !['query','scopeTags','language','limit'].includes(k)))
     throw new FaqSearchError('INVALID_REQUEST', 'Unsupported search parameter.');
   if (typeof r.query !== 'string' || !r.query.trim() || r.query.length > MAX_QUERY_LENGTH || /[\u0000-\u001f]/.test(r.query))
     throw new FaqSearchError('INVALID_QUERY', 'Query must contain 1 to 320 characters.');
-  if (typeof r.botCode !== 'string' || !/^[A-Z][A-Z0-9_]{2,63}$/.test(r.botCode))
-    throw new FaqSearchError('INVALID_BOT', 'Invalid botCode.');
+  // Scope is a retrieval filter controlled by the authenticated caller, NOT a permission.
+  // Missing or empty scopes restrict the search to GENERAL only.
+  let scopeTags: string[];
+  if (r.scopeTags === undefined) scopeTags = [];
+  else {
+    if (!Array.isArray(r.scopeTags) || r.scopeTags.length > 12 ||
+        r.scopeTags.some(scope => typeof scope !== 'string' || !scope.trim())) {
+      throw new FaqSearchError('INVALID_SCOPE', 'scopeTags must be an array of up to 12 nonempty strings.');
+    }
+    try { scopeTags = normalizeFaqScopes(r.scopeTags); }
+    catch { throw new FaqSearchError('INVALID_SCOPE', 'Invalid scopeTags values.'); }
+  }
   const language = r.language ?? 'auto';
   if (!['auto','ES','CA','EN'].includes(String(language)))
     throw new FaqSearchError('INVALID_LANGUAGE', 'Expected auto, ES, CA or EN.');
   const limit = r.limit ?? 5;
   if (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > 10)
     throw new FaqSearchError('INVALID_LIMIT', 'Limit must be between 1 and 10.');
-  return {query:r.query.trim(),botCode:r.botCode,language:language as FaqLanguage,limit:Number(limit)};
+  return {query:r.query.trim(),scopeTags,language:language as FaqLanguage,limit:Number(limit)};
 }
 
-/** The secret must be independently generated and kept in the bot's credential vault. */
-export function authorizeFaqBot(bot: FaqBotRecord | null, suppliedSecret: string | undefined): string[] {
-  if (!bot || bot.enabled !== true || !bot.secretHash || !Array.isArray(bot.allowedScopes))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  if (!suppliedSecret || !/^[A-Za-z0-9_-]{43,128}$/.test(suppliedSecret))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  if (!/^[a-f0-9]{64}$/i.test(bot.secretHash))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  const actual = createHash('sha256').update(suppliedSecret,'utf8').digest();
-  const expected = Buffer.from(bot.secretHash,'hex');
-  if (!timingSafeEqual(actual,expected))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  let scopes: string[];
-  try { scopes = normalizeFaqScopes(bot.allowedScopes); } catch {
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  }
-  if (scopes.some(scope=>scope !== 'GENERAL' && !/^[A-Z0-9_]{1,64}$/.test(scope)))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Bot credentials or scope configuration not available.',403);
-  return [...new Set(['GENERAL',...scopes])];
-}
 function relatedTerms(token: string): string[] {
   return [...new Set([token,...(EQUIVALENCES[token] ?? []),...(Object.entries(EQUIVALENCES)
     .filter(([,values])=>values.some(v=>normalizeText(v)===token)).map(([k])=>k))])]
@@ -150,10 +137,9 @@ function safeIlikeTerm(term: string): string {
  * Server builds every predicate: status, scope and query remain inseparable.
  * A strict cap prevents user-supplied queries turning into expensive OR scans.
  */
-export function candidateFilter(query: string, authorizedScopes: string[]): string {
-  const scopes = normalizeFaqScopes(authorizedScopes);
-  if(!scopes.includes('GENERAL'))
-    throw new FaqSearchError('BOT_NOT_AUTHORIZED','Missing general scope.',403);
+export function candidateFilter(query: string, requestedScopes: string[]): string {
+  // GENERAL is always included; never permit an unfiltered search.
+  const scopes = normalizeFaqScopes(['GENERAL', ...requestedScopes]);
   const concepts=conceptsFor(query);
   // Keep accent-bearing spellings and stems: PostgreSQL ILIKE is not inherently
   // accent-insensitive (ES inscripción / CA inscripció), even if local ranking is.
@@ -172,13 +158,11 @@ export function isAllowedFaq(faq: FaqRecord, scopes: string[]): boolean {
     faq.scopeTags.some(s=>scopes.includes(s));
 }
 export interface FaqSearchStore {
-  lookupBot(code: string): Promise<FaqBotRecord | null>;
   searchCandidates(filter: string, limit: number, cursor: string | null): Promise<{records:FaqRecord[];nextCursor:string|null}>;
 }
-export async function searchFaqs(request: FaqSearchRequest, secret: string | undefined, store: FaqSearchStore)
+export async function searchFaqs(request: FaqSearchRequest, store: FaqSearchStore)
 : Promise<SearchResponse> {
-  const bot = await store.lookupBot(request.botCode);
-  const scopes=authorizeFaqBot(bot,secret);
+  const scopes=normalizeFaqScopes(['GENERAL', ...request.scopeTags]);
   const concepts=conceptsFor(request.query);
   const filter=candidateFilter(request.query,scopes);
   const seen=new Set<string>(), candidates: FaqRecord[]=[];
