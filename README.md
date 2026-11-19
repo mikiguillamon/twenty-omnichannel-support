@@ -35,7 +35,7 @@ Choose **Automatic grouping** (HYBRID) or **Activity session** (SESSION) in each
 
 ## Conversation types and FAQ scopes
 
-A conversation's **Type** uses a workspace-managed catalog, just like **Category**. Existing tags and statuses remain available, and the ingestion endpoint updates only the metadata explicitly supplied on each new message.
+A conversation's **Type** uses a workspace-managed catalog, just like **Category**. When the API receives an unknown `conversation.typeCode` or `conversation.categoryCode`, it creates a record with identical name and code in that workspace, then links it to the conversation. Existing entries are reused without changing their names or settings; disabled entries stay disabled. Existing tags and statuses remain available, and the ingestion endpoint updates only the metadata explicitly supplied on each new message.
 
 FAQs have an independent multi-value **Scope** field. For example, a summer bot may fetch FAQs scoped to GENERAL or VERANO, while skipping other scopes and draft FAQs. Scope filtering is an integration rule, not a replacement for workspace access controls.
 

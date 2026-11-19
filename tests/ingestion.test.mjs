@@ -270,7 +270,7 @@ test('adding a new message updates status of existing conversation without clear
   assert.equal(store.writes.length,before);
 });
 
-test('categories are validated inside the current workspace before linking conversation',async()=>{
+test('category codes are resolved in the workspace and unknown codes auto-create',async()=>{
   const store=new MemoryStore();
   const categoryId='1e419c4a-6b99-4a69-8ea4-4d5d26a1c17a';
   store.rows.set('supportCategories',[{id:categoryId,code:'WELCOME',enabled:true}]);
@@ -278,8 +278,13 @@ test('categories are validated inside the current workspace before linking conve
   assert.equal(store.rowsFor('supportCases')[0].categoryId,categoryId);
   const other=email({message:{externalId:'msg-other',threadId:'thread-1',body:'Hola'},
     conversation:{categoryCode:'UNKNOWN'}});
-  await assert.rejects(()=>ingest(other,store),error=>error instanceof IngestError&&error.code==='UNKNOWN_CATEGORY');
-  assert.equal(store.rowsFor('supportMessages').length,1);
+  await ingest(other, store);
+  const created = store.rowsFor('supportCategories').find(row => row.code === 'UNKNOWN');
+  assert(created);
+  assert.equal(created.name, 'UNKNOWN');
+  assert.equal(created.enabled, true);
+  assert.equal(store.rowsFor('supportCases')[0].categoryId, created.id);
+  assert.equal(store.rowsFor('supportMessages').length, 2);
 });
 
 test('phone call events preserve secure recording URLs and transcripts',async()=>{
@@ -567,7 +572,7 @@ test('all editable metadata can be set on creation and patched on a later messag
   assert.equal(store.rowsFor('supportCases')[0].subject, 'Pedido urgente');
 });
 
-test('type code and ID are validated and type metadata is nullable', async () => {
+test('type codes auto-create and type IDs must exist; metadata is nullable', async () => {
   const store = new MemoryStore();
   const id = '9c71777d-6a38-4bcb-83c1-2e5b5009b699';
   store.rows.set('supportTypes', [{ id, code: 'RECLAMACION', enabled: true }]);
@@ -575,10 +580,14 @@ test('type code and ID are validated and type metadata is nullable', async () =>
   assert.equal(store.rowsFor('supportCases')[0].caseTypeId, id);
   await ingest(email({ message: { externalId:'msg-3', threadId:'thread-1' }, conversation: { typeId: null } }), store);
   assert.equal(store.rowsFor('supportCases')[0].caseTypeId, null);
-  await assert.rejects(() => ingest(email({ message: { externalId:'msg-4', threadId:'thread-1' },
-    conversation: { typeCode: 'OTHER' } }),store),
-    error => error instanceof IngestError && error.code === 'UNKNOWN_TYPE');
-  assert.equal(store.rowsFor('supportMessages').length, 2);
+  await ingest(email({ message: { externalId:'msg-4', threadId:'thread-1' },
+    conversation: { typeCode: 'OTHER' } }),store);
+  const created = store.rowsFor('supportTypes').find(row => row.code === 'OTHER');
+  assert(created);
+  assert.equal(created.name, 'OTHER');
+  assert.equal(created.enabled, true);
+  assert.equal(store.rowsFor('supportCases')[0].caseTypeId, created.id);
+  assert.equal(store.rowsFor('supportMessages').length, 3);
   assert.throws(() => email({ conversation: { typeId: id, typeCode: 'RECLAMACION' } }),
     error => error instanceof IngestError && error.code === 'CONFLICTING_TYPE');
 });
@@ -590,4 +599,66 @@ test('invalid tags and unknown mutable conversation fields are rejected', () => 
     error instanceof IngestError && error.code === 'INVALID_CONVERSATION_FIELD');
   assert.throws(() => email({conversation:{externalKey:'unsafe'}}), error =>
     error instanceof IngestError && error.code === 'UNKNOWN_CONVERSATION_FIELD');
+});
+
+
+test('new category and type codes create records with identical name and code', async () => {
+  const store = new MemoryStore();
+  await ingest(email({conversation:{categoryCode:'CLIENTES_VERANO',typeCode:'Consulta_Interna'}}),store);
+  const category = store.rowsFor('supportCategories')[0];
+  const type = store.rowsFor('supportTypes')[0];
+  assert.deepEqual({code:category.code,name:category.name,enabled:category.enabled},
+    {code:'CLIENTES_VERANO',name:'CLIENTES_VERANO',enabled:true});
+  assert.deepEqual({code:type.code,name:type.name,enabled:type.enabled},
+    {code:'Consulta_Interna',name:'Consulta_Interna',enabled:true});
+  assert.equal(store.rowsFor('supportCases')[0].categoryId,category.id);
+  assert.equal(store.rowsFor('supportCases')[0].caseTypeId,type.id);
+
+  await ingest(email({message:{externalId:'second-auto-label',threadId:'thread-1'},
+    conversation:{categoryCode:'CLIENTES_VERANO',typeCode:'Consulta_Interna'}}),store);
+  assert.equal(store.rowsFor('supportCategories').length,1);
+  assert.equal(store.rowsFor('supportTypes').length,1);
+  assert.equal(store.rowsFor('supportCases').length,1);
+});
+
+test('concurrent catalog creations reuse winning record after unique-index conflict', async () => {
+  class RacingStore extends MemoryStore {
+    injected = new Set();
+    async create(resource, data) {
+      if ((resource === 'supportCategories' || resource === 'supportTypes') && !this.injected.has(resource)) {
+        this.injected.add(resource);
+        // Simulate another worker winning the unique-code insertion between read and create.
+        await super.create(resource, data);
+        throw Object.assign(new Error('duplicate key value violates unique index'), {status:409});
+      }
+      return super.create(resource, data);
+    }
+  }
+  const store = new RacingStore();
+  await ingest(email({conversation:{categoryCode:'NEW_CATEGORY',typeCode:'NEW_TYPE'}}),store);
+  const category = store.rowsFor('supportCategories')[0];
+  const type = store.rowsFor('supportTypes')[0];
+  assert.equal(store.rowsFor('supportCategories').length,1);
+  assert.equal(store.rowsFor('supportTypes').length,1);
+  assert.equal(store.rowsFor('supportCases')[0].categoryId,category.id);
+  assert.equal(store.rowsFor('supportCases')[0].caseTypeId,type.id);
+});
+
+test('disabled catalog entries are not reactivated, and unknown IDs are never created', async () => {
+  const store = new MemoryStore();
+  store.rows.set('supportCategories',[{id:'disabled-category',code:'INACTIVE_CATEGORY',name:'Curated',enabled:false}]);
+  store.rows.set('supportTypes',[{id:'disabled-type',code:'INACTIVE_TYPE',name:'Curated',enabled:false}]);
+  await assert.rejects(() => ingest(email({conversation:{categoryCode:'INACTIVE_CATEGORY'}}),store),
+    error => error instanceof IngestError && error.code === 'UNKNOWN_CATEGORY');
+  await assert.rejects(() => ingest(email({conversation:{typeCode:'INACTIVE_TYPE'}}),store),
+    error => error instanceof IngestError && error.code === 'UNKNOWN_TYPE');
+  const missing = '9c71777d-6a38-4bcb-83c1-2e5b5009b699';
+  await assert.rejects(() => ingest(email({conversation:{categoryId:missing}}),store),
+    error => error instanceof IngestError && error.code === 'UNKNOWN_CATEGORY');
+  await assert.rejects(() => ingest(email({conversation:{typeId:missing}}),store),
+    error => error instanceof IngestError && error.code === 'UNKNOWN_TYPE');
+  assert.equal(store.rowsFor('supportCategories').length,1);
+  assert.equal(store.rowsFor('supportTypes').length,1);
+  assert.equal(store.rowsFor('supportMessages').length,0);
+  assert.equal(store.rowsFor('supportCategories')[0].name,'Curated');
 });
