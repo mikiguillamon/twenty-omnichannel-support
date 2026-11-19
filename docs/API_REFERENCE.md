@@ -1,10 +1,10 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.20**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.21**. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
-## Búsqueda inteligente de FAQs (beta.20)
+## Búsqueda inteligente de FAQs (beta.21)
 
 La API de búsqueda reutiliza **únicamente el token Bearer del workspace de Twenty**. El alcance es un filtro solicitado en cada petición, no un sistema de permisos separado ni un registro de bots.
 
@@ -25,7 +25,7 @@ Content-Type: application/json
 
 La búsqueda añade siempre el alcance `GENERAL`, aunque no aparezca en `scopeTags`. Si el campo está omitido o vacío, **solo** busca en `GENERAL`. Una FAQ sin alcance nunca se devuelve. Las FAQs con estado `DRAFT` o `ARCHIVED` se excluyen siempre. No se aceptan expresiones REST, filtros arbitrarios ni campos adicionales enviados por el cliente.
 
-El servidor construye el filtro de origen con `status=PUBLISHED`, `scopeTags[containsIlike]` y condiciones `ilike` sobre pregunta, variantes y respuesta, y vuelve a comprobar el estado y alcance de cada candidata antes de responder. La búsqueda utiliza equivalencias ES/CA, normalización lingüística, sinónimos editoriales de `variants`, deduplicación y relevancia determinista. `score` **no** es una probabilidad de veracidad.
+El servidor construye un filtro REST de origen con `status=PUBLISHED` y condiciones `ilike` sobre pregunta, variantes y respuesta. **No incluye `scopeTags` en el filtro REST** porque el parser REST real de Twenty 2.50 rechaza tanto `containsAny` como `containsIlike` para ese campo `ARRAY`. Omnichannel filtra las candidatas por alcance **después de recuperarlas y antes de puntuarlas o devolverlas**, normalizando valores heredados como `General` y `Campus Hivern`. Los candidatos están limitados y una búsqueda demasiado amplia falla de forma explícita: nunca se devuelven FAQs fuera de alcance. El filtrado por alcance sigue siendo una restricción de recuperación, no una autorización entre clientes.
 
 Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si hay más coincidencias devuelve `SEARCH_TOO_BROAD` (`422`) en lugar de un resultado parcial potencialmente engañoso. Una búsqueda válida sin coincidencias devuelve `ok: true` con `results: []`.
 
