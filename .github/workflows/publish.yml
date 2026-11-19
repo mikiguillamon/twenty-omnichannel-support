@@ -124,7 +124,7 @@ jobs:
           done
           test "$promoted" = true || { echo "Unable to promote npm latest"; exit 1; }
           for attempt in $(seq 1 18); do
-            npm view twenty-omnichannel-support dist-tags --json --prefer-online > /tmp/dist-tags.json
+            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-publish-tag-verification-$attempt" > /tmp/dist-tags.json
             if node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"; then
               echo "Verified npm beta and latest both point to $VERSION"
               exit 0
