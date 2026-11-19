@@ -7,7 +7,10 @@ import { TwentyFaqSearchStore } from '../lib/faq-search-rest-store.ts';
 const handler=async(request:RoutePayload)=>{
   // Never log questions, API tokens, customer content, or bot secrets.
   try {
-    if(request.rawBody && Buffer.byteLength(request.rawBody,'utf8')>8192)
+    const payloadBytes = request.rawBody
+      ? Buffer.byteLength(request.rawBody,'utf8')
+      : Buffer.byteLength(JSON.stringify(request.body ?? {}),'utf8');
+    if(payloadBytes>8192)
       throw new FaqSearchError('PAYLOAD_TOO_LARGE','Search request is too large.',413);
     const input=parseFaqSearchRequest(request.body);
     const secret=request.headers?.['x-omnichannel-bot-secret'];

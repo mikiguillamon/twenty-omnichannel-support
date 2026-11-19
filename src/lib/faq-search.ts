@@ -198,6 +198,9 @@ export async function searchFaqs(request: FaqSearchRequest, secret: string | und
   const results=candidates.map(faq=>rankFaq(faq,request.query,concepts))
     .filter((row):row is FaqResult=>Boolean(row))
     .filter(row=>row.score>=12)
+    // Language is a ranking hint only; never hide a stronger ES/CA cross-language answer.
+    .map(row=>request.language!=='auto' && row.language===request.language
+      ? {...row,score:row.score+2} : row)
     .sort((a,b)=>b.score-a.score||a.question.localeCompare(b.question)||a.id.localeCompare(b.id))
     .slice(0,request.limit);
   return {ok:true,query:request.query,results,count:results.length};

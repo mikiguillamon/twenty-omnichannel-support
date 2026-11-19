@@ -146,3 +146,25 @@ test('store failures propagate without disclosing private FAQ details',async()=>
   await assert.rejects(()=>searchFaqs(req('abono'),secret,store),/private token/);
   // HTTP handler returns a sanitized generic 502; it does not send the underlying message.
 });
+
+test('language acts as preference, not a hard language restriction',async()=>{
+  const store=new MemoryFaqStore([
+    faq('es','Información sobre el abono','Información general','ES',['GENERAL']),
+    faq('ca','Informació sobre l abonament','Informació general','CA',['GENERAL']),
+  ]);
+  const result=await searchFaqs(req('abono',{language:'ES'}),secret,store);
+  assert(result.results.some(row=>row.id==='ca'));
+  assert(result.results.some(row=>row.id==='es'));
+});
+
+test('measures bounded in-memory search time and number of repository calls',async t=>{
+  const store=new MemoryFaqStore(Array.from({length:76},(_,i)=>
+    faq('r'+i,'Horario del abono '+i,'Horari abonament','CA',['GENERAL'])));
+  const start=performance.now();
+  const result=await searchFaqs(req('horario abono'),secret,store);
+  const elapsedMs=performance.now()-start;
+  t.diagnostic('in-memory search: '+elapsedMs.toFixed(2)+' ms; '+store.calls+' repository calls');
+  assert(elapsedMs>=0 && elapsedMs<1000);
+  assert.equal(store.calls,3);
+  assert.equal(result.count,5);
+});
