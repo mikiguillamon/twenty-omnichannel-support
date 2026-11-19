@@ -8,9 +8,9 @@ test('FAQ scopes normalize and deduplicate human labels', () => {
   assert.equal(normalizeFaqScope('Atención cliente'), 'ATENCION_CLIENTE');
 });
 
-test('bot scope filter includes published general plus requested scopes only', () => {
+test('bot scope filter requires published and validates requested scope codes', () => {
   assert.equal(publishedFaqScopeFilter(['Verano']),
-    'and(status[eq]:"PUBLISHED",or(scopeTags[containsIlike]:"GENERAL",scopeTags[containsIlike]:"VERANO"))');
+    'status[eq]:"PUBLISHED"');
   assert.throws(() => publishedFaqScopeFilter(['x") OR true']), /alcance/);
 });
 
@@ -19,8 +19,6 @@ test('FAQ scope arrays cannot include empty values or huge collections', () => {
   assert.throws(() => normalizeFaqScopes(Array.from({length:31},(_,i)=>'TAG'+i)), /30/);
 });
 
-test('ARRAY scopes use containsIlike and escape wildcard underscore',()=>{
- const value=publishedFaqScopeFilter(['CAMPUS_HIVERN']);
- assert(!value.includes('containsAny'));
- assert(value.includes('scopeTags[containsIlike]:"CAMPUS\\\\_HIVERN"'));
+test('REST filter never uses unsupported ARRAY operators', () => {
+  assert.equal(publishedFaqScopeFilter(['Campus Hivern']), 'status[eq]:"PUBLISHED"');
 });
