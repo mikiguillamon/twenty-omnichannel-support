@@ -1,5 +1,14 @@
 ## Unreleased
 
+## 0.3.0-beta.21 — Filtro REST validado en EGORA
+
+- Corrige el error 502 persistente del buscador: Twenty 2.50 rechaza también `containsIlike` en el parser REST para `scopeTags` aunque su tipo sea ARRAY.
+- La API filtra por estado publicado y coincidencias textuales en origen; Omnichannel comprueba los alcances de cada candidata antes de puntuarla o devolverla, con un límite estricto de 200 candidatas.
+- Normaliza también las etiquetas guardadas como nombres legibles (`General`, `Campus Hivern`) sin alterar registros ni relajar la exclusión de FAQs sin etiqueta o con otros alcances.
+- Añade pruebas de regresión para el filtrado real de Twenty 2.50 y los nombres de alcance existentes.
+- No cambia la estructura de datos, la ruta, el payload ni la autenticación del endpoint.
+
+
 ## 0.3.0-beta.20 — Búsqueda de FAQs compatible con Twenty 2.50
 
 - Corrige el error 502 causado por `scopeTags[containsAny]` sobre campos ARRAY: utiliza el operador `containsIlike` con scopes combinados mediante `or`.

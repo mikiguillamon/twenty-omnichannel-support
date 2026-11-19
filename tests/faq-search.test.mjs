@@ -34,12 +34,12 @@ test('normalizes Unicode, verifies scope array and validates strict parameters',
 
 test('candidate filter always includes publication and GENERAL; request adds scopes',()=>{
   const filter=candidateFilter('Com puc donar-me de baixa?', ['VERANO']);
-  assert(filter.startsWith('and(status[eq]:"PUBLISHED",or(scopeTags[containsIlike]:"GENERAL",scopeTags[containsIlike]:"VERANO"),or('));
+  assert(filter.startsWith('and(status[eq]:"PUBLISHED",or('));
   assert(filter.includes('question[ilike]:'));
   assert(filter.includes('variants[ilike]:'));
   assert(filter.includes('answer[ilike]:'));
   assert(!filter.includes('INTERNAS'));
-  assert(candidateFilter('baixa',[]).includes('scopeTags[containsIlike]:"GENERAL"'));
+  assert(!candidateFilter('baixa',[]).includes('scopeTags['));
   const injected=candidateFilter('hello") OR id[neq]:"', []);
   assert(injected.startsWith('and(status[eq]:"PUBLISHED"'));
   assert(!injected.includes('id[neq]'));
@@ -74,8 +74,8 @@ test('filters drafts, archives and unrelated or unscoped FAQs',async()=>{
   const summer=await searchFaqs(req('baja abono',{scopeTags:['VERANO']}),store);
   assert.deepEqual(summer.results.map(x=>x.id).sort(),['a','b']);
   assert.equal(store.calls,2);
-  assert(store.filters[0].includes('scopeTags[containsIlike]:"GENERAL"'));
-  assert(store.filters[1].includes('or(scopeTags[containsIlike]:"GENERAL",scopeTags[containsIlike]:"VERANO")'));
+  assert(store.filters[0].includes('status[eq]:"PUBLISHED"'));
+  assert(!store.filters[1].includes('scopeTags['));
 });
 
 test('query ranking favors exact match, variants, multiple concepts and questions',async()=>{
@@ -135,10 +135,11 @@ test('measures bounded in-memory search time and repository calls',async t=>{
   assert.equal(result.count,5);
 });
 
-test('source filters handle accented query terms and ARRAY scopes',()=>{
+test('text filters preserve accented terms without invalid ARRAY operators',()=>{
  const f=candidateFilter('Quota matrícula discapacitat natació',['Campus Hivern']);
- assert(!f.includes('containsAny'));
- assert(f.includes('scopeTags[containsIlike]:"CAMPUS\\\\_HIVERN"'));
+ assert(!f.includes('containsAny') && !f.includes('containsIlike'));
+ assert(!f.includes('scopeTags['));
+ assert(f.includes('status[eq]:"PUBLISHED"'));
  assert(f.includes('%matrícula%'));
  assert(f.includes('%matricula%'));
  assert(f.includes('%natació%'));
@@ -148,4 +149,20 @@ test('exactly 200 candidates are allowed after last page probe',async()=>{
  const db=new MemoryFaqStore(rows);
  const r=await searchFaqs(req('abonament'),db);
  assert.equal(r.count,5);assert.equal(db.calls,5);
+});
+
+test('legacy display labels normalize only in the post-fetch scope guard',async()=>{
+ const store = new MemoryFaqStore([
+  faq('a','Quota del campus','Informació pública','CA',['General']),
+  faq('b','Quota del campus','Informació hivern','CA',['Campus Hivern']),
+  faq('c','Quota del campus','FAQ restringida','CA',['INTERNAS']),
+  faq('d','Quota del campus','Sense etiquetes','CA',[]),
+  faq('e','Quota del campus','FAQ borrador','CA',['General'],'DRAFT'),
+  faq('f','Quota del campus','FAQ invalid','CA',['?? invalid']),
+ ]);
+ const general=await searchFaqs(req('quota campus'),store);
+ assert.deepEqual(general.results.map(r=>r.id),['a']);
+ const winter=await searchFaqs(req('quota campus',{scopeTags:['Campus Hivern']}),store);
+ assert.deepEqual(winter.results.map(r=>r.id).sort(),['a','b']);
+ assert(store.filters.every(f=>!f.includes('scopeTags[')));
 });

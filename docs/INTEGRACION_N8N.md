@@ -198,7 +198,7 @@ En **Omnichannel → Resumen** los KPIs se consultan por REST, y puedes elegir l
 Documentación relacionada: [API Reference](API_REFERENCE.md), [Arquitectura](ARQUITECTURA.md), [Políticas por canal](POLITICAS_CONVERSACION.md), [Seguridad](SEGURIDAD.md) y [Checklist de pruebas](CHECKLIST_PILOTO.md).
 
 
-## Buscar FAQs aprobadas con un HTTP Request (beta.20)
+## Buscar FAQs aprobadas con un HTTP Request (beta.21)
 
 No hay que dar de alta bots ni generar claves adicionales. El endpoint acepta la **misma credencial Bearer del workspace** que ya utilizas con Twenty. El campo `scopeTags` delimita qué FAQs consultar, y siempre se suma `GENERAL`.
 
@@ -223,4 +223,7 @@ Configuración de un nodo **HTTP Request** en n8n:
 **Importante:** la etiqueta no impide que el mismo token de Twenty consulte otro alcance. Para aislar información de verdad, utiliza credenciales/workspaces con permisos adecuados. No es necesario modificar los workflows existentes; puedes añadir este nodo cuando quieras incorporar búsqueda de FAQs.
 
 
-**Twenty 2.50:** `scopeTags` es ARRAY. El servidor aplica `scopeTags[containsIlike]`, nunca `containsAny`. En n8n envía únicamente `query`, `scopeTags`, `language` y `limit`. No consideres una respuesta HTTP 502 como una FAQ consultada correctamente.
+**Twenty 2.50:** el parser REST rechaza tanto `containsIlike` como `containsAny` sobre `scopeTags`. La aplicación realiza la comprobación de alcance después de recuperar los candidatos de texto publicados. Envía únicamente `query`, `scopeTags`, `language` y `limit`. Una respuesta HTTP 502 no es una búsqueda válida.
+
+
+**Nota de compatibilidad beta.21:** La búsqueda no utiliza `scopeTags` como filtro REST, porque Twenty 2.50 lo rechaza con HTTP 400. La aplicación comprueba el alcance de cada FAQ candidata antes de responder. Las etiquetas guardadas como `General` o `Campus Hivern` se normalizan sin migrarlas. No debes construir filtros REST desde n8n ni modificar la petición `POST`.

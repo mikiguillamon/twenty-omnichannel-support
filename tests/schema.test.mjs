@@ -83,5 +83,7 @@ test('FAQ search route and configurable bot authorization stay workspace scoped'
   assert(f.includes("isAuthRequired:true"));
   assert(!f.includes('x-omnichannel-bot-secret'));
   assert(read('src/lib/faq-search.ts').includes('scopeTags'));
-  assert(read('src/lib/faq-search.ts').includes('status[eq]:"PUBLISHED"'));
+  // The publication predicate is defined in faq-scopes and composed by the search.
+  assert(read('src/lib/faq-search.ts').includes('publishedFaqScopeFilter(scopes)'));
+  assert(read('src/lib/faq-scopes.ts').includes('status[eq]:"PUBLISHED"'));
 });

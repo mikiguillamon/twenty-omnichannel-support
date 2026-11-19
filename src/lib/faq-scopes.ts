@@ -1,6 +1,7 @@
 /**
  * Scope values are stable, unaccented codes so bots can filter consistently.
- * They remain arbitrary (ARRAY), unlike a predeclared MULTI_SELECT option list.
+ * The Twenty object stores an ARRAY; legacy records may have display labels
+ * such as "General" and "Campus Hivern" instead of normalized codes.
  */
 export const GENERAL_FAQ_SCOPE = 'GENERAL';
 
@@ -19,20 +20,14 @@ export function normalizeFaqScopes(values: string[]): string[] {
 }
 
 /**
- * A bot requests its own scopes plus GENERAL. Empty FAQ scopeTags never match.
- * This generates a REST filter but is not an authorization boundary.
+ * Twenty 2.50's REST filter parser rejects ARRAY operators, including
+ * containsAny and containsIlike. Only publication is filtered in the API.
+ * Application code MUST verify every returned record's scope before ranking
+ * or returning it, and cap the total number of candidates (fail closed).
+ *
+ * This is retrieval scoping, NOT an authorization boundary between bots.
  */
-/** Twenty 2.50 ARRAY supports containsIlike, not MULTI_SELECT's containsAny.
- * No % wildcards are used: match complete array elements only.
- */
-export function faqScopePredicate(scopes: string[]): string {
-  const allowed = normalizeFaqScopes([GENERAL_FAQ_SCOPE, ...scopes]);
-  const clauses = allowed.map(scope =>
-    'scopeTags[containsIlike]:' + JSON.stringify(scope.replace(/[\\%_]/g, '\\$&')));
-  return clauses.length === 1 ? clauses[0] : 'or(' + clauses.join(',') + ')';
-}
-
-/** Scope restricts results, but is not a workspace authorization boundary. */
 export function publishedFaqScopeFilter(scopes: string[]): string {
-  return 'and(status[eq]:"PUBLISHED",' + faqScopePredicate(scopes) + ')';
+  normalizeFaqScopes([GENERAL_FAQ_SCOPE, ...scopes]);
+  return 'status[eq]:"PUBLISHED"';
 }

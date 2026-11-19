@@ -1,4 +1,4 @@
-import { normalizeFaqScopes, faqScopePredicate } from './faq-scopes.ts';
+import { normalizeFaqScopes, normalizeFaqScope, publishedFaqScopeFilter } from './faq-scopes.ts';
 
 export type FaqLanguage = 'ES' | 'CA' | 'EN' | 'auto';
 export type FaqSearchRequest = { query: string; scopeTags: string[]; language: FaqLanguage; limit: number };
@@ -164,12 +164,22 @@ export function candidateFilter(query: string, requestedScopes: string[]): strin
   if (!terms.length) throw new FaqSearchError('INVALID_QUERY', 'No searchable terms.');
   const clauses=terms.flatMap(t=>['question','variants','answer']
     .map(field=>field+'[ilike]:'+JSON.stringify('%'+safeIlikeTerm(t)+'%')));
-  return 'and(status[eq]:"PUBLISHED",'+faqScopePredicate(scopes)+
+  // Twenty REST 2.50 rejects ARRAY operators in the query parser.
+  // Scope enforcement happens only after reading a bounded set of candidates.
+  // Do not remove the post-fetch isAllowedFaq guard or raise candidate caps blindly.
+  return 'and('+publishedFaqScopeFilter(scopes)+
     ',or('+clauses.join(',')+'))';
 }
 export function isAllowedFaq(faq: FaqRecord, scopes: string[]): boolean {
-  return faq.status==='PUBLISHED' && Array.isArray(faq.scopeTags) &&
-    faq.scopeTags.some(s=>scopes.includes(s));
+  if (faq.status !== 'PUBLISHED' || !Array.isArray(faq.scopeTags)) return false;
+  const allowed = new Set(normalizeFaqScopes(scopes));
+  // Some existing records store display labels, e.g. "General", "Campus Hivern".
+  // Invalid or unknown labels never grant access; normalize each array item separately.
+  return faq.scopeTags.some(value => {
+    if (typeof value !== 'string') return false;
+    try { return allowed.has(normalizeFaqScope(value)); }
+    catch { return false; }
+  });
 }
 export interface FaqSearchStore {
   searchCandidates(filter: string, limit: number, cursor: string | null): Promise<{records:FaqRecord[];nextCursor:string|null}>;

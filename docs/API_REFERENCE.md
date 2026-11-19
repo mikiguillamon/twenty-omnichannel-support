@@ -1,10 +1,10 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.20**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.21**. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
-## Búsqueda inteligente de FAQs (beta.20)
+## Búsqueda inteligente de FAQs (beta.21)
 
 La API de búsqueda reutiliza **únicamente el token Bearer del workspace de Twenty**. El alcance es un filtro solicitado en cada petición, no un sistema de permisos separado ni un registro de bots.
 
@@ -25,7 +25,7 @@ Content-Type: application/json
 
 La búsqueda añade siempre el alcance `GENERAL`, aunque no aparezca en `scopeTags`. Si el campo está omitido o vacío, **solo** busca en `GENERAL`. Una FAQ sin alcance nunca se devuelve. Las FAQs con estado `DRAFT` o `ARCHIVED` se excluyen siempre. No se aceptan expresiones REST, filtros arbitrarios ni campos adicionales enviados por el cliente.
 
-El servidor construye el filtro de origen con `status=PUBLISHED`, `scopeTags[containsIlike]` y condiciones `ilike` sobre pregunta, variantes y respuesta, y vuelve a comprobar el estado y alcance de cada candidata antes de responder. La búsqueda utiliza equivalencias ES/CA, normalización lingüística, sinónimos editoriales de `variants`, deduplicación y relevancia determinista. `score` **no** es una probabilidad de veracidad.
+El servidor construye un filtro REST de origen con `status=PUBLISHED` y condiciones `ilike` sobre pregunta, variantes y respuesta. **No incluye `scopeTags` en el filtro REST** porque el parser REST real de Twenty 2.50 rechaza tanto `containsAny` como `containsIlike` para ese campo `ARRAY`. Omnichannel filtra las candidatas por alcance **después de recuperarlas y antes de puntuarlas o devolverlas**, normalizando valores heredados como `General` y `Campus Hivern`. Los candidatos están limitados y una búsqueda demasiado amplia falla de forma explícita: nunca se devuelven FAQs fuera de alcance. El filtrado por alcance sigue siendo una restricción de recuperación, no una autorización entre clientes.
 
 Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si hay más coincidencias devuelve `SEARCH_TOO_BROAD` (`422`) en lugar de un resultado parcial potencialmente engañoso. Una búsqueda válida sin coincidencias devuelve `ok: true` con `results: []`.
 
@@ -49,9 +49,9 @@ Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si ha
 
 **Seguridad:** `scopeTags` **no establece una autorización**. Cualquier cliente con acceso a este endpoint mediante un token válido de Twenty podrá solicitar otros alcances, por ejemplo `INTERNAS`. Por tanto, no debe utilizarse para separar información confidencial entre bots que comparten un token. Utiliza tokens y workspaces con los permisos apropiados, y no guardes datos confidenciales únicamente detrás de una etiqueta. No se registran cuerpos de consulta ni tokens en logs de aplicación.
 
-Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento `FAQ_SEARCH_UNAVAILABLE` (`502`). Twenty puede devolver `401`/`403` antes de llamar al endpoint.
+Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento (`502`) clasificados como `FAQ_REST_BAD_REQUEST`, `FAQ_REST_ACCESS_DENIED`, `FAQ_REST_RATE_LIMIT`, `FAQ_REST_UPSTREAM_ERROR`, `FAQ_REST_CLIENT_FAILURE` o `FAQ_SEARCH_UNAVAILABLE`, sin divulgar contenido ni credenciales. Twenty puede devolver `401`/`403` antes de llamar al endpoint.
 
-**Compatibilidad:** Twenty 2.50 trata `scopeTags` como `ARRAY`, por lo que se usa `containsIlike` por alcance y `or(...)` entre alcances. `containsAny` es exclusivo de otros tipos y devuelve 400. Se conservan grafías acentuadas y se usan cursores REST opacos. Validar la integración real después de instalar la versión.
+**Compatibilidad Twenty 2.50 comprobada en EGORA:** el parser REST rechaza `containsAny` y `containsIlike` sobre `scopeTags`. Solo se filtran en REST el estado y las coincidencias textuales; la aplicación comprueba los alcances sobre el conjunto acotado, antes de devolver resultados. Las pruebas reales con la API de EGORA confirmaron HTTP 200 para `status[eq]`, `question[ilike]` y filtros combinados `and`/`or`. Tras actualizar el paquete, debe verificarse el endpoint de búsqueda completo.
 
 ## Requisitos y autenticación
 
@@ -181,7 +181,7 @@ El editor normaliza los nombres introducidos a códigos estables en mayúsculas 
 Para un bot con alcance `VERANO`, pide solo FAQs publicadas con al menos uno de `GENERAL` o `VERANO`. Ejemplo de filtro REST de Twenty:
 
 ```http
-GET /rest/supportFaqs?filter=and(status[eq]:"PUBLISHED",scopeTags[containsAny]:["GENERAL","VERANO"])
+GET /rest/supportFaqs?filter=and(status[eq]:"PUBLISHED",question[ilike]:"%quota%")
 Authorization: Bearer TOKEN_DEL_WORKSPACE
 ```
 
