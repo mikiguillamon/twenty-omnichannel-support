@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 0.3.0-beta.17 — Tipos de conversación y alcance de FAQs
+
+- Añade un catálogo configurable de Tipos para conversaciones, separado del de Categorías, con asignación por código o ID desde la API.
+- Permite que cada mensaje nuevo actualice asunto, tipo, categoría, estado, etiquetas, responsable y otros metadatos de la conversación sin alterar los campos omitidos.
+- Incorpora Alcance multietiqueta en las FAQs, con un editor específico y filtros para bots por alcance General y alcances concretos.
+- Conserva las relaciones y los datos de las versiones anteriores, refuerza las validaciones y amplía las pruebas y la documentación de integración.
+
+
 ## 0.3.0-beta.16 — Accesos de respuesta por canal
 
 - Añade **Responder** debajo del historial de conversación para abrir WhatsApp, el correo, Telegram, Instagram o el marcador de llamadas en una aplicación externa cuando hay un destinatario válido.
