@@ -191,7 +191,8 @@ async function conversationUpdates(
   patch: ConversationPatch, store: IngestionStore,
 ): Promise<Record<string, unknown>> {
   const data: Record<string, unknown> = {};
-  for (const field of ['status', 'followUp', 'followUpAt', 'summary', 'comments', 'language', 'transcription'] as const) {
+  for (const field of ['status', 'subject', 'tags', 'customTags', 'resolution', 'automation', 'technicalStatus',
+    'assignedTo', 'followUp', 'followUpAt', 'summary', 'comments', 'language', 'transcription'] as const) {
     if (Object.hasOwn(patch, field)) data[field] = patch[field];
   }
   if (Object.hasOwn(patch, 'recordingUrl')) {
@@ -208,6 +209,16 @@ async function conversationUpdates(
         throw new IngestError('UNKNOWN_CATEGORY', 'Category is not available in this workspace', 422);
     }
     data.categoryId = category?.id ?? null;
+  }
+  if (Object.hasOwn(patch, 'typeId') || Object.hasOwn(patch, 'typeCode')) {
+    let type: DbRecord | null = null;
+    if (patch.typeId) type = await store.get('supportTypes', patch.typeId);
+    else if (patch.typeCode) type = await first(store, 'supportTypes', { code: patch.typeCode });
+    if (patch.typeId || patch.typeCode) {
+      if (!type || type.enabled === false)
+        throw new IngestError('UNKNOWN_TYPE', 'Type is not available in this workspace', 422);
+    }
+    data.caseTypeId = type?.id ?? null;
   }
   return data;
 }
@@ -336,7 +347,7 @@ async function caseFor(
   if (!candidate) {
     const savedCase = await insertUnique(store, 'supportCases', caseKey, {
       externalKey: caseKey,
-      subject: ref.subject,
+      subject: Object.hasOwn(metadata, 'subject') ? (metadata.subject ?? ref.subject) : ref.subject,
       channel: scope.channelType,
       resolution: 'PENDING',
       firstMessageAt: ref.occurredAt,
