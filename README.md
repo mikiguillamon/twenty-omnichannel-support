@@ -8,10 +8,10 @@ Omnichannel Support gives your team a place to follow support cases, read messag
 
 - **Follow each enquiry.** Keep incoming and outgoing messages together, with the case's status, category, owner and resolution.
 - **Work across channels.** Connect email inboxes, WhatsApp, Instagram, Telegram and phone systems separately in each workspace.
-- **Update conversations through the API.** Set status, follow-up, category, language, summary or comments as each new message arrives; preserve call recordings and transcriptions.
+- **Update conversations through the API.** Set the title, type, category, status, standard/custom tags, follow-up and other metadata whenever a new message arrives; preserve call recordings and transcriptions.
 - **Open history from People.** Find related conversations and channel identities in the Omnichannel tab on a Person.
 - **Choose how conversations become cases.** Keep email replies in the same thread, or group chat messages by activity and topic. Each channel has its own settings.
-- **Use your team's knowledge.** Maintain FAQs for connected bots and review automated replies before or after they are sent.
+- **Use your team's knowledge.** Maintain FAQs with configurable scope tags (GENERAL, VERANO, etc.) so each bot retrieves only published answers relevant to its audience; review automated replies before or after they are sent.
 - **See what needs attention.** Choose which KPIs to show in the workspace summary, and create additional graphs and dashboards with Twenty's native editor.
 
 WhatsApp integrations can associate number-based JIDs and LIDs with the same customer identity when the provider supplies reliable matching information.
@@ -32,6 +32,12 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 ## Automatic chat grouping
 
 Choose **Automatic grouping** (HYBRID) or **Activity session** (SESSION) in each channel's conversation settings. The ingestion API can append new inbound and outbound messages to the same eligible conversation, including automated notices, without a separate search in n8n. It respects the channel's continuity and reopening windows, never guesses between multiple active cases, and applies `conversation.status` when a new message is recorded.
+
+## Conversation types and FAQ scopes
+
+A conversation's **Type** uses a workspace-managed catalog, just like **Category**. Existing tags and statuses remain available, and the ingestion endpoint updates only the metadata explicitly supplied on each new message.
+
+FAQs have an independent multi-value **Scope** field. For example, a summer bot may fetch FAQs scoped to GENERAL or VERANO, while skipping other scopes and draft FAQs. Scope filtering is an integration rule, not a replacement for workspace access controls.
 
 ## Ingestion API
 

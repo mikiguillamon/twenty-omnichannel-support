@@ -2,7 +2,7 @@ import { defineNavigationMenuItem, NavigationMenuItemType } from 'twenty-sdk/def
 import { IDS } from '../constants/ids.ts';
 
 export default defineNavigationMenuItem({
-  universalIdentifier: IDS.MENU_TYPES, name: 'Tipos', icon: 'IconAdjustments', position: 4.5,
+  universalIdentifier: IDS.MENU_TYPES, name: 'Tipos', icon: 'IconAdjustments', position: 9,
   type: NavigationMenuItemType.OBJECT, targetObjectUniversalIdentifier: IDS.TYPE_OBJECT,
   folderUniversalIdentifier: IDS.MENU_FOLDER,
 });

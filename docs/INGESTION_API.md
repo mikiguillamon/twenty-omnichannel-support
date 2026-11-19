@@ -212,3 +212,16 @@ Crea un Canal `PHONE` para la línea o centralita correspondiente. Envía `messa
 ```
 
 **Grabación** es un enlace, no un archivo binario. El historial incorpora un reproductor de audio HTML para enlaces HTTPS que el navegador pueda consultar directamente, además de la opción de abrir el enlace. Si el mensaje telefónico incluye `callRecordingUrl` y/o `callTranscription`, estos datos también se incorporan a la conversación, salvo que el bloque `conversation` especifique lo contrario.\n\nEl contrato acepta `contact.firstName` y `contact.lastName` como campos estructurados (o alternativas planas de igual nombre). Los apellidos se guardan en el campo nativo `people.name.lastName` al crear o identificar de forma fiable una Persona; se completan campos vacíos sin sustituir datos ya existentes. No se separan automáticamente los nombres completos, porque los apellidos compuestos pueden quedar mal interpretados. Para canales no email debe verificarse la identidad antes de vincular una Persona.\n\nEl endpoint **no acepta subidas de archivos** ni almacena audios. Para grabaciones procedentes de ficheros locales, primero súbelas a un almacenamiento privado del proveedor o compatible con S3 y envía una URL HTTPS de acceso autorizado. Las URLs temporales caducan y un enlace accesible mediante una sesión del proveedor puede no funcionar en el reproductor de Twenty. Las políticas de acceso, autorización para grabar y retención corresponden a la integración del proveedor. Evita enlaces públicos permanentes y credenciales embebidas. La app no realiza ni graba llamadas.
+ 
+
+## Actualizar la conversación al añadir un mensaje
+
+El bloque `conversation` ahora admite `subject`, `status`, `categoryId`/`categoryCode`, `typeId`/`typeCode`, `tags`, `customTags`, `resolution`, `automation`, `technicalStatus`, `assignedTo`, `followUp`, `followUpAt`, `summary`, `comments`, `language`, `transcription` y `recordingUrl`.
+
+Todos los campos son opcionales. Al enviar un mensaje nuevo, los proporcionados actualizan la misma conversación asociada al hilo o a la agrupación automática. `tags` y `customTags` se sustituyen por los arrays enviados, incluyendo `[]` para vaciar. Los campos omitidos no se tocan. El reintento del mismo mensaje no cambia metadatos de la conversación.
+
+Los Tipos son registros independientes de las Categorías, configurables en el menú **Tipos** del workspace. Si un código no existe o está inactivo, la ingestión devuelve `UNKNOWN_TYPE`.
+
+## Alcance de FAQs
+
+Las FAQs admiten `scopeTags`, por ejemplo `["GENERAL","VERANO"]`. Se pueden editar desde la ficha FAQ o con `PATCH /rest/supportFaqs/{id}`. El bot consulta las FAQs publicadas con `scopeTags[containsAny]:["GENERAL","VERANO"]`. Las FAQs vacías no se devuelven; `GENERAL` es explícito y compartido entre bots. Consulta los ejemplos completos de [API_REFERENCE.md](API_REFERENCE.md).

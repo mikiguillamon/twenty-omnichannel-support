@@ -22,7 +22,7 @@ export type FollowUpStatus = typeof FOLLOW_UP_STATUSES[number];
 
 /**
  * Sparse patch of a conversation. Omitted keys do not change the current value.
- * Text, date, category and recording fields accept explicit null to clear them.
+ * Nullable text, date, category, type and recording fields accept explicit null to clear them.
  */
 export type ConversationPatch = {
   status?: ConversationStatus;

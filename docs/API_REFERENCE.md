@@ -87,6 +87,15 @@ Los siguientes campos pueden enviarse tanto con el primer mensaje como con uno n
 
 | Campo | Tipo | Comportamiento |
 | --- | --- | --- |
+| `subject` | string o null | Título de la conversación, máximo 500 caracteres. `null` limpia el asunto; si no se indica, se conserva el título inicial. |
+| `typeId` | UUID o null | Tipo de conversación existente en el workspace; usa la relación `caseTypeId`. |
+| `typeCode` | string o null | Código exacto de tipo existente y activo. Usa `typeId` o `typeCode`, nunca ambos. |
+| `tags` | string[] | Sustituye las etiquetas estándar de la conversación. Valores: `URGENT`, `REPEAT`, `VIP`, `ESCALATED`, `FOLLOWUP`. `[]` las limpia. |
+| `customTags` | string[] | Etiquetas de texto libres (máximo 30, 64 caracteres cada una), independientes de `tags`. `[]` las limpia. |
+| `resolution` | enum | `PENDING`, `SOLVED`, `UNSOLVED`, `NOT_APPLICABLE`. |
+| `automation` | enum | `PENDING`, `FULL`, `PARTIAL`, `NONE`. |
+| `technicalStatus` | enum | `UNKNOWN`, `PENDING`, `SUCCESS`, `RETRYING`, `ERROR`. |
+| `assignedTo` | string o null | Texto de responsable, máximo 255 caracteres. |
 | `status` | enum | `NEW`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `HUMAN_REQUIRED`, `RESOLVED`, `CLOSED`, `AUTOMATED`, `INFORMATIONAL`, `WAITING_INTERNAL`. |
 | `followUp` | enum o null | `NONE`, `REQUIRED`, `SCHEDULED`, `WAITING_RESPONSE`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`. |
 | `followUpAt` | ISO 8601 o null | Fecha y hora del seguimiento; exige zona horaria `Z` u offset y se normaliza a UTC. |
@@ -98,11 +107,61 @@ Los siguientes campos pueden enviarse tanto con el primer mensaje como con uno n
 | `transcription` | string o null | Transcripción a nivel conversación, máximo 100.000 caracteres. |
 | `recordingUrl` | string o null | Enlace HTTPS a la grabación, máximo 2.048 caracteres. Se transforma al campo `LINKS` `supportCases.recording`. |
 
+El tipo y la categoría se gestionan como registros distintos: `supportTypes` y `supportCategories`, cada uno con `code` único, `enabled` y `description`. Para la API, el código debe coincidir exactamente con un registro habilitado. Las etiquetas predefinidas (`tags`) y libres (`customTags`) son dos campos diferentes.
+
 La categoría debe existir y no estar desactivada (`enabled: false`). Si se detecta ambigüedad de identidad o agrupación y se crea una conversación nueva para revisión, la app fuerza `HUMAN_REQUIRED`, incluso si el evento solicitaba otro estado.
 
 Los estados de la conversación son distintos de `deliveryStatus` (envío del mensaje), `resolution` (resultado del caso) y `technicalStatus` (funcionamiento del bot). El bloque `conversation` no admite claves arbitrarias ni valores anidados adicionales.
 
 Una petición `message.status` no admite un bloque `conversation` con cambios. Para editar solo la conversación, usa la API REST estándar de Twenty, con los permisos correspondientes: `PATCH /rest/supportCases/{id}`.
+
+### FAQs por alcance y acceso desde bots
+
+Cada FAQ tiene ahora `scopeTags: string[]`, independiente de `category`, `tags` y `status`. Se administra en el editor de la ficha FAQ y también a través de la API REST generada por Twenty:
+
+```http
+PATCH /rest/supportFaqs/{faqId}
+Authorization: Bearer TOKEN_DEL_WORKSPACE
+Content-Type: application/json
+
+{"scopeTags":["GENERAL","VERANO"]}
+```
+
+El editor normaliza los nombres introducidos a códigos estables en mayúsculas sin acentos (por ejemplo, `Campaña 2027` pasa a `CAMPANA_2027`). Las llamadas REST directas deben utilizar esos mismos códigos.
+
+Para un bot con alcance `VERANO`, pide solo FAQs publicadas con al menos uno de `GENERAL` o `VERANO`. Ejemplo de filtro REST de Twenty:
+
+```http
+GET /rest/supportFaqs?filter=and(status[eq]:"PUBLISHED",scopeTags[containsAny]:["GENERAL","VERANO"])
+Authorization: Bearer TOKEN_DEL_WORKSPACE
+```
+
+Codifica el parámetro `filter` con URL encoding en tu cliente HTTP. `GENERAL` es un alcance compartido, no un valor implícito: solo se devuelve si está presente explícitamente en `scopeTags`. Una FAQ sin etiquetas de alcance queda fuera de las consultas filtradas. Añadir etiquetas no publica una FAQ en borrador.
+
+**Seguridad:** el filtrado de alcance en n8n no sustituye el control de permisos de Twenty. Usa credenciales por workspace y restringe el acceso de cada bot a su base de conocimiento. Los bots deben consultar el filtro apropiado y no descargar la colección completa.
+
+### Metadatos de conversaciones existentes
+
+```json
+{
+  "channelCode": "email-soporte",
+  "channelType": "EMAIL",
+  "contact": {"email": "cliente@example.com"},
+  "message": {"externalId": "msg-002", "threadId": "thread-120", "body": "Quiero cambiar mi reserva."},
+  "conversation": {
+    "subject": "Cambio de reserva",
+    "typeCode": "CONSULTA",
+    "categoryCode": "RESERVAS",
+    "tags": ["VIP"],
+    "customTags": ["verano-2027"],
+    "status": "IN_PROGRESS",
+    "followUp": "REQUIRED",
+    "summary": "Solicita modificar su reserva"
+  }
+}
+```
+
+El tipo y la categoría deben estar creados previamente. Los cambios del bloque `conversation` se aplican al crear el mensaje nuevo en la conversación existente; no hace falta un PATCH REST adicional desde n8n. Los campos omitidos mantienen sus valores. El reintento de un mensaje con la misma clave idempotente no vuelve a sobrescribir sus metadatos.
 
 ## Ejemplos completos
 
