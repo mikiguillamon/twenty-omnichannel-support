@@ -522,3 +522,72 @@ test('a malformed or unverified phone is not used as a WhatsApp identity', () =>
   const event = normalizeEvent(raw);
   assert.equal(event.externalUserId,'');
 });
+
+
+test('all editable metadata can be set on creation and patched on a later message', async () => {
+  const store = new MemoryStore();
+  const typeId = '9c71777d-6a38-4bcb-83c1-2e5b5009b699';
+  const categoryId = '1e419c4a-6b99-4a69-8ea4-4d5d26a1c17a';
+  store.rows.set('supportTypes', [{ id: typeId, code: 'CONSULTA', enabled: true }]);
+  store.rows.set('supportCategories', [{ id: categoryId, code: 'GENERAL', enabled: true }]);
+  await ingest(email({ conversation: {
+    subject: 'Pedido', typeCode: 'CONSULTA', categoryCode: 'GENERAL', tags: ['VIP'],
+    customTags: ['campana-verano'], status: 'NEW', resolution: 'PENDING',
+    automation: 'NONE', technicalStatus: 'UNKNOWN', assignedTo: 'agente-a',
+  }}), store);
+  let conversation = store.rowsFor('supportCases')[0];
+  assert.equal(conversation.subject, 'Pedido');
+  assert.equal(conversation.caseTypeId, typeId);
+  assert.equal(conversation.categoryId, categoryId);
+  assert.deepEqual(conversation.tags, ['VIP']);
+  assert.deepEqual(conversation.customTags, ['campana-verano']);
+  await ingest(email({
+    message: { externalId: 'msg-2', threadId: 'thread-1', body: 'Nueva información' },
+    conversation: {
+      subject: 'Pedido urgente', status: 'IN_PROGRESS', tags: ['URGENT', 'VIP'],
+      customTags: [], automation: 'PARTIAL', technicalStatus: 'SUCCESS',
+    },
+  }), store);
+  conversation = store.rowsFor('supportCases')[0];
+  assert.equal(conversation.subject, 'Pedido urgente');
+  assert.equal(conversation.status, 'IN_PROGRESS');
+  assert.deepEqual(conversation.tags, ['URGENT', 'VIP']);
+  assert.deepEqual(conversation.customTags, []);
+  assert.equal(conversation.automation, 'PARTIAL');
+  assert.equal(conversation.categoryId, categoryId);
+  assert.equal(conversation.caseTypeId, typeId);
+  assert.equal(conversation.assignedTo, 'agente-a');
+  const writes = store.writes.length;
+  const replay = email({
+    message: { externalId: 'msg-2', threadId: 'thread-1', body: 'Nueva información' },
+    conversation: { subject: 'Título antiguo', tags: [] },
+  });
+  assert.equal((await ingest(replay, store)).status, 'duplicate');
+  assert.equal(store.writes.length, writes);
+  assert.equal(store.rowsFor('supportCases')[0].subject, 'Pedido urgente');
+});
+
+test('type code and ID are validated and type metadata is nullable', async () => {
+  const store = new MemoryStore();
+  const id = '9c71777d-6a38-4bcb-83c1-2e5b5009b699';
+  store.rows.set('supportTypes', [{ id, code: 'RECLAMACION', enabled: true }]);
+  await ingest(email({ conversation: { typeId: id }}), store);
+  assert.equal(store.rowsFor('supportCases')[0].caseTypeId, id);
+  await ingest(email({ message: { externalId:'msg-3', threadId:'thread-1' }, conversation: { typeId: null } }), store);
+  assert.equal(store.rowsFor('supportCases')[0].caseTypeId, null);
+  await assert.rejects(() => ingest(email({ message: { externalId:'msg-4', threadId:'thread-1' },
+    conversation: { typeCode: 'OTHER' } }),store),
+    error => error instanceof IngestError && error.code === 'UNKNOWN_TYPE');
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+  assert.throws(() => email({ conversation: { typeId: id, typeCode: 'RECLAMACION' } }),
+    error => error instanceof IngestError && error.code === 'CONFLICTING_TYPE');
+});
+
+test('invalid tags and unknown mutable conversation fields are rejected', () => {
+  assert.throws(() => email({conversation:{tags:['BOGUS']}}), error =>
+    error instanceof IngestError && error.code === 'INVALID_CONVERSATION_FIELD');
+  assert.throws(() => email({conversation:{customTags:['']}}), error =>
+    error instanceof IngestError && error.code === 'INVALID_CONVERSATION_FIELD');
+  assert.throws(() => email({conversation:{externalKey:'unsafe'}}), error =>
+    error instanceof IngestError && error.code === 'UNKNOWN_CONVERSATION_FIELD');
+});

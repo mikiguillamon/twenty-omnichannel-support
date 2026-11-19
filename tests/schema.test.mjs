@@ -50,3 +50,21 @@ test('new omnichannel fields, person relations and labels are stable',()=>{
   assert(read('src/page-layouts/person-omnichannel.page.ts').includes('personRecordPage'));
   assert(read('src/front-components/support-overview.tsx').includes('/rest/supportCases'));
 });
+
+
+test('conversation types mirror categories and FAQ scope tags are independent', () => {
+  const type = read('src/objects/support-type.object.ts');
+  const faq = read('src/objects/support-faq.object.ts');
+  const caseType = read('src/fields/case-type.field.ts');
+  const typeCases = read('src/fields/type-cases.field.ts');
+  const ingestion = read('src/lib/ingestion/contract.ts');
+  assert(type.includes("nameSingular: 'supportType'"));
+  assert(caseType.includes("joinColumnName: 'caseTypeId'"));
+  assert(typeCases.includes('IDS.CASE_TYPE_RELATION'));
+  assert(faq.includes("name: 'scopeTags'"));
+  assert(ingestion.includes("'typeCode'"));
+  assert(ingestion.includes("'subject'"));
+  assert(ingestion.includes("'tags'"));
+  assert(read('src/front-components/faq-scope-editor.tsx').includes('Guardar alcance'));
+  assert(read('src/page-layouts/support-faq-record.page.ts').includes('IDS.FRONT_FAQ_SCOPE_EDITOR'));
+});

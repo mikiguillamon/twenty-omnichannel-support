@@ -10,6 +10,10 @@ export const CONVERSATION_STATUSES = [
   'NEW', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'HUMAN_REQUIRED', 'RESOLVED', 'CLOSED',
   'AUTOMATED', 'INFORMATIONAL', 'WAITING_INTERNAL',
 ] as const;
+export const CONVERSATION_TAGS = ['URGENT', 'REPEAT', 'VIP', 'ESCALATED', 'FOLLOWUP'] as const;
+export const CONVERSATION_RESOLUTIONS = ['PENDING', 'SOLVED', 'UNSOLVED', 'NOT_APPLICABLE'] as const;
+export const CONVERSATION_AUTOMATIONS = ['PENDING', 'FULL', 'PARTIAL', 'NONE'] as const;
+export const CONVERSATION_TECHNICAL_STATUSES = ['UNKNOWN', 'PENDING', 'SUCCESS', 'RETRYING', 'ERROR'] as const;
 export const FOLLOW_UP_STATUSES = [
   'NONE', 'REQUIRED', 'SCHEDULED', 'WAITING_RESPONSE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
 ] as const;
@@ -22,7 +26,16 @@ export type FollowUpStatus = typeof FOLLOW_UP_STATUSES[number];
  */
 export type ConversationPatch = {
   status?: ConversationStatus;
+  subject?: string | null;
+  tags?: typeof CONVERSATION_TAGS[number][];
+  customTags?: string[];
+  resolution?: typeof CONVERSATION_RESOLUTIONS[number];
+  automation?: typeof CONVERSATION_AUTOMATIONS[number];
+  technicalStatus?: typeof CONVERSATION_TECHNICAL_STATUSES[number];
+  assignedTo?: string | null;
   categoryId?: string | null;
+  typeId?: string | null;
+  typeCode?: string | null;
   categoryCode?: string | null;
   followUp?: FollowUpStatus | null;
   followUpAt?: string | null;
@@ -113,6 +126,18 @@ function enumValue<T extends string>(raw: unknown, field: string, values: readon
   if (!values.includes(candidate as T)) throw new IngestError('INVALID_CONVERSATION_FIELD', 'Invalid ' + field);
   return candidate as T;
 }
+function stringArray(raw: unknown, field: string, limit: number, entryLimit: number): string[] {
+  if (!Array.isArray(raw) || raw.length > limit) {
+    throw new IngestError('INVALID_CONVERSATION_FIELD', field + ' must be an array with at most ' + limit + ' elements');
+  }
+  const values = raw.map(item => {
+    if (typeof item !== 'string') throw new IngestError('INVALID_CONVERSATION_FIELD', field + ' must contain only strings');
+    const value = max(item.trim(), entryLimit, field);
+    if (!value) throw new IngestError('INVALID_CONVERSATION_FIELD', field + ' cannot contain empty tags');
+    return value;
+  });
+  return [...new Set(values)];
+}
 function optionalDate(raw: unknown, field: string): string | null {
   if (raw === null) return null;
   if (typeof raw !== 'string' || !DATE_ISO.test(raw) || !Number.isFinite(Date.parse(raw)))
@@ -134,31 +159,50 @@ export function normalizeConversation(raw: unknown): ConversationPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     throw new IngestError('INVALID_CONVERSATION', 'conversation must be an object');
   const input = raw as Dict;
-  const allowed = ['status', 'categoryId', 'categoryCode', 'followUp', 'followUpAt',
+  const allowed = ['status', 'subject', 'tags', 'customTags', 'resolution', 'automation', 'technicalStatus',
+    'assignedTo', 'categoryId', 'categoryCode', 'typeId', 'typeCode', 'followUp', 'followUpAt',
     'summary', 'comments', 'language', 'transcription', 'recordingUrl'];
   const unknown = Object.keys(input).filter(k => !allowed.includes(k));
   if (unknown.length) throw new IngestError('UNKNOWN_CONVERSATION_FIELD', 'Unsupported conversation field');
   if (Object.hasOwn(input, 'categoryId') && Object.hasOwn(input, 'categoryCode'))
     throw new IngestError('CONFLICTING_CATEGORY', 'Pass categoryId or categoryCode, not both');
+  if (Object.hasOwn(input, 'typeId') && Object.hasOwn(input, 'typeCode'))
+    throw new IngestError('CONFLICTING_TYPE', 'Pass typeId or typeCode, not both');
   const patch: ConversationPatch = {};
+  if (Object.hasOwn(input, 'subject')) patch.subject = nullableText(input.subject, 'subject', 500);
+  if (Object.hasOwn(input, 'assignedTo')) patch.assignedTo = nullableText(input.assignedTo, 'assignedTo', 255);
+  if (Object.hasOwn(input, 'tags')) {
+    const values = stringArray(input.tags, 'tags', 5, 40).map(value => value.toUpperCase());
+    if (values.some(value => !CONVERSATION_TAGS.includes(value as typeof CONVERSATION_TAGS[number])))
+      throw new IngestError('INVALID_CONVERSATION_FIELD', 'Unknown conversation tag');
+    patch.tags = [...new Set(values)] as ConversationPatch['tags'];
+  }
+  if (Object.hasOwn(input, 'customTags')) patch.customTags = stringArray(input.customTags, 'customTags', 30, 64);
+  if (Object.hasOwn(input, 'resolution')) patch.resolution = enumValue(input.resolution, 'resolution', CONVERSATION_RESOLUTIONS);
+  if (Object.hasOwn(input, 'automation')) patch.automation = enumValue(input.automation, 'automation', CONVERSATION_AUTOMATIONS);
+  if (Object.hasOwn(input, 'technicalStatus')) patch.technicalStatus = enumValue(input.technicalStatus, 'technicalStatus', CONVERSATION_TECHNICAL_STATUSES);
   if (Object.hasOwn(input, 'status')) patch.status = enumValue(input.status, 'status', CONVERSATION_STATUSES);
   if (Object.hasOwn(input, 'followUp')) patch.followUp = input.followUp === null ? null : enumValue(input.followUp, 'followUp', FOLLOW_UP_STATUSES);
   if (Object.hasOwn(input, 'followUpAt')) patch.followUpAt = optionalDate(input.followUpAt, 'followUpAt');
-  if (Object.hasOwn(input, 'categoryId')) {
-    if (input.categoryId === null) patch.categoryId = null;
-    else {
-      const candidate = string(input.categoryId);
-      if (!UUID.test(candidate)) throw new IngestError('INVALID_CATEGORY', 'categoryId must be a UUID or null');
-      patch.categoryId = candidate;
+  for (const kind of ['type', 'category'] as const) {
+    const idKey = (kind + 'Id') as 'typeId' | 'categoryId';
+    const codeKey = (kind + 'Code') as 'typeCode' | 'categoryCode';
+    if (Object.hasOwn(input, idKey)) {
+      if (input[idKey] === null) patch[idKey] = null;
+      else {
+        const candidate = string(input[idKey]);
+        if (!UUID.test(candidate)) throw new IngestError('INVALID_' + kind.toUpperCase(), idKey + ' must be a UUID or null');
+        patch[idKey] = candidate;
+      }
     }
-  }
-  if (Object.hasOwn(input, 'categoryCode')) {
-    if (input.categoryCode === null) patch.categoryCode = null;
-    else {
-      const candidate = string(input.categoryCode);
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}$/.test(candidate))
-        throw new IngestError('INVALID_CATEGORY', 'categoryCode must be a valid code or null');
-      patch.categoryCode = candidate;
+    if (Object.hasOwn(input, codeKey)) {
+      if (input[codeKey] === null) patch[codeKey] = null;
+      else {
+        const candidate = string(input[codeKey]);
+        if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}$/.test(candidate))
+          throw new IngestError('INVALID_' + kind.toUpperCase(), codeKey + ' must be a valid code or null');
+        patch[codeKey] = candidate;
+      }
     }
   }
   for (const key of ['summary', 'comments', 'transcription'] as const) {

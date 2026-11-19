@@ -9,6 +9,7 @@ const OBJECTS: Record<string, string> = {
   supportIdentityAliases: 'supportIdentityAlias',
   supportCases: 'supportCase',
   supportCategories: 'supportCategory',
+  supportTypes: 'supportType',
   supportMessages: 'supportMessage',
 };
 const singular = (resource: string): string => {
