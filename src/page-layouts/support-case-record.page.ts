@@ -12,6 +12,8 @@ export default definePageLayout({
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_PERSON,title:'Persona',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_PERSON,fieldDisplayMode:'CARD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_CHANNEL,title:'Canal',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_CHANNEL_INSTANCE,fieldDisplayMode:'CARD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_CATEGORY,title:'Categoría',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_CATEGORY_RELATION,fieldDisplayMode:'CARD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_TYPE,title:'Tipo',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_TYPE_RELATION,fieldDisplayMode:'CARD'}},
+        {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_TAGS,title:'Etiquetas',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_TAGS,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_IDENTITY,title:'Identidad externa',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_EXTERNAL_IDENTITY,fieldDisplayMode:'CARD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_STATUS,title:'Estado de la conversación',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_STATUS,fieldDisplayMode:'FIELD'}},
         {universalIdentifier:IDS.LAYOUT_SUPPORT_CASE_WIDGET_DETAIL_RESOLUTION,title:'Resultado operativo',type:'FIELD',configuration:{configurationType:'FIELD',fieldMetadataId:IDS.CASE_RESOLUTION,fieldDisplayMode:'FIELD'}},

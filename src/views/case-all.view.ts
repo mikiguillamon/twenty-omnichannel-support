@@ -6,7 +6,9 @@ export default defineView({ universalIdentifier: IDS.VIEW_CASE_ALL, name: "Todas
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_CHANNEL, fieldMetadataUniversalIdentifier: IDS.CASE_CHANNEL, position: 1, isVisible: true, size: 120 },
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_STATUS, fieldMetadataUniversalIdentifier: IDS.CASE_STATUS, position: 2, isVisible: true, size: 150 },
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_CATEGORY, fieldMetadataUniversalIdentifier: IDS.CASE_CATEGORY_RELATION, position: 3, isVisible: true, size: 150 },
-    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_LASTMESSAGEAT, fieldMetadataUniversalIdentifier: IDS.CASE_LASTMESSAGEAT, position: 4, isVisible: true, size: 160 },
-    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_FOLLOWUP, fieldMetadataUniversalIdentifier: IDS.CASE_FOLLOW_UP, position: 5, isVisible: true, size: 165 },
+    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_TYPE, fieldMetadataUniversalIdentifier: IDS.CASE_TYPE_RELATION, position: 4, isVisible: true, size: 150 },
+    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_TAGS, position: 5, isVisible: true, size: 170 },
+    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_LASTMESSAGEAT, fieldMetadataUniversalIdentifier: IDS.CASE_LASTMESSAGEAT, position: 6, isVisible: true, size: 160 },
+    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_FOLLOWUP, fieldMetadataUniversalIdentifier: IDS.CASE_FOLLOW_UP, position: 7, isVisible: true, size: 165 },
   ],
 });
