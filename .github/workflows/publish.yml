@@ -119,18 +119,18 @@ jobs:
         shell: bash
         run: |
           VERSION="$(node -p "require('./package.json').version")"
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             if npm dist-tag add "twenty-omnichannel-support@$VERSION" latest; then break; fi
-            if [ "$attempt" -eq 18 ]; then echo "Could not set npm latest"; exit 1; fi
+            if [ "$attempt" -eq 60 ]; then echo "Could not set npm latest"; exit 1; fi
             sleep 10
           done
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-stable-tag-check-$attempt" > /tmp/stable-tags.json
             if node -e "const tags=require('/tmp/stable-tags.json');const version=require('./package.json').version;if(tags.latest!==version)process.exit(1)"; then
               echo "Verified npm latest = $VERSION"
               break
             fi
-            if [ "$attempt" -eq 18 ]; then cat /tmp/stable-tags.json; exit 1; fi
+            if [ "$attempt" -eq 60 ]; then cat /tmp/stable-tags.json; exit 1; fi
             sleep 10
           done
       - name: Create first stable GitHub release
@@ -157,22 +157,22 @@ jobs:
           # npm may acknowledge publishing before its dist-tags are consistently readable.
           # Retry only the tag operation; never republish an immutable npm version.
           promoted=false
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             if npm dist-tag add "twenty-omnichannel-support@$VERSION" latest; then
               promoted=true
               break
             fi
-            echo "npm latest promotion not ready (attempt $attempt/18); retrying."
+            echo "npm latest promotion not ready (attempt $attempt/60); retrying."
             sleep 10
           done
           test "$promoted" = true || { echo "Unable to promote npm latest"; exit 1; }
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-publish-tag-verification-$attempt" > /tmp/dist-tags.json
             if node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"; then
               echo "Verified npm beta and latest both point to $VERSION"
               exit 0
             fi
-            echo "npm tags are propagating (attempt $attempt/18)."
+            echo "npm tags are propagating (attempt $attempt/60)."
             sleep 10
           done
           echo "npm dist-tags did not converge to $VERSION"
@@ -182,7 +182,7 @@ jobs:
   promote_existing:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[promote npm]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -203,12 +203,12 @@ jobs:
             echo "Expected a valid published version (for example 0.3.0-beta.8)"
             exit 1
           fi
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             if npm dist-tag add "twenty-omnichannel-support@$PACKAGE_VERSION" latest; then break; fi
-            if [ "$attempt" -eq 18 ]; then echo "Could not promote npm latest"; exit 1; fi
+            if [ "$attempt" -eq 60 ]; then echo "Could not promote npm latest"; exit 1; fi
             sleep 10
           done
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 60); do
             # Force a fresh npm metadata request on each verification attempt.
             npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-tag-verification-$attempt" > /tmp/promoted-tags.json
             if node -e "const tags=require('/tmp/promoted-tags.json'); const v=process.argv[1]; if(tags.beta!==v || tags.latest!==v)process.exit(1)" "$PACKAGE_VERSION"; then
