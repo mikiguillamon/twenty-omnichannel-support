@@ -359,7 +359,7 @@ function Dashboards() {
       <div style={{flex:'1 1 680px',minWidth:0}}>
         <div style={{display:'flex',flexWrap:'wrap',gap:12}} onPointerUp={()=>{if(pointerSource.current)clearDrag();}}>
           {dashboard.widgets.map((w,index)=><section key={w.id} style={{
-            ...card,flex:'1 1 '+(w.width/12*100-1)+'%',minWidth:w.width===3?220:280,maxWidth:'100%',
+            ...card,flex:'1 1 calc('+(w.width/12*100)+'% - '+(12-w.width)+'px)',minWidth:w.width===3?220:280,maxWidth:'100%',
             outline:draggingId&&dropTarget===w.id&&draggingId!==w.id?'2px dashed '+accent:
               editingWidget===w.id&&editing?'2px solid '+accent:'none',
             opacity:draggingId===w.id?0.7:1,transition:'opacity 150ms ease',
