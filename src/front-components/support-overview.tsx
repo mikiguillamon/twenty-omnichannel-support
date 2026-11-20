@@ -199,8 +199,8 @@ function Dashboards() {
     if(!dashboard)return;
     const data=exportDashboard(dashboard);
     // Clipboard is supported in the app shell, unlike file-system downloads.
-    void navigator.clipboard.writeText(data).then(()=>setFeedback('Configuración JSON copiada al portapapeles.'))
-      .catch(()=>setError('No se pudo copiar. Comprueba los permisos del portapapeles.'));
+    void copyToClipboard(data).then(()=>setFeedback('Configuración JSON copiada al portapapeles.'))
+      .catch(()=>setError('No se pudo copiar el JSON. Comprueba los permisos.'));
   }
   function resetData(){
     setDatasets({});setSourceErrors({});setReload(n=>n+1);
@@ -315,7 +315,7 @@ function Dashboards() {
         Cada dashboard tiene su propio enlace y seguirá abriéndose con sus datos guardados.
       </p>
       <input aria-label="Enlace directo del dashboard" readOnly value={getDashboardLink(location,dashboard.id)??''}
-        style={{...field,fontSize:11}} onFocus={e=>e.target.select()}/>
+        style={{...field,fontSize:11}}/>
       <div><button style={primary} onClick={()=>void copyDashboardLink()}>Copiar enlace de este dashboard</button></div>
     </section>}
     {importOpen&&<section style={card}><strong style={{fontSize:13}}>Importar dashboard</strong>
