@@ -14,10 +14,10 @@ This is the implementation brief for the first **stable** release. It is not a c
 
 Twenty SDK 2.50 cannot hide an arbitrary app-owned sidebar folder based on the current member's role. Instead, the app stops declaring the technical `Omnichannel` folder **and all its app-owned sidebar child entries** in the v1 manifest. The pages, layouts, views, records, object UUIDs, API functions and business data are not deleted.
 
-The app now provides a consolidated administrative center in **Settings > Apps > Administración Omnichannel** via a `WORKSPACE` settings-menu item. Access to this settings surface is governed by Twenty's native workspace-app administration permission; the integration does not use CSS visibility tricks or a frontend-only `isAdmin` state.
+The app now provides a consolidated administrative center in **Settings > Apps > Administración Omnichannel** via a `WORKSPACE` settings-menu item. Twenty SDK 2.50's `SettingsRoutes.tsx` protects the applications settings route with `PermissionFlagType.APPLICATIONS`. Access to this settings surface is therefore governed by the logged-in user's native **Applications** permission; the integration does not use CSS visibility tricks or a frontend-only `isAdmin` state.
 
 - Admin: manage channels/policies/FAQs/dashboards through the application settings center, and access underlying native objects (subject to record/field permissions).
-- Non-Admin without application settings permission: no app-owned technical sidebar or admin settings entry; only workspace-created operational shortcuts remain.
+- Non-Admin without the **Applications** permission: no app-owned technical sidebar or admin settings route; only workspace-created operational shortcuts remain. A non-Admin role that is deliberately granted Applications permission is treated as an app administrator by Twenty, so keep this permission exclusive to designated admins.
 - Workspace shortcuts (LINK/page layout/view items created outside the app manifest): their ownership belongs to the workspace, so the app's pruning of **its own** navigation entries must not delete them.
 - Preserve user-created links and original page layout identifiers. The removal is restricted to the 11 app-owned menu declarations under `src/navigation-menu-items/`.
 - Do not reinstall or reset the app; server metadata sync must be previewed on staging, because missing app-owned entities are pruned.
