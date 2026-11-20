@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { ConversationThread } from '../front-components/case-timeline.tsx';
 import { openConversationRecord } from '../lib/conversation-inbox-navigation.ts';
@@ -115,7 +115,7 @@ export function ConversationTable({ rows, catalogs, selectedId, loading, onSelec
   catalogs: InboxCatalogs;
   selectedId: string | null;
   loading: boolean;
-  onSelect: (row: ConversationRow) => void;
+  onSelect: (row: ConversationRow, trigger: HTMLButtonElement) => void;
   onFilterTag: (field: 'tag' | 'customTag', tag: string) => void;
 }) {
   return <div className="omni-inbox__table-scroll">
@@ -140,7 +140,8 @@ export function ConversationTable({ rows, catalogs, selectedId, loading, onSelec
           const classification = [catalogName(catalogs.types, row.caseTypeId), catalogName(catalogs.categories, row.categoryId)].filter(Boolean).join(' · ');
           return <tr key={row.id} data-open={row.id === selectedId}>
             <td className="omni-inbox__primary-cell">
-              <button className="omni-inbox__subject" type="button" onClick={() => onSelect(row)} aria-expanded={row.id === selectedId}>
+              <button className="omni-inbox__subject" type="button" aria-haspopup="dialog"
+                onClick={event => onSelect(row, event.currentTarget)}>
                 <strong>{subjectOf(row)}</strong>
               </button>
               {origin && <span className="omni-inbox__note" style={{ overflowWrap: 'anywhere' }}>{origin}</span>}
@@ -180,6 +181,12 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const titleId = useId();
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeButton.current?.focus?.({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     let current = true;
@@ -223,35 +230,44 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
     }
   }
 
-  return <aside className="omni-inbox__detail" aria-label={`Detalle de ${title}`}>
-    <header>
-      <div className="omni-inbox__thread-title">
-        <h2>{title}</h2>
-        <button className="omni-inbox__control" type="button" onClick={onClose}><InboxIcon name="close" />Cerrar detalle</button>
-      </div>
-      <div className="omni-inbox__thread-meta">
-        <ChannelLabel channel={row.channel} />
-        {account && <span className="omni-inbox__note">{account}</span>}
-        {origin && <span className="omni-inbox__note" style={{ overflowWrap: 'anywhere' }}>{origin}</span>}
-      </div>
-      {(classification || row.assignedTo) && <p className="omni-inbox__note" style={{ marginBottom: 10 }}>
-        {[classification, row.assignedTo && `Responsable: ${row.assignedTo}`].filter(Boolean).join(' · ')}
-      </p>}
-      <ConversationTags row={row} />
-      <div className="omni-inbox__controls">
-        <InboxSelect label="Estado" value={row.status ?? ''} allLabel={row.status ? undefined : 'Seleccionar estado'}
-          options={Object.entries(conversationStatuses)} onChange={value => void changeStatus(value)} disabled={saving} />
-        <button type="button" className="omni-inbox__control" onClick={() => void openRecord()}><InboxIcon name="open" />Abrir ficha</button>
-      </div>
-      {error && <p role="alert" className="omni-inbox__alert" style={{ marginTop: 10 }}>{error}</p>}
-      {notice && <p role="status" className="omni-inbox__notice">{notice}</p>}
-      {(details?.summary || details?.transcription || recording || contextError) && <div className="omni-inbox__context">
-        {details?.summary && <details><summary>Resumen de la conversación</summary><p>{details.summary}</p></details>}
-        {row.channel === 'PHONE' && details?.transcription && <details><summary>Transcripción</summary><p>{details.transcription}</p></details>}
-        {row.channel === 'PHONE' && recording && <details><summary>Grabación</summary><audio aria-label="Grabación de la llamada" controls preload="none" src={recording} /></details>}
-        {contextError && <p className="omni-inbox__note">Los detalles adicionales no están disponibles.</p>}
-      </div>}
-    </header>
-    <ConversationThread caseId={row.id} />
-  </aside>;
+  return <div className="omni-inbox__overlay" onClick={event => {
+    if (event.target === event.currentTarget) onClose();
+  }}>
+    <section className="omni-inbox__detail" role="dialog" aria-labelledby={titleId} onKeyDown={event => {
+      if (event.key === 'Escape' && !event.defaultPrevented) onClose();
+    }}>
+      <header className="omni-inbox__detail-header">
+        <div className="omni-inbox__thread-title">
+          <h2 id={titleId}>{title}</h2>
+          <button ref={closeButton} className="omni-inbox__control" type="button" onClick={onClose}
+            aria-label="Cerrar conversación" title="Cerrar conversación"><InboxIcon name="close" /></button>
+        </div>
+        <div className="omni-inbox__detail-meta">
+          <div className="omni-inbox__thread-meta">
+            <ChannelLabel channel={row.channel} />
+            {account && <span className="omni-inbox__note">{account}</span>}
+            {origin && <span className="omni-inbox__note">{origin}</span>}
+          </div>
+          {(classification || row.assignedTo) && <p className="omni-inbox__note">
+            {[classification, row.assignedTo && `Responsable: ${row.assignedTo}`].filter(Boolean).join(' · ')}
+          </p>}
+          <ConversationTags row={row} />
+          <div className="omni-inbox__controls">
+            <InboxSelect label="Estado" value={row.status ?? ''} allLabel={row.status ? undefined : 'Seleccionar estado'}
+              options={Object.entries(conversationStatuses)} onChange={value => void changeStatus(value)} disabled={saving} />
+            <button type="button" className="omni-inbox__control" onClick={() => void openRecord()}><InboxIcon name="open" />Abrir ficha</button>
+          </div>
+          {error && <p role="alert" className="omni-inbox__alert">{error}</p>}
+          {notice && <p role="status" className="omni-inbox__notice">{notice}</p>}
+          {(details?.summary || details?.transcription || recording || contextError) && <div className="omni-inbox__context">
+            {details?.summary && <details><summary>Resumen de la conversación</summary><p>{details.summary}</p></details>}
+            {row.channel === 'PHONE' && details?.transcription && <details><summary>Transcripción</summary><p>{details.transcription}</p></details>}
+            {row.channel === 'PHONE' && recording && <details><summary>Grabación</summary><audio aria-label="Grabación de la llamada" controls preload="none" src={recording} /></details>}
+            {contextError && <p className="omni-inbox__note">Los detalles adicionales no están disponibles.</p>}
+          </div>}
+        </div>
+      </header>
+      <ConversationThread caseId={row.id} popup />
+    </section>
+  </div>;
 }

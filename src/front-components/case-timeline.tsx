@@ -6,7 +6,7 @@ import { IDS } from '../constants/ids.ts';
 import { replyLinkFor, replyUnavailableReason } from '../lib/reply-link.ts';
 import type { ReplyCase, ReplyIdentity, ReplyAlias } from '../lib/reply-link.ts';
 import {
-  decideConversationProposal, loadConversationMessages, mergeConversationMessages,
+  conversationMessageKind, decideConversationProposal, loadConversationMessages, mergeConversationMessages,
   PROPOSAL_BODY_LIMIT, proposalDecisionError, type ConversationMessage, type ProposalStatus,
 } from '../lib/conversation-thread.ts';
 import { conversationThreadStyles } from '../ui/conversation-thread.styles.ts';
@@ -75,23 +75,28 @@ function ProposalEditor({ message, onDecide }: DecisionProps) {
 }
 
 function ThreadMessage({ message, onDecide }: DecisionProps) {
-  const outbound = message.direction === 'OUTBOUND';
-  const sender = message.senderType === 'BOT' ? 'Bot' : message.senderType === 'AGENT' ? 'Agente' : outbound ? 'Operador' : 'Cliente';
+  const kind = conversationMessageKind(message);
+  const sender = message.senderType === 'BOT' ? 'Bot' : message.senderType === 'AGENT' ? 'Agente'
+    : message.senderType === 'CUSTOMER' || kind === 'inbound' ? 'Cliente'
+    : kind === 'outbound' ? 'Operador' : 'Remitente desconocido';
   const occurred = message.occurredAt ? new Date(message.occurredAt) : null;
   const validDate = occurred && Number.isFinite(occurred.getTime());
   const proposal = message.proposalStatus;
+  const delivery = message.deliveryStatus;
+  const directionLabel = kind === 'inbound' ? 'Entrante' : kind === 'outbound' ? 'Saliente' : 'Sin dirección';
   const recording = message.callRecording?.primaryLinkUrl;
   const content = message.body || message.draftBody;
 
-  return <li className="omni-thread-message" data-outbound={outbound} data-proposal={Boolean(proposal)}>
+  return <li className="omni-thread-message" data-kind={kind}>
     <header className="omni-thread-meta">
       <strong>{sender}</strong>
-      {validDate && <time dateTime={occurred.toISOString()}>{dateLabel.format(occurred)}</time>}
       {proposal === 'PENDING' && <span className="omni-thread-tag">Por revisar</span>}
       {proposal === 'CONFIRMED' && <span className="omni-thread-tag">Aprobada en n8n</span>}
       {proposal === 'DISCARDED' && <span className="omni-thread-tag">Descartada</span>}
-      {!proposal && message.deliveryStatus && <span>{deliveryLabels[message.deliveryStatus] ?? message.deliveryStatus}</span>}
-      {!proposal && !message.body && message.draftBody && <span>Borrador</span>}
+      {kind === 'draft' && <span className="omni-thread-tag">Borrador</span>}
+      {!proposal && kind !== 'draft' && <span className="omni-thread-direction" data-failed={delivery === 'FAILED' ? 'true' : undefined}>
+        {delivery && Object.hasOwn(deliveryLabels, delivery) ? deliveryLabels[delivery] : directionLabel}
+      </span>}
     </header>
     {proposal === 'PENDING' ? <ProposalEditor message={message} onDecide={onDecide} /> :
       proposal !== 'DISCARDED' && <p className="omni-thread-text">{content || 'Sin contenido'}</p>}
@@ -102,6 +107,7 @@ function ThreadMessage({ message, onDecide }: DecisionProps) {
         <a href={recording} target="_blank" rel="noreferrer noopener">Abrir grabación</a>
       </>}
     </div>}
+    {validDate && <time className="omni-thread-time" dateTime={occurred.toISOString()}>{dateLabel.format(occurred)}</time>}
   </li>;
 }
 
@@ -110,11 +116,13 @@ function CaseTimeline() {
   return <ConversationThread caseId={caseId} />;
 }
 
-export function ConversationThread({ caseId }: { caseId: string | undefined }) {
-  return <SelectedCaseTimeline key={caseId} caseId={caseId} />;
+type ConversationThreadProps = { caseId: string | undefined; popup?: boolean };
+
+export function ConversationThread({ caseId, popup }: ConversationThreadProps) {
+  return <SelectedCaseTimeline key={caseId} caseId={caseId} popup={popup} />;
 }
 
-function SelectedCaseTimeline({ caseId }: { caseId: string | undefined }) {
+function SelectedCaseTimeline({ caseId, popup = false }: ConversationThreadProps) {
   const colorScheme = useColorScheme();
   const [items, setItems] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(Boolean(caseId));
@@ -204,31 +212,36 @@ function SelectedCaseTimeline({ caseId }: { caseId: string | undefined }) {
   const reply = canResolveReply ? replyLinkFor(replyCase, replyIdentity, replyAliases) : null;
 
   return (
-    <section className="omni-thread" data-scheme={colorScheme} aria-label="Historial de conversación">
+    <section className="omni-thread" data-scheme={colorScheme} data-popup={popup ? 'true' : undefined} aria-label="Historial de conversación">
       <style>{conversationThreadStyles}</style>
       <div className="omni-thread-toolbar">
         <h2>Historial</h2>
         {caseId && <button type="button" className="omni-thread-button" disabled={loading || loadingOlder}
           onClick={() => setRevision(current => current + 1)}>Actualizar</button>}
       </div>
-      {!caseId && <p className="omni-thread-hint omni-thread-state">Abre una conversación para ver el historial.</p>}
-      {loading && <p className="omni-thread-hint omni-thread-state" role="status">Cargando mensajes…</p>}
-      {error && <p className="omni-thread-error omni-thread-state" role="alert">{error}</p>}
-      {!loading && !error && caseId && items.length === 0 && <p className="omni-thread-hint omni-thread-state">Todavía no hay mensajes.</p>}
-      {nextCursor && !loading && <div className="omni-thread-older">
-        <button type="button" className="omni-thread-button" disabled={loadingOlder} onClick={() => void loadOlder()}>
-          {loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}
-        </button>
-        {olderError && <p className="omni-thread-error" role="alert">{olderError}</p>}
-      </div>}
-      {items.length > 0 && <ol className="omni-thread-list">{items.map(message => <ThreadMessage key={message.id} message={message}
-        onDecide={(proposalStatus, text) => setItems(current => current.map(item => item.id === message.id ? {
-          ...item, proposalStatus, ...(proposalStatus === 'CONFIRMED' ? { draftBody: text } : {}),
-        } : item))} />)}</ol>}
+      <div className="omni-thread-history" tabIndex={popup ? 0 : undefined}
+        role={popup ? 'region' : undefined} aria-label={popup ? 'Mensajes' : undefined}>
+        <div className="omni-thread-history-content">
+          {!caseId && <p className="omni-thread-hint omni-thread-state">Abre una conversación para ver el historial.</p>}
+          {loading && <p className="omni-thread-hint omni-thread-state" role="status">Cargando mensajes…</p>}
+          {error && <p className="omni-thread-error omni-thread-state" role="alert">{error}</p>}
+          {!loading && !error && caseId && items.length === 0 && <p className="omni-thread-hint omni-thread-state">Todavía no hay mensajes.</p>}
+          {nextCursor && !loading && <div className="omni-thread-older">
+            <button type="button" className="omni-thread-button" disabled={loadingOlder} onClick={() => void loadOlder()}>
+              {loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}
+            </button>
+            {olderError && <p className="omni-thread-error" role="alert">{olderError}</p>}
+          </div>}
+          {items.length > 0 && <ol className="omni-thread-list" role="list">{items.map(message => <ThreadMessage key={message.id} message={message}
+            onDecide={(proposalStatus, text) => setItems(current => current.map(item => item.id === message.id ? {
+              ...item, proposalStatus, ...(proposalStatus === 'CONFIRMED' ? { draftBody: text } : {}),
+            } : item))} />)}</ol>}
+        </div>
+      </div>
       {caseId && <footer className="omni-thread-footer">
         {reply ? <>
           <small>{reply.destination}</small>
-          <a className="omni-thread-button" href={reply.href} target={reply.newTab ? '_blank' : undefined}
+          <a className="omni-thread-button" data-tone={popup ? 'primary' : undefined} href={reply.href} target={reply.newTab ? '_blank' : undefined}
             rel={reply.newTab ? 'noopener noreferrer' : undefined}>Responder · {replyLabels[reply.channel]}</a>
         </> : <small role={replyError ? 'alert' : undefined}>{replyLoading ? 'Buscando destinatario…' : replyError || replyUnavailableReason(replyCase?.channel)}</small>}
       </footer>}

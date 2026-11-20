@@ -40,7 +40,7 @@ test('timeline applies API ordering and a local chronological fallback', async (
 test('switching cases remounts the timeline and clears the previous messages and reply target', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../src/front-components/case-timeline.tsx', import.meta.url), 'utf8');
-  assert.match(source, /<SelectedCaseTimeline key=\{caseId\} caseId=\{caseId\} \/>/);
+  assert.match(source, /<SelectedCaseTimeline key=\{caseId\} caseId=\{caseId\}\s/);
 });
 
 test('a WhatsApp reply waits until aliases have been loaded without errors', async () => {

@@ -20,6 +20,18 @@ export type ConversationMessage = {
   callRecording?: { primaryLinkUrl?: string | null } | null;
 };
 
+export function conversationMessageKind(message: ConversationMessage) {
+  if (message.proposalStatus) return 'proposal';
+  if (!message.body && message.draftBody) return 'draft';
+  if (message.direction === 'INBOUND') return 'inbound';
+  if (message.direction === 'OUTBOUND') return 'outbound';
+  if (message.deliveryStatus === 'RECEIVED') return 'inbound';
+  if (['PENDING', 'SENT', 'DELIVERED', 'FAILED'].includes(message.deliveryStatus ?? '')) return 'outbound';
+  if (message.senderType === 'CUSTOMER') return 'inbound';
+  if (message.senderType === 'AGENT' || message.senderType === 'BOT') return 'outbound';
+  return 'unknown';
+}
+
 export async function loadConversationMessages(client: Pick<RestApiClient, 'get'>, caseId: string, cursor?: string) {
   const response = await client.get('/rest/supportMessages', {
     query: {

@@ -1,3 +1,9 @@
+## 1.2.3 — Ventana de conversación y mensajes diferenciados
+
+- Abre el historial en una ventana sobre la bandeja y conserva los filtros y la posición de la lista al cerrarla.
+- Alinea los mensajes recibidos a la izquierda y los salientes a la derecha. Las propuestas y los borradores tienen su propio estado.
+- Muestra primero la parte más reciente del historial y permite desplazarse hacia arriba para consultar mensajes anteriores.
+
 ## 1.2.2 — Actualización con vistas personalizadas
 
 - Evita que Twenty intente registrar una columna de etiquetas ya añadida por el workspace a una vista nativa.

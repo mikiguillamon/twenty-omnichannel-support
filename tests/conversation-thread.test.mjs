@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { decideConversationProposal, loadConversationMessages, mergeConversationMessages } from '../src/lib/conversation-thread.ts';
+import { conversationMessageKind, decideConversationProposal, loadConversationMessages, mergeConversationMessages } from '../src/lib/conversation-thread.ts';
+
+test('distingue mensajes entrantes y salientes, incluso en registros sin dirección', () => {
+  assert.equal(conversationMessageKind({ id: 'in', direction: 'INBOUND', deliveryStatus: 'SENT' }), 'inbound');
+  assert.equal(conversationMessageKind({ id: 'out', direction: 'OUTBOUND', senderType: 'CUSTOMER' }), 'outbound');
+  assert.equal(conversationMessageKind({ id: 'old-out', deliveryStatus: 'DELIVERED' }), 'outbound');
+  assert.equal(conversationMessageKind({ id: 'old-in', deliveryStatus: 'RECEIVED' }), 'inbound');
+  assert.equal(conversationMessageKind({ id: 'old-agent', senderType: 'AGENT' }), 'outbound');
+  assert.equal(conversationMessageKind({ id: 'old-customer', senderType: 'CUSTOMER' }), 'inbound');
+  assert.equal(conversationMessageKind({ id: 'unknown' }), 'unknown');
+});
+
+test('mantiene las propuestas y los borradores separados de los envíos registrados', () => {
+  assert.equal(conversationMessageKind({ id: 'proposal', direction: 'OUTBOUND', proposalStatus: 'CONFIRMED' }), 'proposal');
+  assert.equal(conversationMessageKind({ id: 'draft', direction: 'OUTBOUND', draftBody: 'Hola' }), 'draft');
+  assert.equal(conversationMessageKind({ id: 'sent', direction: 'OUTBOUND', body: 'Enviado', draftBody: 'Borrador anterior' }), 'outbound');
+});
 
 test('loads the newest messages first and can page backwards using the Twenty cursor', async () => {
   const calls = [];

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { AppPath, copyToClipboard, navigate, useColorScheme, useLocation } from 'twenty-sdk/front-component';
 import {
@@ -59,6 +59,8 @@ export function ConversationInbox() {
   const [pagination, setPagination] = useState<{ key: string; cursors: string[] }>({ key: '', cursors: [] });
   const [result, setResult] = useState<LoadResult | null>(null);
   const [selected, setSelected] = useState<ConversationRow | null>(null);
+  const subjectButton = useRef<HTMLButtonElement>(null);
+  const inboxHeading = useRef<HTMLHeadingElement>(null);
   const [editor, setEditor] = useState<ViewEditor | null>(null);
   const [menuName, setMenuName] = useState<string | null>(null);
   const [action, setAction] = useState<ActionMessage | null>(null);
@@ -76,6 +78,13 @@ export function ConversationInbox() {
   const currentView = views?.find(item => item.id === viewId);
   const hasTagFilters = Boolean(filters.tag || filters.customTag);
   const hasFilters = Boolean(search.trim() || customTagText.trim() || hasTagFilters || filters.channel || filters.status || filters.followUp || filters.caseTypeId || filters.categoryId || filters.channelInstanceId);
+
+  useEffect(() => {
+    if (selected || !subjectButton.current) return;
+    const target = document.body.contains(subjectButton.current) ? subjectButton.current : inboxHeading.current;
+    target?.focus?.({ preventScroll: true });
+    subjectButton.current = null;
+  }, [selected]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -258,9 +267,9 @@ export function ConversationInbox() {
 
   return <section className="omni-inbox" data-theme={theme}>
     <ConversationInboxStyles />
-    <div className="omni-inbox__list-controls" data-detail-open={Boolean(selected)}>
+    <fieldset className="omni-inbox__background" disabled={Boolean(selected)}>
       <header className="omni-inbox__heading">
-        <h1>Conversaciones</h1>
+        <h1 ref={inboxHeading} tabIndex={-1}>Conversaciones</h1>
         <button className="omni-inbox__control" type="button" onClick={refresh} disabled={loading}>
           <InboxIcon name="refresh" />Actualizar
         </button>
@@ -331,17 +340,10 @@ export function ConversationInbox() {
         </div>
         {catalogProblem && <p role="status" className="omni-inbox__note" style={{ marginTop: 8 }}>Algunos filtros de catálogo no están disponibles para tu rol.</p>}
       </section>
-    </div>
-
-    <div className="omni-inbox__workspace" data-has-detail={Boolean(selected)}>
-      {selected && <ConversationPanel key={selected.id} row={selected} catalogs={catalogs} onClose={() => setSelected(null)}
-        onStatusChange={status => {
-          setSelected(current => current?.id === selected.id ? { ...current, status } : current);
-          setListVersion(n => n + 1);
-        }} />}
       <section className="omni-inbox__list" aria-label="Resultados de conversaciones">
         {(loading || Boolean(page?.rows.length)) && <ConversationTable rows={page?.rows ?? []} loading={loading} catalogs={catalogs}
-          onSelect={setSelected} onFilterTag={changeFilter} selectedId={selected?.id ?? null} />}
+          onSelect={(row, trigger) => { subjectButton.current = trigger; setSelected(row); }}
+          onFilterTag={changeFilter} selectedId={selected?.id ?? null} />}
         {error && <InboxState title="No se pudieron cargar las conversaciones">
           <p className="omni-inbox__note">{error}</p><button type="button" className="omni-inbox__control" onClick={() => setListVersion(n => n + 1)}>Reintentar</button>
         </InboxState>}
@@ -360,6 +362,11 @@ export function ConversationInbox() {
           </div>
         </footer>}
       </section>
-    </div>
+    </fieldset>
+    {selected && <ConversationPanel key={selected.id} row={selected} catalogs={catalogs} onClose={() => setSelected(null)}
+      onStatusChange={status => {
+        setSelected(current => current?.id === selected.id ? { ...current, status } : current);
+        setListVersion(n => n + 1);
+      }} />}
   </section>;
 }
