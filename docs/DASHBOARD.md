@@ -40,6 +40,12 @@ El centro de administración usa ahora una distribución horizontal adaptable: l
 
 En la pestaña Dashboards, **Ver instrucciones** explica cómo publicar un enlace compartido desde el editor nativo del menú. No es un botón de publicación automática: el SDK 2.50 no garantiza una API pública para crear enlaces de navegación administrados por el workspace. No se fabrican mutaciones de metadatos sin confirmar el contrato, ni se crean enlaces bajo una carpeta propiedad de la aplicación. Los permisos siguen siendo los de Twenty.
 
+## Gestor de accesos compartidos (rama en revisión)
+
+La administración incluye ahora un gestor de accesos de dashboards que utiliza las mutaciones de metadatos de navegación de Twenty: crear, renombrar y retirar enlaces `LINK` compartidos en la raíz del workspace. Solo acepta rutas internas `/page/...` con un único parámetro `omniDashboard`, impide duplicar destinos y verifica de nuevo la propiedad del enlace antes de modificarlo. Retirar un acceso no elimina el dashboard ni sus registros. Estos enlaces no están asociados al `applicationId` de Omnichannel, por lo que no dependen de la carpeta técnica eliminada en 1.0.0.
+
+**Pendiente de validación antes de publicar:** compilar contra `twenty-client-sdk@2.50.0` y comprobar en una instancia Twenty 2.50 la firma real de las mutaciones, su autorización administrativa y que la navegación se actualiza al crear o borrar un elemento. El panel de Ajustes sigue sujeto al ancho que le asigna Twenty. No se ha publicado todavía en npm ni se recomienda activar la rama en producción.
+
 ## Resolución de problemas
 
 Si no se carga la lista, revisa los permisos del objeto `supportSettings`. Si una fuente falla, comprueba el campo y la petición correspondiente en la pestaña de red. Si el dashboard indica más de 3.000 registros, no interpretes gráficos parciales como resultados completos: utiliza un rango más pequeño únicamente cuando la API pueda filtrar ese rango en origen o migra los agregados al servidor. Si una versión del cliente SDK rechaza el campo de relación en `fields`, corrige la selección de columnas en el catálogo de `src/lib/dashboard-model.ts` antes de publicar.
