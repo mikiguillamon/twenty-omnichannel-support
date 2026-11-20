@@ -29,7 +29,7 @@ test('all administrative surfaces remain reachable without overwriting workspace
 });
 
 test('dashboard edit mode exposes only configure and remove buttons on each widget',()=>{
-  const ui=read('src/front-components/support-overview.tsx');
+  const ui=read('src/ui/dashboard-page.tsx');
   assert(ui.includes('onPointerMove={e=>moveResize(e.clientX,e.clientY)}'));
   assert(ui.includes('startResize(w.id,w.width,w.height,e.clientX,e.clientY)'));
   assert(ui.includes("title=\"Configurar\""));
