@@ -1,3 +1,10 @@
+## 0.3.0-beta.27 — transición segura al centro administrativo
+
+- Incluye el nuevo centro administrativo en Ajustes, edición bidimensional de dashboards, almacenamiento independiente `supportDashboards` y migración de dashboards anteriores conservando el original.
+- Incorpora una herramienta que detecta y traslada a la raíz los enlaces compartidos del workspace que aún están dentro de la antigua carpeta Omnichannel.
+- **Por seguridad conserva la carpeta y sus 10 accesos internos originales**: Twenty 2.50 eliminaría en cascada enlaces personalizados anidados al retirarla sin preparación previa. La eliminación queda para la 1.0.0.
+- Mantiene la API de ingestión, FAQs y sus datos existentes; incorpora pruebas de regresión.
+
 ## Unreleased — camino a Omnichannel Support 1.0.0
 
 - Mueve la administración de la aplicación a **Ajustes → Aplicaciones → Omnichannel Support → Administración Omnichannel**, bajo el permiso nativo `APPLICATIONS` de Twenty 2.50.
