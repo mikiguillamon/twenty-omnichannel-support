@@ -32,7 +32,7 @@ function BarChart({points,kind,dark}:{points:Point[];kind:'bar'|'hour';dark:bool
       {shown.map((point,i)=><div key={point.name} title={point.name+': '+number(point.value)}
         style={{position:'relative',minHeight:point.value===0?3:9,
           height:Math.max(3,point.value/max*130)+'px',
-          background:point.value===0?(dark?'#3B4658':'#E5EAF3'):PALETTE[i%2===0?0:1],
+          background:point.value===0?(dark?'#3B4658':'#E5EAF3'):PALETTE[0],
           borderRadius:'4px 4px 0 0',transition:'height 180ms ease'}}/>)}
     </div>
     <div style={{display:'flex',justifyContent:'space-between',color:muted,fontSize:10,marginTop:9}}>
@@ -141,7 +141,7 @@ export function DashboardVisualization({widget,period,data,sourceError,dark}:Pro
     <strong style={{fontSize:32,lineHeight:1.15,fontWeight:650,letterSpacing:'-0.02em',
       fontVariantNumeric:'tabular-nums'}}>{formatMetric(summary.value,widget.aggregation)}</strong>
     {widget.compare&&<span style={{fontSize:11,color:muted}}>
-      {summary.previous!==null?metricDelta(summary.value,summary.previous)+' respecto al período anterior':'Sin comparación disponible'}
+      {(summary.previous!==null?metricDelta(summary.value,summary.previous):null)?.concat(' respecto al período anterior') ?? 'Sin comparación disponible'}
     </span>}
   </div>;
   if(!summary.points.length)return <Empty label="No hay registros para este período" dark={dark}/>;
