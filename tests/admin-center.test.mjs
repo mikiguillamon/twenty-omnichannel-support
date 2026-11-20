@@ -40,13 +40,9 @@ test('dashboard edit mode exposes only configure and remove buttons on each widg
   assert(!ui.includes('title="Ampliar anchura"'));
 });
 
-test('beta bridge preserves all original menu entries until migration is prepared',()=>{
+test('stable manifest retires the app-owned technical sidebar after preflight',()=>{
   const path=new URL('../src/navigation-menu-items/',import.meta.url);
-  assert(fsExistsSync(path));
-  assert.equal(fsReaddirSync(path).filter(file=>file.endsWith('.ts')).length,11);
-  const folder=read('src/navigation-menu-items/support-folder.menu.ts');
-  assert(folder.includes('IDS.MENU_FOLDER'));
-  assert(folder.includes('NavigationMenuItemType.FOLDER'));
+  if(fsExistsSync(path))assert.deepEqual(fsReaddirSync(path).filter(file=>file.endsWith('.ts')),[]);
   const center=read('src/settings-menu-items/omnichannel-admin.settings.ts');
   assert(center.includes('IDS.FRONT_ADMIN_CENTER'));
   assert(read('src/front-components/admin-center.tsx').includes('<NavigationPreflight/>'));
