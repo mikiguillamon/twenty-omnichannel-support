@@ -9,7 +9,7 @@ const channelLabel:Record<ChannelType,string> = {
   EMAIL:'Email',WHATSAPP:'WhatsApp',INSTAGRAM:'Instagram',TELEGRAM:'Telegram',PHONE:'Llamadas',
 };
 
-function ChannelPolicies() {
+export function ChannelPolicies() {
   const dark=useColorScheme()==='dark';
   const [channels,setChannels]=useState<SupportChannel[]>([]);
   const [loading,setLoading]=useState(true);
