@@ -14,6 +14,6 @@ export function getDashboardLink(location:{origin:string;pathname:string;search:
     if(!/^https?:$/.test(url.protocol)||url.origin!==location.origin)return null;
     url.searchParams.set(DASHBOARD_QUERY_KEY,id);
     url.hash='';
-    return url.toString();
+    // Native LINK items in Twenty recognize safe /paths as in-app routes.\n    return url.pathname+url.search;
   }catch{return null;}
 }
