@@ -20,7 +20,7 @@ test('deletion rechecks the identity and disabled state',()=>{
 });
 
 test('confirmation requires stopped external workflows and exact code',()=>{
-  const source=read('src/front-components/channel-setup.tsx');
+  const source=read('src/ui/channel-setup-page.tsx');
   assert.match(source,/!externalStopped/);
   assert.match(source,/removalCode!==\(row\.code\|\|row\.id\)/);
   assert.match(source,/destroyDisabledChannel\(row\.id,row\.code\?\?null\)/);
