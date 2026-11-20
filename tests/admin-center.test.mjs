@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync as fsExistsSync, readdirSync as fsReaddirSync } from 'node:fs';
 const read = path => readFileSync(new URL('../' + path,import.meta.url),'utf8');
 
 test('administration center is registered in native Twenty app settings',()=>{
@@ -39,3 +39,14 @@ test('dashboard edit mode exposes only configure and remove buttons on each widg
   assert(!ui.includes('title="Reducir anchura"'));
   assert(!ui.includes('title="Ampliar anchura"'));
 });
+
+test('no app-owned entries recreate the Omnichannel sidebar folder for members',()=>{
+  const {existsSync,readdirSync}=requireFilesystem();
+  const path=new URL('../src/navigation-menu-items/',import.meta.url);
+  if(existsSync(path))assert.equal(readdirSync(path).filter(file=>file.endsWith('.ts')).length,0);
+  const center=read('src/settings-menu-items/omnichannel-admin.settings.ts');
+  assert(center.includes("scope: 'WORKSPACE'"));
+});
+function requireFilesystem(){
+  return {existsSync:fsExistsSync,readdirSync:fsReaddirSync};
+}
