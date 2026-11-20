@@ -1,6 +1,19 @@
 # Instalar y actualizar Omnichannel Support
 
-La aplicación funciona por workspace dentro de Twenty. Cada instalación mantiene sus propios canales, categorías, conversaciones, identidades y ajustes. El paquete de código `0.3.0-beta.12` declara compatibilidad con Twenty `>=2.50.0 <2.51.0`.
+La aplicación funciona por workspace dentro de Twenty. Cada instalación mantiene sus propios canales, categorías, conversaciones, identidades y ajustes. La rama de preparación de la 1.0.0 se valida con Twenty 2.50; hasta publicar la versión estable, el Marketplace puede seguir mostrando la última beta.
+
+## Actualización desde la beta al menú sin carpeta técnica
+
+**Antes de actualizar** realiza una copia de seguridad de la navegación del workspace y de los dashboards. En Twenty, entra en **Editar menú** y comprueba los accesos que quieres conservar fuera de Omnichannel. Una entrada que pertenezca a la aplicación —aunque la hayas arrastrado a la raíz del menú— puede eliminarse cuando el nuevo manifiesto retire sus antiguas entradas. Recréala como un **enlace independiente del workspace** antes del cambio.
+
+Los accesos creados de esta manera quedan fuera de la propiedad del paquete Omnichannel y deben mantenerse entre versiones. Para dashboards, copia el enlace directo desde la página operativa del dashboard (no desde Ajustes); para FAQs puedes utilizar el enlace al layout visual o la vista nativa correspondiente.
+
+Tras la actualización, comprueba por separado con dos usuarios reales:
+
+- **Admin con permiso de aplicaciones:** ve el centro administrativo completo en Ajustes y puede navegar a canales, políticas, FAQs, dashboards, objetos y ajustes.
+- **Member sin ese permiso:** no ve ninguna carpeta Omnichannel en el menú principal ni las páginas administrativas de Ajustes; solo los accesos del workspace para los que tenga permisos en Twenty.
+
+Nunca desinstales y reinstales la app para migrar la navegación. En un entorno de pruebas, revisa antes un diff de metadatos con `twenty app plan`: deben desaparecer únicamente las antiguas entradas de navegación de la app, no los objetos ni sus datos.
 
 ## Requisitos
 
@@ -11,7 +24,7 @@ El esquema se compone de los objetos `supportCases`, `supportMessages`, `support
 ## Instalar desde Twenty
 
 1. Abre el Marketplace del workspace y localiza Omnichannel Support. Comprueba nombre, versión y compatibilidad.
-2. Instala la app y espera a que Twenty aplique su esquema. Verifica que el menú se llama **Omnichannel** y que contiene **Conversaciones**, Canales, FAQs, Categorías, Evaluaciones, Ajustes e Identidades externas.
+2. Instala la app y espera a que Twenty aplique su esquema. Como administrador del workspace con permiso para administrar aplicaciones, abre **Ajustes > Aplicaciones > Omnichannel Support > Administración Omnichannel**. Todas las herramientas técnicas están en ese centro; la app no añade una carpeta al menú principal.
 3. Abre una Persona de prueba para comprobar la pestaña Omnichannel, que muestra Conversaciones e identidades relacionadas.
 4. Comprueba que la página Resumen carga los cuatro contadores REST y permite elegir cuáles se muestran.
 5. Crea una Categoría con `code` estable si vas a clasificar conversaciones. Añade después un Canal desactivado, seleccionando Email, WhatsApp, Instagram, Telegram o PHONE.
