@@ -8,6 +8,7 @@ import { Dashboards } from '../ui/dashboard-page.tsx';
 import { FaqManagerEntry } from '../ui/faq-manager-page.tsx';
 import { ChannelSetup } from '../ui/channel-setup-page.tsx';
 import { ChannelPolicies } from '../ui/channel-policies-page.tsx';
+import { NavigationPreflight } from '../ui/navigation-preflight.tsx';
 
 /**
  * The app settings area is the permission-controlled administrative entry
@@ -91,6 +92,7 @@ export function OmnichannelAdminCenter() {
         {section==='faqs'&&<FaqManagerEntry/>}
         {section==='channels'&&<ChannelSetup/>}
         {section==='policies'&&<ChannelPolicies/>}
+        {section==='catalogs'&&<NavigationPreflight/>}
         {section==='catalogs'&&<section style={{background:surface,border:'1px solid '+border,borderRadius:10,padding:16,display:'flex',flexDirection:'column',gap:2}}>
           {nativeObjects.map(item=><button type="button" key={item.plural}
             onClick={()=>void openObject(item.plural)}
