@@ -29,13 +29,21 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 3. In **Políticas por canal**, choose how messages should be grouped into cases.
 4. Connect your provider to n8n and call the app's authenticated ingestion API. Test an incoming message, a retry and a reply before enabling the channel.
 
+## Beta 27: safe transition to 1.0.0
+
+**This beta intentionally keeps the original Omnichannel sidebar folder and its 10 child entries.** Twenty 2.50 deletes workspace-created links nested inside a retired app-owned folder when removing that folder. Beta 27 provides an admin tool to prepare that migration before the stable release.
+
+As a workspace administrator, open **Settings > Applications > Omnichannel Support > Administración Omnichannel > Datos y ajustes > Preparar el menú para Omnichannel 1.0**. Click **Inspeccionar menú**, and, if any workspace-created shared links are inside the technical folder, use **Proteger accesos compartidos**. Review personal links directly in Twenty; the tool does not rewrite user-specific items. Repeat inspection until no shared links remain, and create any desired workspace-owned operational shortcuts.
+
+Beta 27 includes dashboard storage and UI improvements but does **not** remove the old sidebar. That removal is reserved for the stable 1.0.0 after a verified migration. See [installation and migration](docs/INSTALACION.md).
+
 ## Workspace navigation and permissions
 
-Omnichannel keeps its administrative tools in **Settings > Applications > Omnichannel Support > Administración Omnichannel**, rather than forcing a technical folder onto every member's main sidebar. This center includes dashboards, FAQs, channels and policies, plus shortcuts to Twenty's native case/message/category/type/identity/evaluation/settings objects.
+In the upcoming 1.0.0, Omnichannel keeps its administrative tools in **Settings > Applications > Omnichannel Support > Administración Omnichannel**, rather than forcing a technical folder onto every member's main sidebar. Beta 27 retains the folder temporarily for safe migration. This center includes dashboards, FAQs, channels and policies, plus shortcuts to Twenty's native case/message/category/type/identity/evaluation/settings objects.
 
 Dashboards now use a dedicated `supportDashboards` object with independent permissions. On an upgrade, an administrator uses **Migrar dashboards antiguos** in the Settings center to copy legacy configurations without deleting their previous records. Members need read access to `supportDashboards`, not to administrative `supportSettings`.
 
-Users see only the workspace shortcuts that an administrator chooses to create outside the application, such as a published FAQ view, a dashboard deep link or the conversations table. The app does not manage these workspace-owned shortcuts, and upgrades must not delete or reorder them.
+Users see only the workspace shortcuts that an administrator chooses to create outside the application, such as a published FAQ view, a dashboard deep link or the conversations table. In the final 1.0.0 the app will not manage those workspace-owned shortcuts, and upgrades must not delete or reorder them. Beta 27 still includes original app-owned menu entries.
 
 Workspace roles determine actual record and API permissions. Removing the technical sidebar is an information-architecture change, not a substitute for permissions. Grant workspace application administration only to trusted admins, and grant normal members the specific object access needed for their job.
 
