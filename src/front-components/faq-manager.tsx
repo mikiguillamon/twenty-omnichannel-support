@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import {
@@ -244,9 +244,10 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   const [scope, setScope] = useState('all');
   const [expanded, setExpanded] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
+  // Ref blocks repeated clicks before React commits the pending state.
+  const statusRequests = useRef(new Set<string>());
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
 
   const fg = dark ? '#F1F5F9' : '#20252D';
   const muted = dark ? '#A8B4C4' : '#667382';
@@ -294,7 +295,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   const totalDrafts = faqs.filter(faq => faq.status === 'DRAFT').length;
 
   async function openEditor(recordId?: string) {
-    setError(''); setFeedback('');
+    setError('');
     try {
       await openSidePanelPage({
         page: SidePanelPages.ViewFrontComponent,
@@ -310,7 +311,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
     }
   }
   async function updateStatus(faq: SupportFaq, next: FaqStatus) {
-    if (busyId || loading) return;
+    if (loading || statusRequests.current.has(faq.id)) return;
     if (next === 'ARCHIVED') {
       const answer = await openCommandConfirmationModal({
         title: '¿Archivar esta FAQ?',
@@ -318,18 +319,33 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
         confirmButtonText: 'Archivar',
         confirmButtonAccent: 'danger',
       });
-      if (answer !== 'confirm') return;
+      if (answer !== 'confirm' || statusRequests.current.has(faq.id)) return;
     }
-    setBusyId(faq.id); setError(''); setFeedback('');
+    statusRequests.current.add(faq.id);
+    setBusyIds(current => new Set([...current, faq.id]));
+    setError('');
+    const publishedAt = next === 'PUBLISHED' && !faq.publishedAt
+      ? new Date().toISOString() : faq.publishedAt;
+    // Update only the affected FAQ; keep scroll, filters and expanded answers.
+    setFaqs(current => current.map(row => row.id === faq.id
+      ? {...row, status: next, publishedAt} : row));
     try {
       await new RestApiClient().patch('/rest/supportFaqs/' + encodeURIComponent(faq.id), {
         status: next,
-        ...(next === 'PUBLISHED' && !faq.publishedAt ? { publishedAt: new Date().toISOString() } : {}),
+        ...(next === 'PUBLISHED' && !faq.publishedAt ? {publishedAt} : {}),
       });
-      setFeedback('Estado de la FAQ actualizado.');
-      setRefresh(value => value + 1);
-    } catch (reason) { setError(errorMessage(reason)); }
-    finally { setBusyId(null); }
+      // The native toast does not move the list or steal focus.
+      void enqueueSnackbar({
+        message: next === 'PUBLISHED' ? 'FAQ activada' : next === 'DRAFT' ? 'FAQ desactivada' : 'FAQ archivada',
+        variant: 'success', duration: 2000, dedupeKey: 'faq-status-' + faq.id,
+      }).catch(() => {});
+    } catch (reason) {
+      setFaqs(current => current.map(row => row.id === faq.id ? faq : row));
+      setError('No se pudo cambiar el estado de la FAQ. ' + errorMessage(reason));
+    } finally {
+      statusRequests.current.delete(faq.id);
+      setBusyIds(current => {const nextIds=new Set(current);nextIds.delete(faq.id);return nextIds;});
+    }
   }
 
   const shownGroups: { name: string; rows: SupportFaq[] }[] = [];
@@ -350,8 +366,8 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button type="button" style={buttonStyle} disabled={loading || Boolean(busyId)} onClick={() => setRefresh(n => n + 1)}>Actualizar</button>
-        <button type="button" style={primaryStyle} disabled={loading || Boolean(busyId)} onClick={() => void openEditor()}>+ Nueva FAQ</button>
+        <button type="button" style={buttonStyle} disabled={loading || busyIds.size > 0} onClick={() => setRefresh(n => n + 1)}>Actualizar</button>
+        <button type="button" style={primaryStyle} disabled={loading || busyIds.size > 0} onClick={() => void openEditor()}>+ Nueva FAQ</button>
       </div>
     </header>
 
@@ -380,7 +396,6 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
     </section>
 
     {error && <p role="alert" style={{ color: dark ? '#FFB0B0' : '#B42318', margin: 0 }}>{error}</p>}
-    {feedback && <p role="status" style={{ color: dark ? '#8DE0AD' : '#257549', margin: 0 }}>{feedback}</p>}
     {loading && <p style={{ color: muted }}>Cargando preguntas y categorías del workspace…</p>}
 
     {!loading && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: muted, flexWrap: 'wrap' }}>
@@ -417,14 +432,15 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
               <button type="button" role="switch" aria-checked={isPublished}
                 aria-label={'Activa: ' + (faq.question || 'FAQ')}
+                aria-busy={busyIds.has(faq.id)}
                 title={faq.status === 'ARCHIVED' ? 'Restaura la FAQ antes de activarla'
                   : isPublished ? 'Desactivar FAQ (pasar a borrador)' : 'Activar FAQ (publicar)'}
-                disabled={Boolean(busyId) || faq.status === 'ARCHIVED'}
+                disabled={busyIds.has(faq.id) || faq.status === 'ARCHIVED'}
                 onClick={() => void updateStatus(faq, isPublished ? 'DRAFT' : 'PUBLISHED')}
                 style={{
                   border: 0, background: 'transparent', color: muted, cursor: 'pointer',
                   fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 3px',
-                  opacity: faq.status === 'ARCHIVED' ? 0.55 : 1,
+                  opacity: faq.status === 'ARCHIVED' ? 0.55 : busyIds.has(faq.id) ? 0.7 : 1,
                 }}>
                 <span aria-hidden="true" style={{
                   position: 'relative', display: 'inline-block', height: 20, width: 36,
@@ -444,7 +460,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
                   ...buttonStyle, padding: 6, borderColor: 'transparent', background: 'transparent',
                   display: 'inline-flex', justifyContent: 'center', alignItems: 'center',
                 }}
-                disabled={Boolean(busyId)} onClick={() => void openEditor(faq.id)}>
+                disabled={busyIds.has(faq.id)} onClick={() => void openEditor(faq.id)}>
                 <ActionIcon icon="edit" />
               </button>
               <button type="button" title={faq.status === 'ARCHIVED' ? 'Restaurar FAQ' : 'Archivar FAQ'}
@@ -453,7 +469,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
                   ...buttonStyle, padding: 6, borderColor: 'transparent', background: 'transparent',
                   display: 'inline-flex', justifyContent: 'center', alignItems: 'center',
                 }}
-                disabled={Boolean(busyId)} onClick={() => void updateStatus(faq, faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED')}>
+                disabled={busyIds.has(faq.id)} onClick={() => void updateStatus(faq, faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED')}>
                 <ActionIcon icon={faq.status === 'ARCHIVED' ? 'restore' : 'archive'} />
               </button>
             </div>

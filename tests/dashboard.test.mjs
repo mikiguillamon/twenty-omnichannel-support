@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   defaultDashboard,createDashboard,normalizeDashboard,normalizeWidget,makeWidget,periodFrom,MAX_WIDGETS,
+  moveDashboardWidget,resizeDashboardWidget,
 } from '../src/lib/dashboard-model.ts';
 import {getRange,summarize,metricDelta} from '../src/lib/dashboard-analytics.ts';
 import {importDashboard,exportDashboard} from '../src/lib/dashboard-store.ts';
+import {getDashboardLink,readDashboardFromSearch} from '../src/lib/dashboard-links.ts';
 
 test('starter dashboard provides configurable KPIs and visualizations',()=>{
   const dashboard=defaultDashboard();
@@ -75,4 +77,39 @@ test('timeline preserves missing dates and hourly chart has 24 buckets',()=>{
   w.kind='hour';
   const hours=summarize(data,w,{key:'7d'},time);
   assert.equal(hours.points.length,24);
+});
+
+test('widget reordering is immutable and preserves dimensions and IDs',()=>{
+  const dashboard=defaultDashboard();
+  const first=dashboard.widgets[0].id;
+  const last=dashboard.widgets[dashboard.widgets.length-1].id;
+  const reordered=moveDashboardWidget(dashboard,first,last);
+  assert.notStrictEqual(reordered,dashboard);
+  assert.equal(reordered.widgets.at(-1).id,first);
+  assert.equal(dashboard.widgets[0].id,first);
+  assert.equal(moveDashboardWidget(dashboard,first,'unknown'),dashboard);
+  assert.equal(new Set(reordered.widgets.map(w=>w.id)).size,dashboard.widgets.length);
+  assert.deepEqual(reordered.widgets.find(w=>w.id===first),dashboard.widgets[0]);
+});
+
+test('widget resize uses valid widths without mutating saved layouts',()=>{
+  const dashboard=defaultDashboard();
+  const id=dashboard.widgets[0].id;
+  const enlarged=resizeDashboardWidget(dashboard,id,1);
+  assert.equal(enlarged.widgets[0].width,4);
+  assert.equal(dashboard.widgets[0].width,3);
+  assert.equal(resizeDashboardWidget(dashboard,id,-1).widgets[0].width,3);
+  const max=resizeDashboardWidget(enlarged,id,1);
+  assert.equal(max.widgets[0].width,6);
+  assert.deepEqual([...new Set(enlarged.widgets.map(w=>w.id))].length,dashboard.widgets.length);
+});
+
+test('dashboard direct links select only validated IDs and remain on current workspace',()=>{
+  const current={origin:'https://twenty.example.es',pathname:'/page-layout/123',search:'?other=kept&filter=1'};
+  const link=getDashboardLink(current,'d123456');
+  assert.equal(link,'/page-layout/123?other=kept&filter=1&omniDashboard=d123456');
+  assert.equal(readDashboardFromSearch(new URL(link,'https://twenty.example.es').search),'d123456');
+  assert.equal(readDashboardFromSearch('?omniDashboard=javascript:alert(1)'),null);
+  assert.equal(getDashboardLink(current,'../../evil'),null);
+  assert.equal(getDashboardLink({...current,origin:'javascript:evil'},'d123456'),null);
 });

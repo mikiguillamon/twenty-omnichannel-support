@@ -53,7 +53,8 @@ test('FAQ editor preserves existing fields and uses safe archive state', () => {
   for (const status of ['DRAFT','PUBLISHED','ARCHIVED']) assert(ui.includes(status));
   assert(ui.includes("faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED'"));
   assert(ui.includes("isPublished ? 'DRAFT' : 'PUBLISHED'"));
-  assert(!ui.includes('.delete('));
+  assert(!ui.includes('api.delete('));
+  assert(!ui.includes('RestApiClient().delete('));
   assert(rest.includes("faq.categoryId ?? ''"));
 });
 
@@ -73,4 +74,15 @@ test('FAQ actions use an accessible toggle, icons and native side panel', () => 
   ]) assert(ui.includes(key), key);
   assert(!ui.includes('<dialog'));
   assert(!ui.includes('createPortal('));
+});
+
+test('active switch optimistically patches one FAQ without reloading the list',()=>{
+  const ui=read('src/front-components/faq-manager.tsx');
+  assert(ui.includes('statusRequests.current.add(faq.id)'));
+  assert(ui.includes('setFaqs(current => current.map(row => row.id === faq.id'));
+  assert(ui.includes('setFaqs(current => current.map(row => row.id === faq.id ? faq : row))'));
+  assert(ui.includes('busyIds.has(faq.id)'));
+  assert(ui.includes("role=\"switch\""));
+  assert(!ui.includes('setRefresh(value => value + 1)'));
+  assert(!ui.includes('window.location.reload'));
 });

@@ -132,6 +132,28 @@ export function normalizeDashboard(value:unknown):Dashboard {
     isDefault:raw.isDefault===true,
     updatedAt:typeof raw.updatedAt==='string'&&!Number.isNaN(Date.parse(raw.updatedAt))?raw.updatedAt:new Date().toISOString()};
 }
+/** Reorder only the selected widget; never mutate persisted dashboard objects. */
+export function moveDashboardWidget(dashboard:Dashboard,widgetId:string,targetId:string):Dashboard {
+  if(widgetId===targetId)return dashboard;
+  const from=dashboard.widgets.findIndex(widget=>widget.id===widgetId);
+  const to=dashboard.widgets.findIndex(widget=>widget.id===targetId);
+  if(from<0||to<0)return dashboard;
+  const widgets=[...dashboard.widgets];
+  const [moved]=widgets.splice(from,1);
+  widgets.splice(to,0,moved);
+  return {...dashboard,widgets};
+}
+
+export function resizeDashboardWidget(dashboard:Dashboard,widgetId:string,direction:-1|1):Dashboard {
+  const widgets=dashboard.widgets.map(widget=>{
+    if(widget.id!==widgetId)return widget;
+    const current=WIDTHS.indexOf(widget.width);
+    const next=WIDTHS[Math.min(WIDTHS.length-1,Math.max(0,current+direction))];
+    return {...widget,width:next};
+  });
+  return {...dashboard,widgets};
+}
+
 export function createDashboard(title='Nuevo dashboard'):Dashboard {
   return {id:newId(),title,description:'',icon:'📊',period:{key:'30d'},widgets:[],isDefault:false,updatedAt:new Date().toISOString()};
 }
