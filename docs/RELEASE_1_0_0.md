@@ -10,20 +10,27 @@ This is the implementation brief for the first **stable** release. It is not a c
 - User-created dashboard shortcuts, order, labels and workspace-specific positions must outlive app upgrades.
 - The first stable npm distribution must be `1.0.0`, published to `latest` only after the marketplace installation and upgrade have been validated.
 
-## SDK 2.50 findings and non-negotiable limitation
+## Navigation solution without a core upgrade
 
-The application currently defines a shared `Omnichannel` folder and its static child menu entries using `defineNavigationMenuItem`. Twenty SDK `2.50.0` does **not** expose a role visibility expression or permission requirement on an arbitrary folder. A normal member who can see the workspace sidebar may consequently see the folder even without permission to perform privileged operations.
+Twenty SDK 2.50 cannot hide an arbitrary app-owned sidebar folder based on the current member's role. Instead, the app stops declaring the technical `Omnichannel` folder **and all its app-owned sidebar child entries** in the v1 manifest. The pages, layouts, views, records, object UUIDs, API functions and business data are not deleted.
 
-`canAccessFullAdminPanel` exists for conditional **command-menu availability** but does not make ordinary navigation manifest entries role-specific. Updating to a newer Twenty core is not, on its own, proof of a solution: the manifest used by the target version must expose an independently tested mechanism.
+The app now provides a consolidated administrative center in **Settings > Apps > Administración Omnichannel** via a `WORKSPACE` settings-menu item. Access to this settings surface is governed by Twenty's native workspace-app administration permission; the integration does not use CSS visibility tricks or a frontend-only `isAdmin` state.
 
-**Blocker:** `1.0.0` must not be published while a non-Admin can see the Omnichannel administrative folder if the user contract requires it to be completely hidden. Hiding the folder with CSS or rendering an empty component is not an acceptable security or UX workaround.
+- Admin: manage channels/policies/FAQs/dashboards through the application settings center, and access underlying native objects (subject to record/field permissions).
+- Non-Admin without application settings permission: no app-owned technical sidebar or admin settings entry; only workspace-created operational shortcuts remain.
+- Workspace shortcuts (LINK/page layout/view items created outside the app manifest): their ownership belongs to the workspace, so the app's pruning of **its own** navigation entries must not delete them.
+- Preserve user-created links and original page layout identifiers. The removal is restricted to the 11 app-owned menu declarations under `src/navigation-menu-items/`.
+- Do not reinstall or reset the app; server metadata sync must be previewed on staging, because missing app-owned entities are pruned.
 
-The draft branch adds a secondary, native **Settings > Apps > Administración Omnichannel** center, which consolidates:
-- Existing dashboard and FAQ managers;
-- Channel setup and conversation policies;
-- Navigation to native records: conversations, messages, channels, FAQs, types, categories, evaluations, external identities, aliases and application settings.
+### One-time migration and validation
 
-This is a useful administrative entry point but **not** yet a replacement for role-filtered sidebar navigation. Its access follows native Twenty app settings permissions, not a custom false `isAdmin` client flag.
+1. Export the workspace's current navigation items: ID, type, name, parent ID, target URL/record/layout, position, and ownership.
+2. Verify there are independent workspace-owned shortcuts for the operational pages users need; create any missing shortcuts through Twenty's native menu customization BEFORE upgrading.
+3. Upgrade a throwaway workspace from the current beta and compare the navigation metadata. Exactly the old app-owned technical folder/children should be removed; no workspace-owned shortcuts should disappear or change identity.
+4. Test Admin (app settings permission) and non-Admin roles by logging in separately, and try direct URLs. App UI hiding is not an authorization layer; Twenty's backend permissions must deny unauthorized administrative writes.
+5. Verify all old dashboard links and source records. Never remove a page layout, widget, object, field, or view as part of this navigation-only cleanup.
+
+**Note:** Moving the administrative center into Settings instead of keeping it in the main left sidebar is an intentional architecture change needed to meet the UX/security requirement without patching the Twenty core.
 
 ## Migration invariants
 
@@ -54,7 +61,7 @@ This is a useful administrative entry point but **not** yet a replacement for ro
 
 ## Stable release gates
 
-- [ ] Test and adopt a supported mechanism that hides the **Omnichannel sidebar folder** from non-Admins while displaying it for Admins, without widening access.
+- [ ] Verify the technical **Omnichannel sidebar folder is absent for all users**, while Admin can open the consolidated settings center and non-Admin cannot.
 - [ ] Verify all navigation and workspace-owned shortcuts survive an actual beta-to-stable upgrade.
 - [ ] Isolate dashboard access from broad `supportSettings` rights and perform a reversible migration for existing workspaces.
 - [ ] Finish coherent UI review of all existing app surfaces.
