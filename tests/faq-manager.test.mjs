@@ -34,7 +34,7 @@ test('installed FAQs navigation retains its UUID and type across app upgrades', 
 });
 
 test('FAQ manager runs as current user, not as application', () => {
-  const ui = read('src/front-components/faq-manager.tsx');
+  const ui = read('src/ui/faq-manager-page.tsx');
   const rest = read('src/lib/faq-manager.ts');
   assert(ui.includes('new RestApiClient()'));
   assert(!ui.includes("runAs: 'application'"));
@@ -46,7 +46,7 @@ test('FAQ manager runs as current user, not as application', () => {
 });
 
 test('FAQ editor preserves existing fields and uses safe archive state', () => {
-  const ui = read('src/front-components/faq-manager.tsx');
+  const ui = read('src/ui/faq-manager-page.tsx');
   const rest = read('src/lib/faq-manager.ts');
   for (const field of ['question','answer','categoryId','status','language','variants','scopeTags',
     'tags','customTags','sourceUrl','updatedByReference']) assert(rest.includes(field));
@@ -59,7 +59,7 @@ test('FAQ editor preserves existing fields and uses safe archive state', () => {
 });
 
 test('FAQ actions use an accessible toggle, icons and native side panel', () => {
-  const ui = read('src/front-components/faq-manager.tsx');
+  const ui = read('src/ui/faq-manager-page.tsx');
   for (const key of [
     'role="switch"',
     'aria-checked={isPublished}',
@@ -77,7 +77,7 @@ test('FAQ actions use an accessible toggle, icons and native side panel', () => 
 });
 
 test('active switch optimistically patches one FAQ without reloading the list',()=>{
-  const ui=read('src/front-components/faq-manager.tsx');
+  const ui=read('src/ui/faq-manager-page.tsx');
   assert(ui.includes('statusRequests.current.add(faq.id)'));
   assert(ui.includes('setFaqs(current => current.map(row => row.id === faq.id'));
   assert(ui.includes('setFaqs(current => current.map(row => row.id === faq.id ? faq : row))'));
