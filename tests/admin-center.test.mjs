@@ -16,7 +16,7 @@ test('administration center is registered in native Twenty app settings',()=>{
 test('all administrative surfaces remain reachable without overwriting workspace shortcuts',()=>{
   const hub=read('src/front-components/admin-center.tsx');
   for(const component of ['Dashboards','FaqManagerEntry','ChannelSetup','ChannelPolicies']) {
-    assert(hub.includes('<'+component+'/>'),component);
+    assert(hub.includes('<'+component) && hub.includes("import { "+component+" }"),component);
   }
   for(const object of ['supportCases','supportMessages','supportFaqs','supportChannels','supportCategories',
     'supportTypes','supportEvaluations','supportExternalIdentities','supportIdentityAliases','supportSettings']){
