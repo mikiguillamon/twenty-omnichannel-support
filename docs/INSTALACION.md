@@ -2,6 +2,14 @@
 
 La aplicación funciona por workspace dentro de Twenty. Cada instalación mantiene sus propios canales, categorías, conversaciones, identidades y ajustes. La rama de preparación de la 1.0.0 se valida con Twenty 2.50; hasta publicar la versión estable, el Marketplace puede seguir mostrando la última beta.
 
+## Preparar la actualización con la beta 27
+
+La versión de transición `0.3.0-beta.27` **mantiene la carpeta técnica Omnichannel** en el menú izquierdo y añade la nueva interfaz administrativa y el almacenamiento específico de dashboards. La carpeta se conserva para evitar que Twenty elimine en cascada los enlaces personalizados que todavía cuelguen de ella.
+
+En **Ajustes → Aplicaciones → Omnichannel Support → Administración Omnichannel → Datos y ajustes**, ejecuta **Inspeccionar menú** y, si aparecen accesos compartidos del workspace pendientes, pulsa **Proteger accesos compartidos**. Se trasladan a la raíz sin cambiar su destino ni identificador. Los enlaces personales deben revisarse por cada miembro. Crea desde el menú nativo los accesos operativos compartidos que necesites.
+
+Una vez comprobado esto, podrá instalarse la 1.0.0 que retira las entradas antiguas del plugin. La beta 27 no las retira automáticamente.
+
 ## Actualización desde la beta al menú sin carpeta técnica
 
 **Antes de actualizar** realiza una copia de seguridad de la navegación del workspace y de los dashboards. En Twenty, entra en **Editar menú** y comprueba los accesos que quieres conservar fuera de Omnichannel. Una entrada que pertenezca a la aplicación —aunque la hayas arrastrado a la raíz del menú— puede eliminarse cuando el nuevo manifiesto retire sus antiguas entradas. Recréala como un **enlace independiente del workspace** antes del cambio.
