@@ -1,5 +1,14 @@
 ## Unreleased
 
+## 0.3.0-beta.26 — FAQs instantáneas y editor visual de dashboards
+
+- Actualiza el interruptor Activa de las FAQs en la tarjeta afectada sin recargar el listado. Bloquea clics repetidos y recupera el estado anterior si la API falla.
+- Mejora las visualizaciones de dashboards: ejes y fechas más legibles, barras e histogramas, distribuciones donut con porcentajes, tablas y estados de carga/vacío/error.
+- Permite reordenar los widgets con arrastre y soltado, flechas accesibles y opciones para ampliar o reducir el ancho.
+- Añade enlaces internos directos por dashboard para crear accesos en la barra lateral principal de Twenty 2.50. El usuario decide su ubicación mediante las herramientas nativas de Twenty.
+- Conserva el esquema v2 de dashboards, los UUID y la API del plugin. Compatible con los cambios publicados en las betas 24 y 25.
+
+
 ## 0.3.0-beta.25 — Dashboards configurables
 
 - Nuevo editor de dashboards Omnichannel por workspace con KPIs, gráficos, filtros, períodos y layouts persistidos en Twenty.
