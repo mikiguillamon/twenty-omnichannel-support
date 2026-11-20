@@ -9,6 +9,5 @@ export default defineSettingsMenuItem({
   title: 'Administración Omnichannel',
   icon: 'IconHeadset',
   position: 1,
-  slug: 'omnichannel-admin',
   scope: 'WORKSPACE',
 });
