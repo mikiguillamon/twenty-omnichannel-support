@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { IDS } from '../src/constants/ids.ts';
 import {
   buildConversationFilter, loadConversationPage, normalizeConversationFilters,
   parseConversationView, saveConversationView,
@@ -117,13 +118,27 @@ test('un filtro poco frecuente ofrece continuar aunque las primeras páginas no 
   assert.equal(next.nextCursor, null);
 });
 
-test('la ficha nativa abre el hilo y sus vistas incluyen las etiquetas propias', async () => {
+test('la ficha nativa abre el hilo y muestra las etiquetas propias', async () => {
   const { readFileSync } = await import('node:fs');
   const source = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
   assert.match(source('src/page-layouts/support-case-record.page.ts'), /LAYOUT_SUPPORT_CASE_TAB_THREAD[^\n]*position:0/);
   assert.match(source('src/page-layouts/support-case-record.page.ts'), /fieldMetadataId:IDS.CASE_CUSTOM_TAGS/);
-  for (const name of ['case-all', 'case-email', 'case-whatsapp', 'case-human', 'cases-technical-errors']) {
-    assert.match(source('src/views/' + name + '.view.ts'), /fieldMetadataUniversalIdentifier: IDS\.CASE_CUSTOM_TAGS/);
+});
+
+test('el upgrade admite columnas de etiquetas gestionadas por el workspace en las vistas nativas existentes', async () => {
+  const legacyViews = [
+    ['case-all', [IDS.CASE_CUSTOM_TAGS]],
+    ['case-email', [IDS.CASE_TAGS, IDS.CASE_CUSTOM_TAGS]],
+    ['case-whatsapp', [IDS.CASE_TAGS, IDS.CASE_CUSTOM_TAGS]],
+    ['case-human', [IDS.CASE_TAGS, IDS.CASE_CUSTOM_TAGS]],
+    ['cases-technical-errors', [IDS.CASE_TAGS, IDS.CASE_CUSTOM_TAGS]],
+    ['faqs-published', [IDS.FAQ_TAGS, IDS.FAQ_CUSTOM_TAGS]],
+  ];
+  for (const [name, workspaceFields] of legacyViews) {
+    const { default: view } = await import(`../src/views/${name}.view.ts`);
+    assert.equal(view.success, true, name);
+    const conflicts = view.config.fields.filter(field => workspaceFields.includes(field.fieldMetadataUniversalIdentifier));
+    assert.deepEqual(conflicts.map(field => field.fieldMetadataUniversalIdentifier), [], name);
   }
 });
 

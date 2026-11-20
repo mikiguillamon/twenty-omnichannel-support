@@ -10,6 +10,5 @@ export default defineView({ universalIdentifier: IDS.VIEW_CASE_ALL, name: "Todas
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_TAGS, position: 5, isVisible: true, size: 170 },
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CASE_LASTMESSAGEAT, fieldMetadataUniversalIdentifier: IDS.CASE_LASTMESSAGEAT, position: 6, isVisible: true, size: 160 },
     { universalIdentifier: IDS.VIEWCOL_CASE_ALL_FOLLOWUP, fieldMetadataUniversalIdentifier: IDS.CASE_FOLLOW_UP, position: 7, isVisible: true, size: 165 },
-    { universalIdentifier: IDS.VIEWCOL_CASE_ALL_CUSTOM_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_CUSTOM_TAGS, position: 8, isVisible: true, size: 180 },
   ],
 });

@@ -1,3 +1,8 @@
+## 1.2.2 — Actualización con vistas personalizadas
+
+- Evita que Twenty intente registrar una columna de etiquetas ya añadida por el workspace a una vista nativa.
+- Las etiquetas siguen disponibles en los filtros de la bandeja y del gestor de FAQs, en la ficha de conversación y en las agrupaciones de los dashboards.
+
 ## 1.2.1 — Historial de conversaciones y etiquetas en dashboards
 
 - Abre el historial de correo y chat al pulsar el asunto en la bandeja. La ficha se abre desde el historial.

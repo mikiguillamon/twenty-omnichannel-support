@@ -6,8 +6,6 @@ export default defineView({ universalIdentifier: IDS.VIEW_CASE_EMAIL, name: "Ema
     { universalIdentifier: IDS.VIEWCOL_CASE_EMAIL_CASE_CHANNEL, fieldMetadataUniversalIdentifier: IDS.CASE_CHANNEL, position: 1, isVisible: true, size: 120 },
     { universalIdentifier: IDS.VIEWCOL_CASE_EMAIL_CASE_STATUS, fieldMetadataUniversalIdentifier: IDS.CASE_STATUS, position: 2, isVisible: true, size: 150 },
     { universalIdentifier: IDS.VIEWCOL_CASE_EMAIL_CASE_LASTMESSAGEAT, fieldMetadataUniversalIdentifier: IDS.CASE_LASTMESSAGEAT, position: 3, isVisible: true, size: 160 },
-    { universalIdentifier: IDS.VIEWCOL_CASE_EMAIL_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_TAGS, position: 4, isVisible: true, size: 180 },
-    { universalIdentifier: IDS.VIEWCOL_CASE_EMAIL_CUSTOM_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_CUSTOM_TAGS, position: 5, isVisible: true, size: 180 },
   ],
   filters: [
     { universalIdentifier: IDS.FILTER_CASE_EMAIL_FILTER, fieldMetadataUniversalIdentifier: IDS.CASE_CHANNEL, operand: ViewFilterOperand.IS, value: ["EMAIL"] },
