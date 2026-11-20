@@ -37,8 +37,8 @@ The app now provides a consolidated administrative center in **Settings > Apps >
 1. Do not delete or repurpose existing `universalIdentifier` values for navigation, records, layouts, fields, indexes, app roles or logic functions.
 2. Never rewrite links owned by workspace members or the workspace customization UI. Keep dashboard deep links of the form `?omniDashboard=<id>`.
 3. Keep `/s/omnichannel/v1/ingest` and `/s/omnichannel/v1/faqs/search`, payload validation, contact matching, statuses, aliases and message deduplication behavior unchanged unless a new contract is explicitly versioned.
-4. Until a dedicated dashboard object and migration mechanism exist, preserve `supportSettings` dashboard keys `omnichannel.dashboard.v2.<id>`. The layout adds optional `height`, normalized when loading pre-existing dashboard records; this does **not** constitute a destructive migration.
-5. Introduce a dedicated dashboard settings storage with a separate Twenty object permission only once safe migration, idempotence, retry, rollback and access by non-Admin members have been demonstrated. In particular, do **not** grant broad read access to all of `supportSettings` solely to display a KPI.
+4. The new `supportDashboards` object stores dashboard JSON under the **same key** `omnichannel.dashboard.v2.<id>`. Previously created `supportSettings` records remain untouched; the administrator runs the explicit **Migrar dashboards antiguos** action. It copies valid legacy records idempotently, retaining IDs, widgets, filters and old data for rollback. The legacy key is not renamed or deleted.
+5. `supportDashboards` has separate object permissions. A normal member reads records in this object and is never given broad `supportSettings` read access just to render KPIs. The loader prefers dedicated records and only includes legacy records if the current user already has permission to read them; archived dedicated records hide matching legacy copies. Admins should complete migration before granting operational dashboard access to Members.
 6. Existing FAQs, their publication status and scope tags, and the new optimistic toggle behavior must survive upgrades.
 
 ## Authorization design
@@ -63,7 +63,7 @@ The app now provides a consolidated administrative center in **Settings > Apps >
 
 - [ ] Verify the technical **Omnichannel sidebar folder is absent for all users**, while Admin can open the consolidated settings center and non-Admin cannot.
 - [ ] Verify all navigation and workspace-owned shortcuts survive an actual beta-to-stable upgrade.
-- [ ] Isolate dashboard access from broad `supportSettings` rights and perform a reversible migration for existing workspaces.
+- [ ] Validate the separately permissioned `supportDashboards` object and run its copy-only legacy migration on staging and production; confirm Members can read dedicated dashboards but cannot read `supportSettings`.
 - [ ] Finish coherent UI review of all existing app surfaces.
 - [ ] Validate keyboard, pointer, mobile, dark mode and screen-reader access of dashboards and FAQ manager in Twenty's Remote DOM.
 - [ ] Exercise Twenty roles Admin/Member/read-only, direct URLs and forged admin API requests.
