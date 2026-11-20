@@ -49,11 +49,12 @@ export function getRange(period:Period,now=new Date()):Range{
   const day=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const end=new Date(day);end.setDate(end.getDate()+1);
   if(period.key==='all')return {from:null,to:null};
-  if(period.key==='custom'&&period.start&&period.end){
+  if(period.key==='custom'&&period.start&&period.end&&period.start<=period.end){
     const from=new Date(period.start+'T00:00:00');
     const to=new Date(period.end+'T00:00:00');to.setDate(to.getDate()+1);
     return {from,to};
   }
+  if(period.key==='custom')return getRange({key:'30d'},now);
   if(period.key==='thisMonth')return {from:new Date(day.getFullYear(),day.getMonth(),1),to:end};
   if(period.key==='previousMonth')return {from:new Date(day.getFullYear(),day.getMonth()-1,1),to:new Date(day.getFullYear(),day.getMonth(),1)};
   const from=new Date(day);
