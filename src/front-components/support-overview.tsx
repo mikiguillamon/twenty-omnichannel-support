@@ -243,10 +243,10 @@ function Dashboards() {
   }
 
   function widgetEditor(w:DashboardWidget){
-    const change=<K extends keyof DashboardWidget>(name:K,value:DashboardWidget[K])=>modifyWidget(w.id,{[name]:value});
+    function change<K extends keyof DashboardWidget>(name:K,value:DashboardWidget[K]) { modifyWidget(w.id,{[name]:value}); }
     const dims=fieldsFor(w.source,'dimensions');
     const numeric=fieldsFor(w.source,'numeric');
-    const aggregationOptions=['count','ratio','distinct',...numeric.length?['sum','avg','min','max']:[]];
+    const aggregationOptions=['count','ratio','distinct',...(numeric.length?['sum','avg','min','max']:[])];
     const option=(values:readonly string[])=>values.map(s=><option key={s} value={s}>{s}</option>);
     return <section style={{...card,background:bg,display:'flex',flexDirection:'column',gap:13}} aria-label="Configurar widget">
       <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
@@ -312,6 +312,7 @@ function Dashboards() {
       <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
         <button style={btn} onClick={resetData} disabled={editing}>Actualizar datos</button>
         {!editing&&<button style={btn} onClick={startEdit} disabled={!dashboard}>Editar</button>}
+        {!editing&&draft&&<button style={primary} onClick={()=>void save()} disabled={busy}>Guardar período</button>}
         {editing&&<><button style={btn} onClick={cancelEdit} disabled={busy}>Descartar</button><button style={primary} onClick={()=>void save()} disabled={busy}>{busy?'Guardando…':'Guardar cambios'}</button></>}
       </div>
     </header>
