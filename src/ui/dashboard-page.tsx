@@ -106,6 +106,7 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
     setEditing(true);setEditingWidget(null);setFeedback('');setError('');
   }
   function cancelEdit(){
+    resizeSource.current=null;pointerSource.current=null;setResizingId(null);clearDrag();
     setDraft(null);setEditing(false);setEditingWidget(null);setError('');
   }
   function mutate(updater:(d:Dashboard)=>Dashboard){
@@ -253,7 +254,7 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
       w.kind==='shortcut'?<label style={{fontSize:12}}>URL HTTPS o ruta interna<input style={field} value={w.url} placeholder="/objects/supportCases" onChange={e=>change('url',e.target.value)}/></label>:<>
         <label style={{fontSize:12}}>Fuente de datos<select style={field} value={w.source} onChange={e=>{
           const source=e.target.value as Source;
-          changeWidget(w.id,previous=>({...makeWidget(previous.kind,source,previous.title),id:previous.id,width:previous.width,compare:previous.compare}));
+          changeWidget(w.id,previous=>({...makeWidget(previous.kind,source,previous.title),id:previous.id,width:previous.width,height:previous.height,compare:previous.compare}));
         }}>{SOURCE_KEYS.map(s=><option key={s} value={s}>{SOURCES[s].label}</option>)}</select></label>
         <label style={{fontSize:12}}>Cálculo<select style={field} value={w.aggregation} onChange={e=>change('aggregation',e.target.value as DashboardWidget['aggregation'])}>
           {option(aggregationOptions)}</select></label>
@@ -378,6 +379,7 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
     {dashboard&&<div style={{display:'flex',gap:15,alignItems:'flex-start',flexWrap:'wrap'}}>
       <div style={{flex:'1 1 680px',minWidth:0}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(12,minmax(0,1fr))',gap:12,alignItems:'start'}}
+          onPointerLeave={()=>{endResize();clearDrag();}}
           onPointerMove={e=>moveResize(e.clientX,e.clientY)}
           onPointerUp={()=>{if(resizeSource.current)endResize();else if(pointerSource.current)clearDrag();}}
           onPointerCancel={()=>{endResize();clearDrag();}}>
@@ -418,7 +420,15 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
               style={{position:'absolute',bottom:0,right:0,width:24,height:24,cursor:'nwse-resize',touchAction:'none',
                 display:'flex',alignItems:'end',justifyContent:'end',padding:4,boxSizing:'border-box',
                 color:resizingId===w.id?accent:muted}}
-              onPointerDown={e=>{e.stopPropagation();startResize(w.id,w.width,w.height,e.clientX,e.clientY);}}>
+              onPointerDown={e=>{
+                e.stopPropagation();startResize(w.id,w.width,w.height,e.clientX,e.clientY);
+                // Pointer capture keeps resizing responsive when the pointer crosses
+                // adjacent widgets, but older Remote DOM hosts may not support it.
+                try{e.currentTarget.setPointerCapture(e.pointerId);}catch{/* fallback to grid events */}
+              }}
+              onPointerMove={e=>{if(resizeSource.current?.id===w.id)moveResize(e.clientX,e.clientY);}}
+              onPointerUp={()=>{if(resizeSource.current?.id===w.id)endResize();}}
+              onPointerCancel={()=>{endResize();clearDrag();}}>
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
                 <path d="M12 4L4 12M12 8L8 12M12 12h-1"/>
               </svg>
