@@ -42,7 +42,7 @@ export const SOURCES = {
     dates: ['createdAt','publishedAt','lastSyncedAt'],
     dimensions: ['status','language','categoryId'],
     numeric: ['revision'],
-    fields: ['id','question','status','language','categoryId','revision','createdAt','publishedAt','lastSyncedAt'],
+    fields: ['id','question','status','language','category','revision','createdAt','publishedAt','lastSyncedAt'],
   },
 } as const;
 

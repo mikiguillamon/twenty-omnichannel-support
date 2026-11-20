@@ -1,33 +1,22 @@
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { DASHBOARD_PREFIX, defaultDashboard, normalizeDashboard, type Dashboard, type StoredDashboard } from './dashboard-model.ts';
+import { fetchAllRestRecords } from './rest-collections.ts';
 
 // Keep old settings untouched for rollback, but do not grant their administrative
 // read permission to regular members just so they can render a dashboard.
 type LegacySetting = {id:string;key:string;valueText:string|null;enabled?:boolean};
 type DashboardRecord = {id:string;dashboardKey:string;configJson:string|null;enabled?:boolean};
 
-function unwrap(response:unknown,key:string):unknown[] {
-  const root=response&&typeof response==='object'?response as Record<string,unknown>:{};
-  const data=root.data&&typeof root.data==='object'?root.data as Record<string,unknown>:root;
-  if(!Array.isArray(data[key]))throw Error('DASHBOARD_STORAGE_RESPONSE');
-  return data[key] as unknown[];
-}
 const keyFor=(id:string)=>DASHBOARD_PREFIX+id;
 
-async function readDedicated(client:RestApiClient):Promise<DashboardRecord[]> {
-  const response:unknown=await client.get('/rest/supportDashboards',{
-    query:{filter:'dashboardKey[startsWith]:'+JSON.stringify(DASHBOARD_PREFIX),
-      limit:60,fields:'id,dashboardKey,configJson,enabled',depth:0},
-  });
-  return unwrap(response,'supportDashboards') as DashboardRecord[];
+function readDedicated(client: RestApiClient): Promise<DashboardRecord[]> {
+  return fetchAllRestRecords<DashboardRecord>(client, 'supportDashboards', 'id,dashboardKey,configJson,enabled',
+    'dashboardKey[startsWith]:' + JSON.stringify(DASHBOARD_PREFIX));
 }
 
-async function readLegacy(client:RestApiClient):Promise<LegacySetting[]> {
-  const response:unknown=await client.get('/rest/supportSettings',{
-    query:{filter:'key[startsWith]:'+JSON.stringify(DASHBOARD_PREFIX),
-      limit:60,fields:'id,key,valueText,enabled',depth:0},
-  });
-  return unwrap(response,'supportSettings') as LegacySetting[];
+function readLegacy(client: RestApiClient): Promise<LegacySetting[]> {
+  return fetchAllRestRecords<LegacySetting>(client, 'supportSettings', 'id,key,valueText,enabled',
+    'key[startsWith]:' + JSON.stringify(DASHBOARD_PREFIX));
 }
 
 function parseDashboard(key:string,value:unknown):Dashboard|null {

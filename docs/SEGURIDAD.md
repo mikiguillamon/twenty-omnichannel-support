@@ -29,7 +29,7 @@ El proyecto se distribuye bajo licencia MIT. El archivo `LICENSE` contiene los t
 
 ## Endpoints y datos de llamadas
 
-La función `POST /omnichannel/v1/ingest` requiere autenticación en Twenty. Comprueba también los permisos de la app y del workspace que ejecuta la función. Un error en la autorización no debe resolverse publicando un webhook sin Bearer.
+Twenty 2.50 autentica las rutas de ingestión y búsqueda de FAQs en el workspace de destino. Ambas funciones acceden a los registros con el rol de Omnichannel Support. Los permisos de objetos de una credencial o de un miembro se aplican al acceso directo a la REST API y dejan de limitar las operaciones ejecutadas por estas funciones. Ten en cuenta este acceso al gestionar las credenciales del workspace y al decidir qué FAQs publicar.
 
 La entrada valida el tipo de canal, proveedor, cuenta, IDs y límites de texto. Los mensajes necesitan IDs estables para que los reintentos sean idempotentes. El procedimiento de varios registros no constituye una transacción única de base de datos: ante un error de escritura, vuelve a intentar el mismo mensaje y comprueba que no haya datos parciales que precisen revisión.
 

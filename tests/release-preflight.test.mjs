@@ -33,3 +33,16 @@ test('npm prepack embeds the complete MIT license via the Twenty build output', 
   assert.match(pkg.scripts.prepack, /copyFileSync/);
   assert.match(pkg.scripts.prepack, /LICENSE/);
 });
+
+test('release validation passes only a boolean derived from the commit message to Bash', () => {
+  const workflow = read('.github/workflows/publish.yml');
+  assert.match(workflow, /PUBLISH_STABLE: \$\{\{ contains\(github\.event\.head_commit\.message, '\[publish stable\]'\) \}\}/);
+  assert.doesNotMatch(workflow, /\$\{\{\s*github\.event\.head_commit\.message\s*\}\}/);
+});
+
+test('manual promotion verifies only the npm tag it writes', () => {
+  const promotion = read('.github/workflows/publish.yml').split('\n  promote_existing:')[1];
+  assert.match(promotion, /npm dist-tag add .* latest/);
+  assert.match(promotion, /tags\.latest!==v/);
+  assert.doesNotMatch(promotion, /tags\.beta/);
+});

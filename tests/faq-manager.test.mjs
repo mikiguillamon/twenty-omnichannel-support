@@ -23,8 +23,9 @@ test('retired FAQ navigation UUIDs are reserved and never reused for another typ
 
 test('FAQ manager runs as current user, not as application', () => {
   const ui = read('src/ui/faq-manager-page.tsx');
-  const rest = read('src/lib/faq-manager.ts');
+  const rest = read('src/lib/rest-collections.ts');
   assert(ui.includes('new RestApiClient()'));
+  assert(ui.includes("from '../lib/rest-collections.ts'"));
   assert(!ui.includes("runAs: 'application'"));
   assert(ui.includes('openCommandConfirmationModal'));
   assert(!ui.includes('window.localStorage'));

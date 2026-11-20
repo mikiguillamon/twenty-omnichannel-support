@@ -13,6 +13,13 @@ test('administration center is registered in native Twenty app settings',()=>{
   assert(ids.includes('SETTINGS_MENU_ADMIN:'));
 });
 
+test('shared dashboard shortcuts declare the layout permission required by Twenty', () => {
+  const role = read('src/roles/default-role.ts');
+  const navigation = read('src/lib/dashboard-navigation.ts');
+  assert.match(role, /permissionFlagUniversalIdentifiers:\s*\[[^\]]*SystemPermissionFlag\.LAYOUTS/);
+  assert.doesNotMatch(navigation, /runAs:/);
+});
+
 test('all administrative surfaces remain reachable without overwriting workspace shortcuts',()=>{
   const hub=read('src/front-components/admin-center.tsx');
   for(const component of ['Dashboards','FaqManagerEntry','ChannelSetup','ChannelPolicies']) {

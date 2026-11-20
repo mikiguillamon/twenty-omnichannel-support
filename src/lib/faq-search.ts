@@ -91,7 +91,8 @@ export function parseFaqSearchRequest(raw: unknown): FaqSearchRequest {
 }
 
 function relatedTerms(token: string): string[] {
-  return [...new Set([token,...(EQUIVALENCES[token] ?? []),...(Object.entries(EQUIVALENCES)
+  const equivalent = Object.hasOwn(EQUIVALENCES, token) ? EQUIVALENCES[token] : [];
+  return [...new Set([token,...equivalent,...(Object.entries(EQUIVALENCES)
     .filter(([,values])=>values.some(v=>normalizeText(v)===token)).map(([k])=>k))])]
     .map(normalizeText).filter(x=>x && !x.includes(' ')).slice(0,7);
 }

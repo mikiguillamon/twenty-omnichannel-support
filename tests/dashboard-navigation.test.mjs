@@ -7,20 +7,26 @@ import {
 
 const operational='/page/1234abcd?omniDashboard=dashboard-1234';
 const good=operational+'&omniShortcut=managed-v1';
+const workspaceCustomApplicationId = '825434ae-827b-4d48-80f9-35b1f25db24e';
 const item=(overrides={})=>({
   id:'shared-1',name:'General',link:good,icon:'IconLayoutDashboard',
-  position:1,type:'LINK',applicationId:null,userWorkspaceId:null,folderId:null,...overrides,
+  position:1,type:'LINK',applicationId:workspaceCustomApplicationId,userWorkspaceId:null,folderId:null,...overrides,
 });
 const mock=()=>{
   const entries=[item()];
   const mutations=[];
   const client={
-    async query(){return {navigationMenuItems:entries.map(x=>({...x}))};},
+    async query(selection){
+      return {
+        currentWorkspace: selection.currentWorkspace?.workspaceCustomApplicationId ? { workspaceCustomApplicationId } : {},
+        navigationMenuItems: entries.map(row => ({ ...row })),
+      };
+    },
     async mutation(q){
       mutations.push(q);
       if(q.createNavigationMenuItem){
         const input=q.createNavigationMenuItem.__args.input;
-        const created=item({...input,id:'created-1',applicationId:null,userWorkspaceId:null,folderId:null});
+        const created=item({...input,id:'created-1',userWorkspaceId:null,folderId:null});
         entries.push(created);
         return {createNavigationMenuItem:created};
       }
@@ -55,12 +61,14 @@ test('dashboard URL allowlist rejects external, Settings and ambiguous routes',(
     '/page/1234#fragment?omniDashboard=dashboard-1234',
   ])assert.throws(()=>normalizeDashboardNavigationLink(invalid));
 });
-test('navigation manager excludes personal, app-owned and nested links',()=>{
-  assert.equal(isPublishedDashboardLink(item()),true);
-  assert.equal(isPublishedDashboardLink(item({link:operational})),false);
-  assert.equal(isPublishedDashboardLink(item({applicationId:'app'})),false);
-  assert.equal(isPublishedDashboardLink(item({userWorkspaceId:'person'})),false);
-  assert.equal(isPublishedDashboardLink(item({folderId:'folder'})),false);
+test('navigation manager excludes personal, unrelated, and nested links',()=>{
+  const isManaged = row => isPublishedDashboardLink(row, workspaceCustomApplicationId);
+  assert.equal(isManaged(item()),true);
+  assert.equal(isManaged(item({link:operational})),false);
+  assert.equal(isManaged(item({applicationId:'app'})),false);
+  assert.equal(isManaged(item({applicationId:null})),false);
+  assert.equal(isManaged(item({userWorkspaceId:'person'})),false);
+  assert.equal(isManaged(item({folderId:'folder'})),false);
 });
 test('published links are created shared, renamed and removed without deleting dashboards',async()=>{
   const {client,mutations}=mock();
@@ -80,6 +88,15 @@ test('refuse mutations of unrelated navigation entries',async()=>{
   await assert.rejects(()=>unpublishDashboardLink('personal',client),/LINK_NOT_MANAGED/);
   await assert.rejects(()=>publishDashboardLink({name:'Duplicate',link:good},client),/ALREADY_PUBLISHED/);
   entries.push(item({id:'manual',link:'/page/xyz12345?omniDashboard=manual-1234'}));
+  entries.push(item({id:'other-app',applicationId:'other-app'}));
   await assert.rejects(()=>unpublishDashboardLink('manual',client),/LINK_NOT_MANAGED/);
+  await assert.rejects(()=>unpublishDashboardLink('other-app',client),/LINK_NOT_MANAGED/);
   assert.equal(mutations.length,0);
+});
+
+test('publishing stops before writing when Twenty does not identify the workspace custom application', async () => {
+  const { client, mutations } = mock();
+  client.query = async () => ({ navigationMenuItems: [] });
+  await assert.rejects(() => publishDashboardLink({ name: 'Equipo', link: operational }, client), /NAVIGATION_UNAVAILABLE/);
+  assert.equal(mutations.length, 0);
 });

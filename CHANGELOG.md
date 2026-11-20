@@ -1,3 +1,11 @@
+## 1.0.2 — Fiabilidad de ingestión, FAQs y dashboards
+
+- Recupera los casos de revisión cuando un reintento completa la escritura de un mensaje.
+- Separa el historial y el destinatario al cambiar de conversación y resuelve los alias de WhatsApp antes de habilitar la respuesta cuando son necesarios.
+- Corrige la búsqueda de FAQs y protege sus alcances cuando falla la lectura del registro.
+- Pagina los dashboards guardados, corrige los widgets de FAQs y adapta los accesos compartidos a los permisos y la propiedad de navegación de Twenty 2.50.
+- Refuerza la cola, la validación y los reintentos del workflow de publicación en npm.
+
 ## 1.0.1 — Administración y accesos de dashboards
 
 - Administración de Omnichannel con pestañas horizontales adaptables y mayor aprovechamiento del ancho disponible.

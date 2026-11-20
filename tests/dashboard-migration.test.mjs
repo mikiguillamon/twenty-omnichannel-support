@@ -57,6 +57,27 @@ test('archived new records mask legacy copies rather than resurrecting old dashb
   assert.deepEqual(await loadDashboards(fake),[]);
 });
 
+test('an archived dashboard on a later page still masks its legacy copy', async () => {
+  const { fake, key, records } = fixture();
+  records.push(...Array.from({ length: 60 }, (_, index) => ({
+    id: 'archived-' + index, dashboardKey: DASHBOARD_PREFIX + 'archived-' + index, enabled: false,
+  })), { id: 'archived-legacy', dashboardKey: key, enabled: false });
+  const get = fake.get.bind(fake);
+  fake.get = async (path, options) => {
+    if (path !== '/rest/supportDashboards') return get(path, options);
+    if (options.query.starting_after === 'second-page') {
+      return { data: { supportDashboards: records.slice(60) }, pageInfo: { hasNextPage: false } };
+    }
+    return {
+      data: { supportDashboards: records.slice(0, 60) },
+      pageInfo: { hasNextPage: true, endCursor: 'second-page' },
+    };
+  };
+
+  assert.deepEqual(await loadDashboards(fake), []);
+  assert.equal(await migrateLegacyDashboards(fake), 0);
+});
+
 test('non-admins can read dedicated dashboards when access to supportSettings is denied',async()=>{
   const {fake,original}=fixture();
   await migrateLegacyDashboards(fake);

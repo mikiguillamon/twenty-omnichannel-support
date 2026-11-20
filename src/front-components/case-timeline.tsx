@@ -46,6 +46,10 @@ const unwrap = (response: unknown): SupportMessage[] => {
 
 function CaseTimeline() {
   const [caseId] = useSelectedRecordIds();
+  return <SelectedCaseTimeline key={caseId} caseId={caseId} />;
+}
+
+function SelectedCaseTimeline({ caseId }: { caseId: string | undefined }) {
   const colorScheme=useColorScheme();
   const dark=colorScheme==='dark';
   const [items, setItems] = useState<SupportMessage[]>([]);
@@ -98,6 +102,7 @@ function CaseTimeline() {
         }
         setReplyCase(record);
         if (!record.externalIdentityId) return;
+        if (record.channel === 'WHATSAPP' && replyLinkFor(record)) return;
         const identityId = encodeURIComponent(record.externalIdentityId);
         // The case's linked identity, not an arbitrary Person's contacts, determines the recipient.
         const identityResponse: unknown = await api.get('/rest/supportExternalIdentities/' + identityId);
@@ -117,7 +122,8 @@ function CaseTimeline() {
     return () => { active = false; };
   }, [caseId, revision]);
 
-  const reply = replyCase ? replyLinkFor(replyCase, replyIdentity, replyAliases) : null;
+  const canResolveReply = replyCase && (replyCase.channel !== 'WHATSAPP' || (!replyLoading && !replyError));
+  const reply = canResolveReply ? replyLinkFor(replyCase, replyIdentity, replyAliases) : null;
 
   const label = (message:SupportMessage) => {
     if (message.senderType==='BOT') return 'Bot';

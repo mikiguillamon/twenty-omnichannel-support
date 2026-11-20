@@ -152,6 +152,47 @@ test('an ambiguous WhatsApp identity is recorded for human review, without a for
   assert.equal(store.rowsFor('supportMessages').length,1);
 });
 
+test('a retry completes a review case after a temporary failure saving the message', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const event = normalizeEvent({ channelCode: 'wa-test', messageId: 'anonymous-1', body: 'Hola' });
+  const create = store.create.bind(store);
+  let failNextMessage = true;
+  store.create = async (type, data) => {
+    if (type === 'supportMessages' && failNextMessage) {
+      failNextMessage = false;
+      throw new Error('temporary message write failure');
+    }
+    return create(type, data);
+  };
+
+  await assert.rejects(ingest(event, store), /temporary message write failure/);
+  const [reviewCase] = store.rowsFor('supportCases');
+  assert.equal(reviewCase.status, 'HUMAN_REQUIRED');
+  assert.equal(store.rowsFor('supportMessages').length, 0);
+
+  const result = await ingest(event, store);
+  assert.equal(result.status, 'created');
+  assert.equal(result.reviewRequired, true);
+  assert.equal(result.caseId, reviewCase.id);
+  assert.equal(store.rowsFor('supportCases').length, 1);
+  assert.equal(store.rowsFor('supportMessages')[0].supportCaseId, reviewCase.id);
+  assert.equal((await ingest(event, store)).status, 'duplicate');
+});
+
+test('retry recovery never attaches a message to a review case from another channel', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const event = normalizeEvent({ channelCode: 'wa-test', messageId: 'anonymous-1', body: 'Hola' });
+  const scope = keys(event, { channelType: 'WHATSAPP', provider: 'evolution', externalIdentifier: 'wa-1' });
+  await store.create('supportCases', {
+    externalKey: `${scope.ns}:REVIEW-MESSAGE:${event.messageKey}`,
+    channelInstanceId: 'another-channel',
+    status: 'HUMAN_REQUIRED',
+  });
+
+  await assert.rejects(ingest(event, store), { code: 'CASE_CONFLICT' });
+  assert.equal(store.rowsFor('supportMessages').length, 0);
+});
+
 test('a chat without verified email does not fabricate a native Person', async () => {
   const store = new MemoryStore('WHATSAPP');
   const result = await ingest(whatsapp(),store);

@@ -28,5 +28,5 @@ export default defineApplicationRole({
     { objectUniversalIdentifier: IDS.MESSAGE_OBJECT, canReadObjectRecords: true, canUpdateObjectRecords: true, canSoftDeleteObjectRecords: false, canDestroyObjectRecords: false },
   ],
   fieldPermissions: [],
-  permissionFlagUniversalIdentifiers: [SystemPermissionFlag.APPLICATIONS],
+  permissionFlagUniversalIdentifiers: [SystemPermissionFlag.APPLICATIONS, SystemPermissionFlag.LAYOUTS],
 });

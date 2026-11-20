@@ -15,16 +15,15 @@ permissions:
   contents: read
   id-token: write
 
-concurrency:
-  group: npm-publish
-  cancel-in-progress: false
-
 jobs:
   publish:
     permissions:
       contents: write
       id-token: write
     if: github.event_name == 'release' || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[publish npm]') || contains(github.event.head_commit.message, '[publish stable]')))
+    concurrency:
+      group: npm-publish
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -64,13 +63,14 @@ jobs:
       - name: Validate public release metadata and tag
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PUBLISH_STABLE: ${{ contains(github.event.head_commit.message, '[publish stable]') }}
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
             node scripts/release-preflight.mjs --public --tag "$RELEASE_TAG"
           else
             node scripts/release-preflight.mjs --public
             CURRENT="$(node -p "require('./package.json').version")"
-            if [[ "${{ github.event.head_commit.message }}" == *"[publish stable]"* ]]; then
+            if [ "$PUBLISH_STABLE" = "true" ]; then
               # Stable publication requires the reviewed release commit on main.
               if [[ "$CURRENT" == *-* ]]; then echo "Stable release cannot be a prerelease"; exit 1; fi
             else
@@ -125,8 +125,8 @@ jobs:
             sleep 10
           done
           for attempt in $(seq 1 60); do
-            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-stable-tag-check-$attempt" > /tmp/stable-tags.json
-            if node -e "const tags=require('/tmp/stable-tags.json');const version=require('./package.json').version;if(tags.latest!==version)process.exit(1)"; then
+            if npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-stable-tag-check-$attempt" > /tmp/stable-tags.json &&
+               node -e "const tags=require('/tmp/stable-tags.json');const version=require('./package.json').version;if(tags.latest!==version)process.exit(1)"; then
               echo "Verified npm latest = $VERSION"
               break
             fi
@@ -167,8 +167,8 @@ jobs:
           done
           test "$promoted" = true || { echo "Unable to promote npm latest"; exit 1; }
           for attempt in $(seq 1 60); do
-            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-publish-tag-verification-$attempt" > /tmp/dist-tags.json
-            if node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"; then
+            if npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-publish-tag-verification-$attempt" > /tmp/dist-tags.json &&
+               node -e "const tags=require('/tmp/dist-tags.json'); const v=require('./package.json').version; if(tags.beta!==v || tags.latest!==v)process.exit(1)"; then
               echo "Verified npm beta and latest both point to $VERSION"
               exit 0
             fi
@@ -181,6 +181,9 @@ jobs:
 
   promote_existing:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[promote npm]'))
+    concurrency:
+      group: npm-publish
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -210,9 +213,9 @@ jobs:
           done
           for attempt in $(seq 1 60); do
             # Force a fresh npm metadata request on each verification attempt.
-            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-tag-verification-$attempt" > /tmp/promoted-tags.json
-            if node -e "const tags=require('/tmp/promoted-tags.json'); const v=process.argv[1]; if(tags.beta!==v || tags.latest!==v)process.exit(1)" "$PACKAGE_VERSION"; then
-              echo "Verified npm latest and beta: $PACKAGE_VERSION"
+            if npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-tag-verification-$attempt" > /tmp/promoted-tags.json &&
+               node -e "const tags=require('/tmp/promoted-tags.json'); const v=process.argv[1]; if(tags.latest!==v)process.exit(1)" "$PACKAGE_VERSION"; then
+              echo "Verified npm latest: $PACKAGE_VERSION"
               exit 0
             fi
             sleep 10

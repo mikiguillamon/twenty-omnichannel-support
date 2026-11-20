@@ -4,7 +4,7 @@ import {
   defaultDashboard,createDashboard,normalizeDashboard,normalizeWidget,makeWidget,periodFrom,MAX_WIDGETS,
   moveDashboardWidget,resizeDashboardWidget,resizeDashboardWidgetTo,MIN_WIDGET_HEIGHT,MAX_WIDGET_HEIGHT,
 } from '../src/lib/dashboard-model.ts';
-import {getRange,summarize,metricDelta} from '../src/lib/dashboard-analytics.ts';
+import {getRange,summarize,metricDelta,fetchDataset} from '../src/lib/dashboard-analytics.ts';
 import {importDashboard,exportDashboard} from '../src/lib/dashboard-store.ts';
 import {getDashboardLink,readDashboardFromSearch} from '../src/lib/dashboard-links.ts';
 
@@ -15,6 +15,23 @@ test('starter dashboard provides configurable KPIs and visualizations',()=>{
   assert(dashboard.widgets.some(w=>w.kind==='line'));
   assert(dashboard.widgets.some(w=>w.kind==='hour'));
   assert.equal(normalizeDashboard(dashboard).widgets.length,dashboard.widgets.length);
+});
+
+test('FAQ widgets request the relation field and can group by the projected category ID', async () => {
+  const api = {
+    async get(path, { query }) {
+      assert.equal(path, '/rest/supportFaqs');
+      assert.equal(query.depth, 0);
+      const fields = query.fields.split(',');
+      assert(fields.includes('category'));
+      assert(!fields.includes('categoryId'));
+      return { data: { supportFaqs: [{ id: 'faq-1', categoryId: 'billing' }] } };
+    },
+  };
+  const widget = makeWidget('bar', 'supportFaqs');
+  widget.groupBy = 'categoryId';
+  const dataset = await fetchDataset('supportFaqs', api);
+  assert.deepEqual(summarize(dataset, widget, { key: 'all' }).points, [{ name: 'billing', value: 1 }]);
 });
 test('dashboard config validation blocks injection and excessive widgets',()=>{
   const dashboard=createDashboard();

@@ -6,6 +6,8 @@ La aplicación funciona por workspace dentro de Twenty. Cada instalación mantie
 
 La versión de transición `0.3.0-beta.27` **mantiene la carpeta técnica Omnichannel** en el menú izquierdo y añade la nueva interfaz administrativa y el almacenamiento específico de dashboards. La carpeta se conserva para evitar que Twenty elimine en cascada los enlaces personalizados que todavía cuelguen de ella.
 
+Si un workspace sigue en una beta, desactiva su actualización automática de Omnichannel hasta completar la revisión de accesos. Twenty puede actualizar directamente a la versión del catálogo y omitir la beta de transición.
+
 En **Ajustes → Aplicaciones → Omnichannel Support → Administración Omnichannel → Datos y ajustes**, ejecuta **Inspeccionar menú** y, si aparecen accesos compartidos del workspace pendientes, pulsa **Proteger accesos compartidos**. Se trasladan a la raíz sin cambiar su destino ni identificador. Los enlaces personales deben revisarse por cada miembro. Crea desde el menú nativo los accesos operativos compartidos que necesites.
 
 Una vez comprobado esto, podrá instalarse la 1.0.0 que retira las entradas antiguas del plugin. La beta 27 no las retira automáticamente.
@@ -21,7 +23,7 @@ Tras la actualización, comprueba por separado con dos usuarios reales:
 - **Admin con permiso de aplicaciones:** ve el centro administrativo completo en Ajustes y puede navegar a canales, políticas, FAQs, dashboards, objetos y ajustes.
 - **Member sin ese permiso:** no ve ninguna carpeta Omnichannel en el menú principal ni las páginas administrativas de Ajustes; solo los accesos del workspace para los que tenga permisos en Twenty.
 
-Nunca desinstales y reinstales la app para migrar la navegación. En un entorno de pruebas, revisa antes un diff de metadatos con `twenty app plan`: deben desaparecer únicamente las antiguas entradas de navegación de la app, no los objetos ni sus datos.
+Haz la migración mediante una actualización de la app instalada. En un entorno de pruebas, ejecuta `yarn twenty plan` y comprueba que el diff de metadatos solo retire las antiguas entradas de navegación de la app.
 
 ## Requisitos
 

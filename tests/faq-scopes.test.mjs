@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {normalizeFaqScope, normalizeFaqScopes, publishedFaqScopeFilter} from '../src/lib/faq-scopes.ts';
 
 test('FAQ scopes normalize and deduplicate human labels', () => {
@@ -21,4 +22,10 @@ test('FAQ scope arrays cannot include empty values or huge collections', () => {
 
 test('REST filter never uses unsupported ARRAY operators', () => {
   assert.equal(publishedFaqScopeFilter(['Campus Hivern']), 'status[eq]:"PUBLISHED"');
+});
+
+test('the scope editor enables editing only when the selected FAQ scopes were loaded', () => {
+  const source = readFileSync(new URL('../src/front-components/faq-scope-editor.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(!faqId \|\| scopes === null \|\| saving\) return;/);
+  assert.match(source, /disabled=\{!canEdit\} onClick=\{\(\)=>void save\(\)\}/);
 });

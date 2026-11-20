@@ -38,13 +38,11 @@ La nueva experiencia de gráficos y editor se aplica a los dashboards existentes
 
 El centro de administración usa ahora una distribución horizontal adaptable: las secciones se muestran como pestañas y el editor ocupa todo el ancho disponible dentro del contenedor que Twenty ofrece en Ajustes. Esto elimina la columna lateral fija de 200 píxeles, pero **no elimina el límite de ancho impuesto por el propio host de Ajustes**. Si Twenty renderiza el Front Component en un panel estrecho, ampliar ese contenedor requerirá una ruta operativa de página completa o una modificación compatible del core.
 
-En la pestaña Dashboards, **Ver instrucciones** explica cómo publicar un enlace compartido desde el editor nativo del menú. No es un botón de publicación automática: el SDK 2.50 no garantiza una API pública para crear enlaces de navegación administrados por el workspace. No se fabrican mutaciones de metadatos sin confirmar el contrato, ni se crean enlaces bajo una carpeta propiedad de la aplicación. Los permisos siguen siendo los de Twenty.
+## Gestor de accesos compartidos
 
-## Gestor de accesos compartidos (rama en revisión)
+En la pestaña **Dashboards**, el gestor crea, renombra y retira enlaces compartidos en la raíz del menú. Para realizar estos cambios, el usuario necesita el permiso de diseños (`LAYOUTS`) de Twenty además del acceso a la administración de aplicaciones. El gestor acepta rutas internas `/page/...` con un identificador `omniDashboard`. Twenty asigna los enlaces a la aplicación interna Custom del workspace y el gestor guarda `omniShortcut=managed-v1` para reconocer los que ha creado. Retirar un acceso conserva el dashboard y sus registros.
 
-La administración incluye ahora un gestor de accesos de dashboards que utiliza las mutaciones de metadatos de navegación de Twenty: crear, renombrar y retirar enlaces `LINK` compartidos en la raíz del workspace. Solo acepta rutas internas `/page/...` con un único parámetro `omniDashboard` al crear el acceso. Los enlaces creados por este gestor incorporan `omniShortcut=managed-v1` para distinguirlos de enlaces manuales. Impide duplicar destinos y verifica de nuevo la propiedad del enlace antes de modificarlo. Retirar un acceso no elimina el dashboard ni sus registros. Estos enlaces no están asociados al `applicationId` de Omnichannel, por lo que no dependen de la carpeta técnica eliminada en 1.0.0.
-
-**Pendiente de validación antes de publicar:** compilar contra `twenty-client-sdk@2.50.0` y comprobar en una instancia Twenty 2.50 la firma real de las mutaciones, su autorización administrativa y que la navegación se actualiza al crear o borrar un elemento. El panel de Ajustes sigue sujeto al ancho que le asigna Twenty. No se ha publicado todavía en npm ni se recomienda activar la rama en producción.
+Antes de desplegar una actualización, comprueba en una instancia Twenty 2.50 que un administrador puede crear, abrir, renombrar y retirar un acceso, y que un usuario de atención puede abrirlo con sus permisos habituales.
 
 ## Resolución de problemas
 

@@ -7,9 +7,10 @@ import {
 } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import {
-  FAQ_FIELDS, blankFaqEditor, editorFromFaq, faqEditorPayload, fetchAllRestRecords, filterFaqs,
+  FAQ_FIELDS, blankFaqEditor, editorFromFaq, faqEditorPayload, filterFaqs,
 } from '../lib/faq-manager.ts';
 import type { FaqEditor, FaqStatus, SupportFaq, SupportFaqCategory } from '../lib/faq-manager.ts';
+import { fetchAllRestRecords } from '../lib/rest-collections.ts';
 
 const TAG_OPTIONS = ['URGENTE', 'INTERNA', 'FRECUENTE', 'REVISAR'];
 const LANGUAGES: Record<string, string> = { CA: 'Català', ES: 'Español', EN: 'English' };

@@ -371,8 +371,9 @@ async function caseFor(
     metadata.transcription = ref.callTranscription;
   }
 
+  const reviewKey = scope.ns + ':REVIEW-MESSAGE:' + event.messageKey;
   const caseKey = candidate?.externalKey ? text(candidate.externalKey)
-    : (review ? scope.ns + ':REVIEW-MESSAGE:' + event.messageKey
+    : (review ? reviewKey
       : issueKey || (mode === 'THREAD' ? threadKey : '') || scope.ns + ':CASE-MESSAGE:' + event.messageKey);
 
   if (!candidate) {
@@ -393,8 +394,16 @@ async function caseFor(
       status: review ? 'HUMAN_REQUIRED' : (event.conversation.status ?? 'NEW'),
     });
     candidate = savedCase.record;
-    if (!savedCase.created && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
-      throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
+    if (!savedCase.created) {
+      // A review case is deliberately unlinked. Its per-message key and channel
+      // identify it when the original attempt saved the case but not the message.
+      const sameReviewMessage = review && candidate.externalKey === reviewKey &&
+        candidate.channelInstanceId === channel.id && !candidate.personId && !candidate.externalIdentityId &&
+        text(candidate.originEmail).toLowerCase() === event.contactEmail &&
+        text(candidate.originPhone) === event.contactPhone;
+      if (!sameReviewMessage && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
+        throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
+      }
     }
   } else {
     const updates: Record<string, unknown> = { ...metadata };

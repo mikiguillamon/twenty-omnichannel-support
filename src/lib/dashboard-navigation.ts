@@ -11,14 +11,14 @@ export type PublishedDashboardLink = {
 
 type NavigationRow = {
   id:string;
-  name:string|null;
-  link:string|null;
-  icon:string|null;
+  name?:string|null;
+  link?:string|null;
+  icon?:string|null;
   position:number;
   type:string;
-  applicationId:string|null;
-  userWorkspaceId:string|null;
-  folderId:string|null;
+  applicationId?:string|null;
+  userWorkspaceId?:string|null;
+  folderId?:string|null;
 };
 
 const dashboardIdPattern=/^[a-zA-Z0-9-]{4,70}$/;
@@ -43,29 +43,32 @@ export function normalizeDashboardNavigationLink(value:string):string {
   return url.pathname+'?'+DASHBOARD_QUERY_KEY+'='+encodeURIComponent(ids[0])+(marker.length?'&'+OWNERSHIP_KEY+'='+OWNERSHIP_VALUE:'');
 }
 
-export function isPublishedDashboardLink(row:NavigationRow):boolean {
-  if(row.type!=='LINK'||row.applicationId!==null||row.userWorkspaceId!==null||row.folderId!==null||!row.link)return false;
+export function isPublishedDashboardLink(row: NavigationRow, workspaceCustomApplicationId: string): boolean {
+  if(row.type!=='LINK'||row.applicationId!==workspaceCustomApplicationId||row.userWorkspaceId!==null||row.folderId!==null||!row.link)return false;
   try{
     const canonical=normalizeDashboardNavigationLink(row.link);
     return canonical===row.link&&new URLSearchParams(canonical.split('?')[1]).get(OWNERSHIP_KEY)===OWNERSHIP_VALUE;
   }catch{return false;}
 }
 
-async function readNavigation(client:MetadataApiClient):Promise<NavigationRow[]> {
-  const {navigationMenuItems}=await client.query({
+async function readNavigation(client: MetadataApiClient): Promise<{ rows: NavigationRow[]; workspaceCustomApplicationId: string }> {
+  const { currentWorkspace, navigationMenuItems } = await client.query({
+    currentWorkspace: { workspaceCustomApplicationId: true },
     navigationMenuItems:{
       id:true,name:true,link:true,icon:true,position:true,type:true,
       applicationId:true,userWorkspaceId:true,folderId:true,
     },
   });
-  if(!Array.isArray(navigationMenuItems))throw Error('NAVIGATION_UNAVAILABLE');
-  return navigationMenuItems as NavigationRow[];
+  const workspaceCustomApplicationId = currentWorkspace?.workspaceCustomApplicationId;
+  if (!workspaceCustomApplicationId || !Array.isArray(navigationMenuItems)) throw Error('NAVIGATION_UNAVAILABLE');
+  return { rows: navigationMenuItems, workspaceCustomApplicationId };
 }
 
 export async function listPublishedDashboardLinks(client=new MetadataApiClient()):Promise<PublishedDashboardLink[]> {
-  return (await readNavigation(client)).filter(isPublishedDashboardLink)
+  const { rows, workspaceCustomApplicationId } = await readNavigation(client);
+  return rows.filter(row => isPublishedDashboardLink(row, workspaceCustomApplicationId))
     .sort((a,b)=>a.position-b.position)
-    .map(row=>({id:row.id,name:row.name||'Dashboard',link:row.link!,position:row.position,icon:row.icon}));
+    .map(row=>({id:row.id,name:row.name||'Dashboard',link:row.link!,position:row.position,icon:row.icon??null}));
 }
 
 function checkedName(name:string):string {
@@ -79,7 +82,7 @@ export async function publishDashboardLink(input:{name:string;link:string;icon?:
   const name=checkedName(input.name);
   const normalized=normalizeDashboardNavigationLink(input.link);
   const link=normalized.includes('&'+OWNERSHIP_KEY+'=')?normalized:normalized+'&'+OWNERSHIP_KEY+'='+OWNERSHIP_VALUE;
-  const rows=await readNavigation(client);
+  const { rows, workspaceCustomApplicationId } = await readNavigation(client);
   const duplicate=rows.find(row=>row.type==='LINK'&&row.userWorkspaceId===null&&row.link&&
     (row.link===link||row.link===normalized));
   if(duplicate)throw Error('ALREADY_PUBLISHED');
@@ -94,22 +97,22 @@ export async function publishDashboardLink(input:{name:string;link:string;icon?:
   if(!createNavigationMenuItem?.id||createNavigationMenuItem.link!==link)throw Error('PUBLISH_NOT_CONFIRMED');
   // Fail closed if the server silently creates a personal, app-owned or nested item.
   // Never delete a server-created item implicitly: an admin must inspect first.
-  if(!isPublishedDashboardLink(createNavigationMenuItem as NavigationRow))throw Error('PUBLISH_NOT_SHARED');
+  if (!isPublishedDashboardLink(createNavigationMenuItem, workspaceCustomApplicationId)) throw Error('PUBLISH_NOT_SHARED');
   return {id:createNavigationMenuItem.id,name:createNavigationMenuItem.name||name,link,icon:createNavigationMenuItem.icon||null,position:createNavigationMenuItem.position};
 }
 
 export async function renameDashboardLink(id:string,name:string,client=new MetadataApiClient()):Promise<void> {
-  const rows=await readNavigation(client);
+  const { rows, workspaceCustomApplicationId } = await readNavigation(client);
   const item=rows.find(row=>row.id===id);
-  if(!item||!isPublishedDashboardLink(item))throw Error('LINK_NOT_MANAGED');
+  if (!item || !isPublishedDashboardLink(item, workspaceCustomApplicationId)) throw Error('LINK_NOT_MANAGED');
   const {updateNavigationMenuItem}=await client.mutation({updateNavigationMenuItem:{__args:{input:{id,update:{name:checkedName(name)}}},id:true,name:true}});
   if(updateNavigationMenuItem?.id!==id)throw Error('UPDATE_NOT_CONFIRMED');
 }
 
 export async function unpublishDashboardLink(id:string,client=new MetadataApiClient()):Promise<void> {
-  const rows=await readNavigation(client);
+  const { rows, workspaceCustomApplicationId } = await readNavigation(client);
   const item=rows.find(row=>row.id===id);
-  if(!item||!isPublishedDashboardLink(item))throw Error('LINK_NOT_MANAGED');
+  if (!item || !isPublishedDashboardLink(item, workspaceCustomApplicationId)) throw Error('LINK_NOT_MANAGED');
   const {deleteNavigationMenuItem}=await client.mutation({deleteNavigationMenuItem:{__args:{id},id:true}});
   if(deleteNavigationMenuItem?.id!==id)throw Error('DELETE_NOT_CONFIRMED');
 }

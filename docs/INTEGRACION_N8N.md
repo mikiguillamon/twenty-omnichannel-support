@@ -220,7 +220,7 @@ Configuración de un nodo **HTTP Request** en n8n:
 
 `scopeTags: ["VERANO"]` incluye FAQs publicadas con `VERANO` o `GENERAL`. Si se omite `scopeTags`, solo incluye `GENERAL`. La API no devuelve FAQs en borrador, archivadas o sin alcance. Un resultado vacío significa que el agente no tiene una respuesta encontrada y debe evitar inventarla.
 
-**Importante:** la etiqueta no impide que el mismo token de Twenty consulte otro alcance. Para aislar información de verdad, utiliza credenciales/workspaces con permisos adecuados. No es necesario modificar los workflows existentes; puedes añadir este nodo cuando quieras incorporar búsqueda de FAQs.
+La búsqueda lee FAQs publicadas con el rol de Omnichannel Support y el cliente puede solicitar cualquier alcance. Utiliza workspaces separados si necesitas aislar contenido confidencial entre bots. [Seguridad y privacidad](SEGURIDAD.md).
 
 
 **Twenty 2.50:** el parser REST rechaza tanto `containsIlike` como `containsAny` sobre `scopeTags`. La aplicación realiza la comprobación de alcance después de recuperar los candidatos de texto publicados. Envía únicamente `query`, `scopeTags`, `language` y `limit`. Una respuesta HTTP 502 no es una búsqueda válida.

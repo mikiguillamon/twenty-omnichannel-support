@@ -47,7 +47,7 @@ Se limita el ranking a **200 candidatas** como máximo, en páginas de 50. Si ha
 }
 ```
 
-**Seguridad:** `scopeTags` **no establece una autorización**. Cualquier cliente con acceso a este endpoint mediante un token válido de Twenty podrá solicitar otros alcances, por ejemplo `INTERNAS`. Por tanto, no debe utilizarse para separar información confidencial entre bots que comparten un token. Utiliza tokens y workspaces con los permisos apropiados, y no guardes datos confidenciales únicamente detrás de una etiqueta. No se registran cuerpos de consulta ni tokens en logs de aplicación.
+La búsqueda lee FAQs publicadas con el rol de Omnichannel Support. Cualquier cliente autenticado que pueda invocar la ruta puede seleccionar otros alcances. Para aislar contenido confidencial entre integraciones, utiliza workspaces separados. Los logs de la app omiten cuerpos de consulta y tokens. [Seguridad y privacidad](SEGURIDAD.md).
 
 Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID_SCOPE`, `INVALID_LANGUAGE`, `INVALID_LIMIT`; exceso de cuerpo `PAYLOAD_TOO_LARGE` (`413`); demasiadas candidatas `SEARCH_TOO_BROAD` (`422`), y errores de almacenamiento (`502`) clasificados como `FAQ_REST_BAD_REQUEST`, `FAQ_REST_ACCESS_DENIED`, `FAQ_REST_RATE_LIMIT`, `FAQ_REST_UPSTREAM_ERROR`, `FAQ_REST_CLIENT_FAILURE` o `FAQ_SEARCH_UNAVAILABLE`, sin divulgar contenido ni credenciales. Twenty puede devolver `401`/`403` antes de llamar al endpoint.
 
@@ -57,7 +57,7 @@ Los errores de validación incluyen `INVALID_REQUEST`, `INVALID_QUERY`, `INVALID
 
 - Instala la app en el workspace de destino. La compatibilidad declarada del paquete es Twenty `>=2.50.0 <2.51.0` y Node `^24.5.0`.
 - Crea un Canal en ese workspace con un `code` único, `channelType` y, cuando corresponda, `provider` y `externalIdentifier`.
-- Usa una credencial Bearer del workspace con permisos suficientes. No incluyas tokens en el cuerpo de la petición, campos de Ajustes, URLs ni logs.
+- Usa una credencial Bearer del workspace y guárdala en el gestor de credenciales de tu integración. Las escrituras de ingestión se ejecutan con el rol de Omnichannel Support. [Seguridad y privacidad](SEGURIDAD.md).
 - La función se registra como ruta HTTP autenticada con `POST`, `isAuthRequired: true` y `timeoutSeconds: 30`. La ruta configurada en la app es `/omnichannel/v1/ingest`; la URL externa documentada para Twenty 2.50 suele ser:
 
 ```http

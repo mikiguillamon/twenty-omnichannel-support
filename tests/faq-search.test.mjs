@@ -92,6 +92,14 @@ test('query ranking favors exact match, variants, multiple concepts and question
   assert(result.results.every(x=>Number.isInteger(x.score)&&x.matchedFields.length>0));
 });
 
+test('a natural question can contain a term that is also an object property', async () => {
+  const question = '¿Quién es el constructor del edificio?';
+  const result = await searchFaqs(req(question), new MemoryFaqStore([
+    faq('construction', question, 'La obra la ejecutó la constructora del barrio.', 'ES'),
+  ]));
+  assert.deepEqual(result.results.map(row => row.id), ['construction']);
+});
+
 test('valid search with no match returns an empty result',async()=>{
   assert.deepEqual(await searchFaqs(req('renovación'),
     new MemoryFaqStore([faq('a','Saludo','Hola','ES',['GENERAL'])])),
