@@ -37,7 +37,8 @@ export function DashboardNavigationManager(){
       const code=err instanceof Error?err.message:'';
       setError(code==='ALREADY_PUBLISHED'?'Este dashboard ya tiene un acceso compartido.':
         code.startsWith('INVALID_')?'Indica un nombre válido y copia el enlace interno desde la página operativa del dashboard.':
-        'Twenty ha rechazado la publicación. No se han modificado dashboards ni permisos.');
+        code==='PUBLISH_NOT_SHARED'?'Twenty ha creado el acceso, pero no ha confirmado que sea compartido. Comprueba el menú antes de repetir la operación.':
+        'No se ha podido confirmar la publicación. Inspecciona el menú antes de reintentar para evitar duplicados.');
     }finally{setBusy(false);}
   }
   async function rename(item:PublishedDashboardLink){
@@ -56,7 +57,7 @@ export function DashboardNavigationManager(){
   }
   return <section aria-label="Accesos compartidos de dashboards" style={{border:'1px solid '+border,borderRadius:12,padding:18,display:'flex',flexDirection:'column',gap:14}}>
     <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center',justifyContent:'space-between'}}>
-      <div><strong style={{fontSize:15}}>Accesos compartidos</strong>
+      <div><strong style={{fontSize:15}}>Accesos publicados por Omnichannel</strong>
         <p style={{fontSize:12,color:muted,margin:'5px 0 0',lineHeight:1.6}}>Publica un dashboard en la raíz del menú del workspace sin vincular el acceso al ciclo de vida de Omnichannel.</p></div>
       <button type="button" style={btn} disabled={busy} onClick={()=>void refresh()}>Actualizar lista</button>
     </div>
@@ -68,7 +69,7 @@ export function DashboardNavigationManager(){
     <p style={{fontSize:12,color:muted,margin:0,lineHeight:1.6}}>Utiliza el botón «Copiar enlace» desde un dashboard abierto fuera de Ajustes. Solo se aceptan rutas internas de página con identificador de dashboard. Los permisos de lectura de los datos siguen dependiendo de Twenty.</p>
     {error&&<p role="alert" style={{fontSize:12,color:'#D74C4C',margin:0}}>{error}</p>}
     {notice&&<p role="status" style={{fontSize:12,margin:0}}>{notice}</p>}
-    {items.length===0?<p style={{fontSize:12,color:muted,margin:0}}>No se han encontrado accesos compartidos de dashboards en la raíz del menú.</p>:
+    {items.length===0?<p style={{fontSize:12,color:muted,margin:0}}>No hay accesos publicados desde este gestor. Los enlaces creados manualmente en Twenty no se modifican aquí.</p>:
     <div style={{display:'flex',flexDirection:'column',gap:8}}>{items.map(item=><div key={item.id} style={{border:'1px solid '+border,borderRadius:8,padding:12,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
       <div style={{minWidth:0,flex:1}}><strong style={{fontSize:13}}>{item.name}</strong><div style={{fontSize:11,color:muted,overflowWrap:'anywhere',marginTop:4}}>{item.link}</div></div>
       {editingId===item.id?<div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button type="button" style={btn} disabled={busy} onClick={()=>void rename(item)}>Guardar nombre</button><button type="button" style={btn} onClick={()=>{setEditingId(null);setName('');}}>Cancelar</button></div>:
