@@ -33,6 +33,13 @@ El período usa la fecha especificada en cada widget. Por ejemplo, `createdAt` a
 
 La nueva experiencia de gráficos y editor se aplica a los dashboards existentes sin migración de esquema. No se alteran las fuentes, filtros, períodos ni UUID de navegación que usa Twenty 2.50. Los toggles del gestor de FAQs se guardan con actualizaciones optimistas por tarjeta, conservando el scroll, los filtros activos y las respuestas desplegadas. Si falla la API, solo esa tarjeta recupera el estado anterior y aparece el error, sin volver a cargar las 107 (o más) FAQs del workspace.
 
+
+## Administración en la versión posterior a 1.0.0
+
+El centro de administración usa ahora una distribución horizontal adaptable: las secciones se muestran como pestañas y el editor ocupa todo el ancho disponible dentro del contenedor que Twenty ofrece en Ajustes. Esto elimina la columna lateral fija de 200 píxeles, pero **no elimina el límite de ancho impuesto por el propio host de Ajustes**. Si Twenty renderiza el Front Component en un panel estrecho, ampliar ese contenedor requerirá una ruta operativa de página completa o una modificación compatible del core.
+
+En la pestaña Dashboards, **Ver instrucciones** explica cómo publicar un enlace compartido desde el editor nativo del menú. No es un botón de publicación automática: el SDK 2.50 no garantiza una API pública para crear enlaces de navegación administrados por el workspace. No se fabrican mutaciones de metadatos sin confirmar el contrato, ni se crean enlaces bajo una carpeta propiedad de la aplicación. Los permisos siguen siendo los de Twenty.
+
 ## Resolución de problemas
 
 Si no se carga la lista, revisa los permisos del objeto `supportSettings`. Si una fuente falla, comprueba el campo y la petición correspondiente en la pestaña de red. Si el dashboard indica más de 3.000 registros, no interpretes gráficos parciales como resultados completos: utiliza un rango más pequeño únicamente cuando la API pueda filtrar ese rango en origen o migra los agregados al servidor. Si una versión del cliente SDK rechaza el campo de relación en `fields`, corrige la selección de columnas en el catálogo de `src/lib/dashboard-model.ts` antes de publicar.
