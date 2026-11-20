@@ -7,7 +7,7 @@ import {
   createDashboard, defaultDashboard, fieldsFor, makeWidget, moveDashboardWidget, resizeDashboardWidgetTo, newId, normalizeWidget, periodFrom,
   type Source, type WidgetKind, type Dashboard, type DashboardWidget, type Period, type StoredDashboard,
 } from '../lib/dashboard-model.ts';
-import { loadDashboards, persistDashboard, removeDashboard, importDashboard, exportDashboard } from '../lib/dashboard-store.ts';
+import { loadDashboards, persistDashboard, removeDashboard, migrateLegacyDashboards, importDashboard, exportDashboard } from '../lib/dashboard-store.ts';
 import { fetchDataset, type Dataset } from '../lib/dashboard-analytics.ts';
 import { readDashboardFromSearch, getDashboardLink } from '../lib/dashboard-links.ts';
 import { DashboardVisualization } from '../front-components/dashboard-visualization.tsx';
@@ -18,7 +18,7 @@ const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
 const WIDTHS=[3,4,6,8,12] as const;
 
-export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
+export function Dashboards({enableLinks=true,enableMigration=false}:{enableLinks?:boolean;enableMigration?:boolean}={}) {
   const dark=useColorScheme()==='dark';
   const location=useLocation();
   const requestedDashboard=readDashboardFromSearch(location?.search??'');
@@ -165,6 +165,16 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
       return {...d,widgets};
     });
   }
+  async function migrateLegacy(){
+    if(busy||editing)return;
+    setBusy(true);setError('');setFeedback('');
+    try{
+      const count=await migrateLegacyDashboards(new RestApiClient());
+      setFeedback(count?`${count} dashboard(s) migrados sin eliminar los originales.`:'No hay dashboards pendientes de migración.');
+      setReload(n=>n+1);
+    }catch{setError('No se pudieron migrar los dashboards. No se han eliminado los registros antiguos. Comprueba tus permisos e inténtalo de nuevo.');}
+    finally{setBusy(false);}
+  }
   async function save(){
     if(!draft||busy)return;
     setBusy(true);setError('');
@@ -172,14 +182,14 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
       const entry=stored.find(d=>d.dashboard.id===draft.id);
       const updated={...draft,updatedAt:new Date().toISOString()};
       const api=new RestApiClient();
-      const id=await persistDashboard(api,updated,entry?.settingId??null);
+      const id=await persistDashboard(api,updated,entry?.storage==='dedicated'?entry.settingId:null);
       if(updated.isDefault){
         for(const row of stored.filter(row=>row.dashboard.isDefault&&row.dashboard.id!==updated.id&&row.settingId)){
-          await persistDashboard(api,{...row.dashboard,isDefault:false},row.settingId);
+          await persistDashboard(api,{...row.dashboard,isDefault:false},row.storage==='dedicated'?row.settingId:null);
         }
       }
       setStored(current=>[...current.filter(row=>row.dashboard.id!==updated.id)
-        .map(row=>updated.isDefault?{...row,dashboard:{...row.dashboard,isDefault:false}}:row),{settingId:id,dashboard:updated}]);
+        .map(row=>updated.isDefault?{...row,dashboard:{...row.dashboard,isDefault:false}}:row),{settingId:id,dashboard:updated,storage:'dedicated'}]);
       setActive(updated.id);setDraft(null);setEditing(false);setEditingWidget(null);
       setFeedback('Dashboard guardado en este workspace.');
     }catch{setError('No se pudo guardar el dashboard. Revisa los permisos y el tamaño de la configuración.');}
@@ -200,7 +210,10 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
     if(result!=='confirm')return;
     setBusy(true);setError('');
     try{
-      await removeDashboard(new RestApiClient(),selected.settingId);
+      const api=new RestApiClient();
+      const recordId=selected.storage==='legacy'
+        ?await persistDashboard(api,selected.dashboard,null):selected.settingId;
+      await removeDashboard(api,recordId);
       setStored(current=>current.filter(row=>row.dashboard.id!==selected.dashboard.id));
       setActive('');setFeedback('Dashboard archivado.');
     }catch{setError('No se pudo archivar. Comprueba los permisos de Ajustes de soporte.');}
@@ -324,6 +337,7 @@ export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
       <button style={btn} onClick={()=>void createNew(true)} disabled={editing||!dashboard}>Duplicar</button>
       <button style={btn} onClick={()=>void archive()} disabled={editing||!selected||!selected.settingId||busy}>Archivar</button>
       <button style={btn} onClick={downloadConfig} disabled={!dashboard}>Copiar JSON</button>
+      {enableMigration&&<button style={btn} onClick={()=>void migrateLegacy()} disabled={busy||editing||loading}>Migrar dashboards antiguos</button>}
       {enableLinks&&<button style={btn} onClick={()=>void copyDashboardLink()} disabled={!dashboard||editing}>Copiar enlace</button>}
       {enableLinks&&<button style={btn} onClick={()=>setLinkHelp(v=>!v)} disabled={!dashboard}>En el menú de Twenty</button>}
       <button style={btn} onClick={()=>setImportOpen(v=>!v)} disabled={editing}>Importar</button>
