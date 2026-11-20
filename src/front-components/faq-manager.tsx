@@ -485,7 +485,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
 }
 
 
-function FaqManagerEntry() {
+export function FaqManagerEntry() {
   const objectMetadata = useSelectedObjectMetadata();
   const selectedRecordIds = useSelectedRecordIds();
   const frontComponentId = useFrontComponentId();
