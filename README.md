@@ -11,8 +11,8 @@ Omnichannel Support gives your team a place to follow support cases, read messag
 - **Update conversations through the API.** Set the title, type, category, status, standard/custom tags, follow-up and other metadata whenever a new message arrives; preserve call recordings and transcriptions.
 - **Open history from People.** Find related conversations and channel identities in the Omnichannel tab on a Person.
 - **Choose how conversations become cases.** Keep email replies in the same thread, or group chat messages by activity and topic. Each channel has its own settings.
-- **Manage FAQs visually.** Open Omnichannel → FAQs for grouped cards, filters, a native Twenty side-panel editor, an Active toggle, and icon-only edit/archive actions. Use FAQs (tabla) to access Twenty's original record interface. Maintain FAQs with configurable scope tags (GENERAL, VERANO, etc.) so each bot retrieves only published answers relevant to its audience; review automated replies before or after they are sent.
-- **Build custom dashboards.** Create and rename multiple workspace dashboards, configure KPIs, charts, calendar ranges, comparisons and filters, and export the layouts. Analytics explicitly warns when datasets exceed its safe query limit.
+- **Manage FAQs visually.** Browse grouped cards, filters and a native Twenty side-panel editor. Activate or deactivate an FAQ immediately without reloading the list; failed updates revert that card. The original Twenty records view stays available. Scope tags (GENERAL, VERANO, etc.) let bots retrieve only the relevant published answers.
+- **Build custom dashboards.** Configure KPIs, charts, date ranges, comparisons and filters. Rearrange widgets by dragging them, adjust sizes, and copy an internal link for each dashboard to add it anywhere in Twenty's sidebar. Clear charts and honest empty/error states make the data easier to read. Analytics warns when a dataset exceeds its safe query limit.
 
 WhatsApp integrations can associate number-based JIDs and LIDs with the same customer identity when the provider supplies reliable matching information.
 
