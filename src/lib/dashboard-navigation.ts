@@ -22,6 +22,9 @@ type NavigationRow = {
 };
 
 const dashboardIdPattern=/^[a-zA-Z0-9-]{4,70}$/;
+/** Provenance marker: never manage manually created dashboard links without this flag. */
+const OWNERSHIP_KEY='omniShortcut';
+const OWNERSHIP_VALUE='managed-v1';
 
 /** Only relative operational Twenty routes are eligible, never Settings links or external URLs. */
 export function normalizeDashboardNavigationLink(value:string):string {
@@ -33,13 +36,19 @@ export function normalizeDashboardNavigationLink(value:string):string {
   if(url.hash||url.username||url.password)throw Error('INVALID_PAGE_LINK');
   const ids=url.searchParams.getAll(DASHBOARD_QUERY_KEY);
   if(ids.length!==1||!dashboardIdPattern.test(ids[0]))throw Error('INVALID_DASHBOARD_ID');
-  if([...url.searchParams.keys()].some(key=>key!==DASHBOARD_QUERY_KEY))throw Error('INVALID_QUERY_PARAMETERS');
-  return url.pathname+'?'+DASHBOARD_QUERY_KEY+'='+encodeURIComponent(ids[0]);
+  const keys=[...url.searchParams.keys()];
+  if(keys.some(key=>key!==DASHBOARD_QUERY_KEY&&key!==OWNERSHIP_KEY))throw Error('INVALID_QUERY_PARAMETERS');
+  const marker=url.searchParams.getAll(OWNERSHIP_KEY);
+  if(marker.length>1||(marker.length===1&&marker[0]!==OWNERSHIP_VALUE))throw Error('INVALID_OWNERSHIP_MARKER');
+  return url.pathname+'?'+DASHBOARD_QUERY_KEY+'='+encodeURIComponent(ids[0])+(marker.length?'&'+OWNERSHIP_KEY+'='+OWNERSHIP_VALUE:'');
 }
 
 export function isPublishedDashboardLink(row:NavigationRow):boolean {
   if(row.type!=='LINK'||row.applicationId!==null||row.userWorkspaceId!==null||row.folderId!==null||!row.link)return false;
-  try{return normalizeDashboardNavigationLink(row.link)===row.link;}catch{return false;}
+  try{
+    const canonical=normalizeDashboardNavigationLink(row.link);
+    return canonical===row.link&&new URLSearchParams(canonical.split('?')[1]).get(OWNERSHIP_KEY)===OWNERSHIP_VALUE;
+  }catch{return false;}
 }
 
 async function readNavigation(client:MetadataApiClient):Promise<NavigationRow[]> {
@@ -68,9 +77,11 @@ function checkedName(name:string):string {
 /** Workspace-owned LINK at the root, not tied to the application lifecycle. */
 export async function publishDashboardLink(input:{name:string;link:string;icon?:string},client=new MetadataApiClient()):Promise<PublishedDashboardLink> {
   const name=checkedName(input.name);
-  const link=normalizeDashboardNavigationLink(input.link);
+  const normalized=normalizeDashboardNavigationLink(input.link);
+  const link=normalized.includes('&'+OWNERSHIP_KEY+'=')?normalized:normalized+'&'+OWNERSHIP_KEY+'='+OWNERSHIP_VALUE;
   const rows=await readNavigation(client);
-  const duplicate=rows.find(row=>row.type==='LINK'&&row.userWorkspaceId===null&&row.link===link);
+  const duplicate=rows.find(row=>row.type==='LINK'&&row.userWorkspaceId===null&&row.link&&
+    (row.link===link||row.link===normalized));
   if(duplicate)throw Error('ALREADY_PUBLISHED');
   const position=rows.filter(row=>row.userWorkspaceId===null&&row.folderId===null)
     .reduce((max,row)=>Math.max(max,row.position),-1)+1;
