@@ -27,6 +27,7 @@ const sections: {key:Section;label:string;description:string}[] = [
 const nativeObjects = [
   {label:'Conversaciones',plural:'supportCases',description:'Consultas, estados y seguimiento'},
   {label:'Mensajes',plural:'supportMessages',description:'Historial completo por canal'},
+  {label:'Canales (tabla)',plural:'supportChannels',description:'Vista nativa y registros de canales'},
   {label:'FAQs (tabla)',plural:'supportFaqs',description:'Vista nativa de registros'},
   {label:'Categorías',plural:'supportCategories',description:'Clasificación de consultas'},
   {label:'Tipos de conversación',plural:'supportTypes',description:'Catálogo de tipos'},
