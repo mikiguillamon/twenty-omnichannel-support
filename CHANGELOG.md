@@ -1,3 +1,10 @@
+## 1.0.0 — Omnichannel con administración separada
+
+- Retira la carpeta técnica y sus enlaces de la navegación del plugin; la administración pasa a **Ajustes → Aplicaciones → Omnichannel Support** bajo los permisos nativos de Twenty.
+- Los usuarios trabajan mediante enlaces compartidos creados por el workspace; la API, las FAQs y la base de datos mantienen sus UUID y funcionalidades.
+- Consolidación del editor de dashboards con drag & drop y resize, nuevo almacenamiento `supportDashboards` y migración no destructiva.
+- **Migración obligatoria:** instalar primero `0.3.0-beta.27` y preparar los enlaces personalizados antes de retirar la carpeta, porque Twenty 2.50 borra en cascada los enlaces anidados.
+
 ## 0.3.0-beta.27 — transición segura al centro administrativo
 
 - Incluye el nuevo centro administrativo en Ajustes, edición bidimensional de dashboards, almacenamiento independiente `supportDashboards` y migración de dashboards anteriores conservando el original.
