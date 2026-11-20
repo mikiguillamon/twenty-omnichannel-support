@@ -107,8 +107,8 @@ test('widget resize uses valid widths without mutating saved layouts',()=>{
 test('dashboard direct links select only validated IDs and remain on current workspace',()=>{
   const current={origin:'https://twenty.example.es',pathname:'/page-layout/123',search:'?other=kept&filter=1'};
   const link=getDashboardLink(current,'d123456');
-  assert.equal(link,'https://twenty.example.es/page-layout/123?other=kept&filter=1&omniDashboard=d123456');
-  assert.equal(readDashboardFromSearch(new URL(link).search),'d123456');
+  assert.equal(link,'/page-layout/123?other=kept&filter=1&omniDashboard=d123456');
+  assert.equal(readDashboardFromSearch(new URL(link,'https://twenty.example.es').search),'d123456');
   assert.equal(readDashboardFromSearch('?omniDashboard=javascript:alert(1)'),null);
   assert.equal(getDashboardLink(current,'../../evil'),null);
   assert.equal(getDashboardLink({...current,origin:'javascript:evil'},'d123456'),null);
