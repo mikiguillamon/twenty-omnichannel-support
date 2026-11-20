@@ -1,3 +1,10 @@
+## 1.0.1 — Administración y accesos de dashboards
+
+- Administración de Omnichannel con pestañas horizontales adaptables y mayor aprovechamiento del ancho disponible.
+- Gestión de accesos compartidos a dashboards: creación, renombrado y retirada desde Ajustes.
+- Protección de enlaces personales, enlaces creados manualmente y navegación de otras aplicaciones; solo se gestionan accesos identificados por Omnichannel.
+- Pruebas de regresión de enlaces y operaciones de navegación. Compatible con Twenty 2.50.
+
 ## 1.0.0 — Omnichannel con administración separada
 
 - Retira la carpeta técnica y sus enlaces de la navegación del plugin; la administración pasa a **Ajustes → Aplicaciones → Omnichannel Support** bajo los permisos nativos de Twenty.
