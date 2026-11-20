@@ -4,10 +4,10 @@ import {
   AppPath, navigate, useColorScheme, useSelectedObjectMetadata,
 } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
-import { Dashboards } from './support-overview.tsx';
-import { FaqManagerEntry } from './faq-manager.tsx';
-import { ChannelSetup } from './channel-setup.tsx';
-import { ChannelPolicies } from './channel-policies.tsx';
+import { Dashboards } from '../ui/dashboard-page.tsx';
+import { FaqManagerEntry } from '../ui/faq-manager-page.tsx';
+import { ChannelSetup } from '../ui/channel-setup-page.tsx';
+import { ChannelPolicies } from '../ui/channel-policies-page.tsx';
 
 /**
  * The app settings area is the permission-controlled administrative entry
