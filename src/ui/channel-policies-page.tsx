@@ -19,10 +19,14 @@ export function ChannelPolicies() {
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
   const [feedback,setFeedback]=useState('');
-  const border=dark?'#475569':'#CBD5E1';
-  const muted=dark?'#CBD5E1':'#64748B';
-  const field={padding:'9px',border:'1px solid '+border,borderRadius:'7px',width:'100%',background:dark?'#1E293B':'#FFFFFF',color:dark?'#F8FAFC':'#0F172A'};
-  const button={padding:'9px 13px',border:'1px solid '+border,borderRadius:'7px',background:dark?'#334155':'#F8FAFC',color:dark?'#F8FAFC':'#0F172A',cursor:'pointer'};
+  const border=dark?'#455164':'#E1E6ED';
+  const muted=dark?'#AAB6C6':'#657385';
+  const surface=dark?'#252D38':'#FFFFFF';
+  const canvas=dark?'#1D232C':'#F8FAFC';
+  const fg=dark?'#F4F6FA':'#20252D';
+  const field={padding:'9px 10px',border:'1px solid '+border,borderRadius:7,width:'100%',boxSizing:'border-box' as const,
+    background:surface,color:fg,fontSize:13,fontFamily:'inherit'};
+  const button={padding:'9px 13px',border:'1px solid '+border,borderRadius:7,background:surface,color:fg,cursor:'pointer',fontSize:13,fontFamily:'inherit'};
   useEffect(()=>{
     let live=true;setLoading(true);setLoadError('');
     getChannels().then(rows=>{if(live)setChannels(rows.sort((a,b)=>(a.name||a.code||'').localeCompare(b.name||b.code||'')));})
@@ -53,9 +57,9 @@ export function ChannelPolicies() {
       setError('No se pudo guardar. Comprueba los permisos y que el workspace tenga el esquema actualizado.');
     }finally {setSaving(false);}
   }
-  return <div style={{padding:14,display:'flex',flexDirection:'column',gap:16}}>
+  return <div style={{padding:'20px 22px 24px',background:canvas,color:fg,fontFamily:'inherit',minHeight:'100%',display:'flex',flexDirection:'column',gap:16}}>
     <header>
-      <strong style={{fontSize:18}}>Gestión de consultas por canal</strong>
+      <h1 style={{fontSize:22,fontWeight:650,margin:0,letterSpacing:'-0.02em'}}>Gestión de consultas por canal</h1>
       <p style={{fontSize:13,color:muted}}>La API de Omnichannel aplica estas reglas al recibir cada mensaje nuevo. No necesitas buscar previamente la conversación desde n8n. La clasificación semántica con IA, si se utiliza, sigue siendo externa.</p>
     </header>
     {loading&&<p>Cargando canales…</p>}
@@ -68,7 +72,7 @@ export function ChannelPolicies() {
           {channels.map(ch=><option key={ch.id} value={ch.id}>{ch.name||ch.code||'Canal'} ({channelLabel[ch.channelType??'EMAIL']})</option>)}
         </select>
       </label>
-      {current&&policy&&<section style={{border:'1px solid '+border,borderRadius:10,padding:14,display:'flex',flexDirection:'column',gap:15}}>
+      {current&&policy&&<section style={{background:surface,border:'1px solid '+border,borderRadius:10,padding:16,display:'flex',flexDirection:'column',gap:15}}>
         <div>
           <strong>{current.name||current.code||'Canal'}</strong>
           <p style={{fontSize:12,color:muted}}>{channelLabel[kind]} · {current.code||'Sin código'} · Estado {current.status||'DISABLED'}</p>
