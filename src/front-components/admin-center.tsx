@@ -87,7 +87,7 @@ export function OmnichannelAdminCenter() {
           <p style={{fontSize:12,margin:'5px 0 0',color:muted}}>{sections.find(item=>item.key===section)?.description}</p>
         </div>
         {navigationError&&<p role="alert" style={{color:dark?'#F7A0A0':'#BA3E44',fontSize:12}}>{navigationError}</p>}
-        {section==='dashboards'&&<><p style={{fontSize:12,color:muted,margin:0}}>Para copiar un acceso público, abre la página Dashboards del menú principal; los enlaces creados desde Ajustes quedarían restringidos a administración.</p><Dashboards enableLinks={false}/></>}
+        {section==='dashboards'&&<><p style={{fontSize:12,color:muted,margin:0}}>Para publicar dashboards en el menú principal: en Twenty utiliza Editar menú → Añadir → Página y elige «Dashboards Omnichannel». Abre ese acceso operativo y copia desde allí el enlace individual del dashboard. Los enlaces de Ajustes no son accesibles para usuarios sin permisos administrativos.</p><Dashboards enableLinks={false}/></>}
         {section==='faqs'&&<FaqManagerEntry/>}
         {section==='channels'&&<ChannelSetup/>}
         {section==='policies'&&<ChannelPolicies/>}
