@@ -14,7 +14,7 @@ import {
   ConversationPanel, ConversationTable, InboxIcon, InboxSelect, InboxState, conversationCatalogLabel, type InboxCatalogs,
 } from './conversation-inbox-list.tsx';
 import { ConversationInboxStyles } from './conversation-inbox-styles.tsx';
-import { stringTags } from '../lib/tag-values.ts';
+import { stringTags, tagKey } from '../lib/tag-values.ts';
 
 type LoadResult = { data: ConversationPage; key: string } | { error: string; key: string };
 type ViewEditor = { id?: string; name: string };
@@ -250,6 +250,9 @@ export function ConversationInbox() {
   for (const tag of stringTags([...(page?.rows.flatMap(row => row.tags ?? []) ?? []), filters.tag])) {
     if (!tagOptions.has(tag)) tagOptions.set(tag, tag);
   }
+  const visibleCustomTags = stringTags(result && 'data' in result ? result.data.rows.flatMap(row => row.customTags ?? []) : [])
+    .sort((a, b) => a.localeCompare(b, 'es'));
+  const selectedCustomTag = visibleCustomTags.find(tag => tagKey(tag) === tagKey(customTagText.trim())) ?? '';
   const pageStart = cursors.length * CONVERSATION_PAGE_SIZE + 1;
   const pageEnd = pageStart + (page?.rows.length ?? 0) - 1;
 
@@ -323,6 +326,8 @@ export function ConversationInbox() {
             <input className="omni-inbox__input" value={customTagText} maxLength={120} placeholder="Nombre exacto"
               onChange={event => { setCustomTagText(event.target.value); setSelected(null); }} />
           </label>
+          {visibleCustomTags.length > 0 && <InboxSelect label="Etiquetas propias visibles" value={selectedCustomTag}
+            allLabel="Seleccionar etiqueta" options={visibleCustomTags.map(tag => [tag, tag])} onChange={value => changeFilter('customTag', value)} />}
         </div>
         {catalogProblem && <p role="status" className="omni-inbox__note" style={{ marginTop: 8 }}>Algunos filtros de catálogo no están disponibles para tu rol.</p>}
       </section>

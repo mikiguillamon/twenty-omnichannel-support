@@ -97,10 +97,6 @@ export function isRecordUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value);
 }
 
-export function conversationRecordHref(id: unknown): string | null {
-  return isRecordUuid(id) ? '/object/supportCase/' + id : null;
-}
-
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

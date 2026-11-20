@@ -6,6 +6,7 @@
  */
 export const DASHBOARD_PREFIX = 'omnichannel.dashboard.v2.';
 export const MAX_WIDGETS = 36;
+export const MAX_WIDGET_FILTERS = 5;
 export const MAX_DASHBOARDS = 30;
 
 export const SOURCES = {
@@ -111,7 +112,7 @@ export function normalizeWidget(value:unknown):DashboardWidget {
   const aggregate=oneOf(raw.aggregation,AGGREGATIONS,'count');
   const dimensions=fieldsFor(source,'dimensions');
   const field=(value:unknown,fallback='')=>validSource&&(value===''||isDashboardField(value))?value:fallback;
-  const filters=Array.isArray(raw.filters)&&validSource?raw.filters.slice(0,5).map(object).filter(f=>isDashboardField(f.field) && (f.operator==='eq'||f.operator==='neq') && typeof f.value==='string' && f.value.length<=120)
+  const filters=Array.isArray(raw.filters)&&validSource?raw.filters.slice(0,MAX_WIDGET_FILTERS).map(object).filter(f=>isDashboardField(f.field) && (f.operator==='eq'||f.operator==='neq') && typeof f.value==='string' && f.value.length<=120)
     .map(f=>({field:String(f.field),operator:f.operator as 'eq'|'neq',value:String(f.value)})):[];
   const url=safeText(raw.url,500);
   const safeUrl=/^(https:\/\/[^\s]+|\/(?!\/)[\w/#?=&%+.-]+)$/.test(url) ? url : '';

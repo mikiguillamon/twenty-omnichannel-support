@@ -128,6 +128,28 @@ test('messages in the same email thread share a case', async () => {
   assert.equal(store.rowsFor('supportMessages').length,2);
 });
 
+test('persists every line break of incoming plain text, including blank lines at the edges', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  await ingest(whatsapp({ body: '\r\n  Hola\r\n\r\nPuedo ir mañana?\rGracias\r\n' }), store);
+  assert.equal(store.rowsFor('supportMessages')[0].body, '\n  Hola\n\nPuedo ir mañana?\nGracias\n');
+});
+
+test('persists HTML email as plain text with paragraphs, breaks and decoded characters', async () => {
+  const store = new MemoryStore();
+  await ingest(email({ message: {
+    externalId: 'html-mail',
+    body: '<html><head><title>Oculto</title></head><body><p>Hola, Ana &amp; Luis</p><p>Primera l&iacute;nea<br>Segunda<br><br>Cuarta</p><p><a href="https://example.com/factura">Ver factura</a></p><p hidden>Oculto</p><style>.x{}</style></body></html>',
+  } }), store);
+  assert.equal(store.rowsFor('supportMessages')[0].body, 'Hola, Ana & Luis\n\nPrimera línea\nSegunda\n\nCuarta\n\nVer factura [https://example.com/factura]');
+});
+
+test('accepts an HTML-only payload and prefers the textual version when present', async () => {
+  const store = new MemoryStore();
+  await ingest(email({ message: { externalId: 'html-only', body: '\r\n ', bodyHtml: '<div>Primera</div><div>Segunda</div>' } }), store);
+  await ingest(email({ message: { externalId: 'multipart', text: 'Usa <div> aquí\n\nGracias', html: '<p>Otra versión</p>' } }), store);
+  assert.deepEqual(store.rowsFor('supportMessages').map(row => row.body), ['Primera\nSegunda', 'Usa <div> aquí\n\nGracias']);
+});
+
 const n8nOrigin = 'https://automation.example.com/n8n';
 const waitUrl = `${n8nOrigin}/webhook-waiting/817/approval`;
 
@@ -169,6 +191,15 @@ test('an incoming email with a proposal adds a pending outbound draft to the sam
   assert.equal(proposal.proposalStatus, 'CONFIRMED');
   assert.equal(values.size, 0);
   assert.equal(store.rowsFor('supportMessages').length, 2);
+});
+
+test('persists HTML reply proposals as editable plain text', async () => {
+  const store = new MemoryStore();
+  await ingest(email({ proposedReply: { body: '<p>Hola<br>Primera línea</p><p>Gracias</p>', callbackUrl: waitUrl } }), store, {
+    allowedOrigin: n8nOrigin,
+    storage: { async get() { return null; }, async set() {} },
+  });
+  assert.equal(store.rowsFor('supportMessages')[1].draftBody, 'Hola\nPrimera línea\n\nGracias');
 });
 
 test('a second n8n execution cannot replace the Wait URL of a pending proposal', async () => {

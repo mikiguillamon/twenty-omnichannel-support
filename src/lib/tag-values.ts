@@ -4,7 +4,7 @@ export function readTag(value: unknown): string {
   return tag.length <= 120 && !/[\u0000-\u001f\u007f]/.test(tag) ? tag : '';
 }
 
-function tagKey(value: string): string {
+export function tagKey(value: string): string {
   return value.normalize('NFC').toLocaleLowerCase('es');
 }
 

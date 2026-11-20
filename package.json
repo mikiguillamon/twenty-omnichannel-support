@@ -1,6 +1,6 @@
 {
   "name": "twenty-omnichannel-support",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Customer support cases, conversations and channel policies for Twenty CRM",
   "license": "MIT",
   "type": "module",
@@ -20,6 +20,7 @@
     "prepack": "node -e \"const fs=require('node:fs'),p=require('node:path');if(p.basename(process.cwd())!=='output'||p.basename(p.dirname(process.cwd()))!=='.twenty')throw Error('Publish via Twenty CLI, not the source root');fs.copyFileSync(p.resolve('../../LICENSE'),'LICENSE')\""
   },
   "devDependencies": {
+    "@types/html-to-text": "9.0.4",
     "@types/node": "^24.7.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -54,5 +55,8 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "html-to-text": "10.0.1"
   }
 }

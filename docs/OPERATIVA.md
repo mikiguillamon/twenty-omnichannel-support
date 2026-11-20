@@ -8,9 +8,9 @@ Selecciona **Personalizar indicadores** para elegir qué tarjetas mostrar en el 
 
 ## Gestionar conversaciones
 
-Abre **Conversaciones** desde la administración de Omnichannel o desde un acceso del menú de Twenty. Pulsa el título para abrir el historial en la ficha de Twenty o usa **Vista previa** para consultarlo sin salir de la bandeja. Puedes cargar mensajes anteriores y consultar las grabaciones o transcripciones disponibles.
+Abre **Conversaciones** desde la administración de Omnichannel o desde un acceso del menú de Twenty. Pulsa el título para ver el historial en la bandeja. Desde el historial puedes cargar mensajes anteriores, consultar las grabaciones o transcripciones disponibles y abrir la ficha con **Abrir ficha**.
 
-Combina la búsqueda por asunto o contacto con los filtros de canal, cuenta, estado, tipo, categoría, seguimiento y etiquetas. Pulsa una etiqueta de la tabla o escribe el nombre completo en **Etiqueta propia**. Si el tramo actual no tiene coincidencias y hay más registros, usa **Siguiente** para continuar la búsqueda.
+Combina la búsqueda por asunto o contacto con los filtros de canal, cuenta, estado, tipo, categoría, seguimiento y etiquetas. Pulsa una etiqueta de la tabla, usa **Etiquetas propias visibles** o escribe el nombre completo en **Etiqueta propia**. Si el tramo actual no tiene coincidencias y hay más registros, usa **Siguiente** para continuar la búsqueda.
 
 Guarda la búsqueda, los filtros y el orden como una vista con nombre. **Añadir al menú** te permite elegir el nombre visible del acceso. Para cambiarlo después, entra en **Administración Omnichannel → Accesos**. Gestionar accesos compartidos requiere el permiso de diseños (`LAYOUTS`). El acceso a las conversaciones y a las vistas guardadas se rige por los permisos de sus objetos de Twenty.
 

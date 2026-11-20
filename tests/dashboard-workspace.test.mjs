@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadDashboardCatalog } from '../src/lib/dashboard-metadata.ts';
+import { builtinDashboardCatalog, fieldOptions, loadDashboardCatalog } from '../src/lib/dashboard-metadata.ts';
 import { fetchWorkspaceDataset, summarize, workspaceWidgetFields } from '../src/lib/dashboard-analytics.ts';
 import { createDashboard, makeWidget, normalizeWidget } from '../src/lib/dashboard-model.ts';
 import { exportDashboard, importDashboard } from '../src/lib/dashboard-store.ts';
@@ -101,6 +101,86 @@ test('buckets de-duplicate array values per record and KPI, ratio and distinct c
   assert.equal(summarize(data,{ ...base, filters:[{field:'labels',operator:'eq',value:'enterprise'}] },all).value,1);
   assert.equal(summarize(data,{ ...base, aggregation:'ratio', ratioField:'labels', ratioValue:'priority' },all).value,50);
   assert.equal(summarize(data,{ ...base, aggregation:'distinct', valueField:'labels' },all).value,2);
+});
+
+test('groups conversations by individual custom tags using the same spelling equivalence as the inbox', async () => {
+  const catalog = await loadDashboardCatalog({ async query() {
+    return {
+      currentUser: { currentUserWorkspace: { objectPermissions: [permission('supportCases')] } },
+      objects: { edges: [{ node: recordType('supportCases', [field('id', 'UUID'), field('customTags', 'ARRAY', { label: 'Etiquetas propias' })]) }], pageInfo: { hasNextPage: false } },
+    };
+  } });
+  const source = catalog.get('supportCases');
+  assert.equal(source.fields.get('customTags').label, 'Etiquetas propias');
+  const widget = normalizeWidget({ kind: 'table', source: 'supportCases', groupBy: 'customTags', dateField: '' });
+  const data = await fetchWorkspaceDataset(source, workspaceWidgetFields(widget), { async get(path, { query }) {
+    assert.equal(path, '/rest/supportCases');
+    assert.equal(query.fields, 'id,customTags');
+    return { data: { supportCases: [
+      { id: 'one', customTags: ['Atención', 'ATENCIÓN', 'Campus'] },
+      { id: 'two', customTags: [' atencio\u0301n '] },
+      { id: 'three', customTags: [] },
+    ] } };
+  } });
+  const summary = summarize(data, widget, { key: 'all' });
+  assert.equal(summary.value, 3);
+  assert.deepEqual(summary.points, [{ name: 'Atención', value: 2 }, { name: 'Campus', value: 1 }, { name: 'Sin clasificar', value: 1 }]);
+  const filters = [{ field: 'customTags', operator: 'eq', value: 'ATENCIÓN' }];
+  assert.equal(summarize(data, { ...widget, filters }, { key: 'all' }).value, 2);
+});
+
+test('displays conversation status labels in groups and filter options even when Twenty omits option metadata', async () => {
+  const catalog = await loadDashboardCatalog({ async query() {
+    return {
+      currentUser: { currentUserWorkspace: { objectPermissions: [permission('supportCases')] } },
+      objects: { edges: [{ node: recordType('supportCases', [
+        field('id', 'UUID'), field('status', 'SELECT', { options: [] }),
+        field('automation', 'SELECT'),
+        field('channel', 'SELECT', { options: [{ value: 'EMAIL', label: 'Buzón de soporte' }] }),
+      ]) }], pageInfo: { hasNextPage: false } },
+    };
+  } });
+  const api = { async get() {
+    return { data: { supportCases: [
+      { id: 'a', status: 'AUTOMATED', channel: 'EMAIL' },
+      { id: 'b', status: 'IN_PROGRESS', channel: 'EMAIL' },
+    ] } };
+  } };
+  const widget = normalizeWidget({ kind: 'bar', source: 'supportCases', groupBy: 'status', dateField: '' });
+  for (const available of [catalog, builtinDashboardCatalog]) {
+    const source = available.get('supportCases');
+    assert.deepEqual(fieldOptions(source.fields.get('status')).find(option => option.value === 'IN_PROGRESS'), {
+      value: 'IN_PROGRESS', label: 'En curso',
+    });
+    assert.deepEqual(fieldOptions(source.fields.get('automation')).find(option => option.value === 'FULL'), {
+      value: 'FULL', label: 'Total',
+    });
+    const data = await fetchWorkspaceDataset(source, ['status', 'channel'], api);
+    assert.deepEqual(summarize(data, widget, { key: 'all' }).points, [
+      { name: 'Automática', value: 1 }, { name: 'En curso', value: 1 },
+    ]);
+    const channelLabel = available === catalog ? 'Buzón de soporte' : 'Correo';
+    assert.deepEqual(summarize(data, { ...widget, groupBy: 'channel' }, { key: 'all' }).points, [{ name: channelLabel, value: 2 }]);
+  }
+});
+
+test('saved exclusion filters combine with inclusion filters for scalar and array values', () => {
+  const dashboard = createDashboard();
+  dashboard.widgets = [normalizeWidget({ kind: 'bar', source: 'supportCases', dateField: '', groupBy: 'status', filters: [
+    { field: 'channel', operator: 'eq', value: 'EMAIL' },
+    { field: 'automation', operator: 'neq', value: 'FULL' },
+    { field: 'customTags', operator: 'neq', value: 'verano' },
+  ] })];
+  const [widget] = importDashboard(exportDashboard(dashboard)).widgets;
+  assert.deepEqual(widget.filters, dashboard.widgets[0].filters);
+  const rows = [
+    { id: '1', channel: 'EMAIL', automation: 'FULL', customTags: [] },
+    { id: '2', channel: 'EMAIL', automation: 'NONE', customTags: ['VERANO', 'Campus'] },
+    { id: '3', channel: 'EMAIL', automation: null, customTags: null },
+    { id: '4', channel: 'WHATSAPP', automation: 'NONE', customTags: ['Campus'] },
+    { id: '5', channel: 'EMAIL', automation: 'NONE', customTags: ['Verano Plus'] },
+  ];
+  assert.equal(summarize({ rows, complete: true, total: rows.length }, widget, { key: 'all' }).value, 2);
 });
 
 test('dataset page overlaps never inflate record count or hide missing records', async () => {

@@ -1,4 +1,5 @@
 import { MetadataApiClient } from 'twenty-client-sdk/metadata';
+import { conversationChannels, conversationFollowUps, conversationStatuses, conversationTagLabels } from './conversation-inbox.ts';
 import { SOURCES, isDashboardField, isSource, type Source } from './dashboard-model.ts';
 
 export type DashboardFieldKind = 'text' | 'select' | 'array' | 'boolean' | 'number' | 'date' | 'dateTime' | 'relation' | 'name' | 'composite';
@@ -49,13 +50,19 @@ const builtinLabels: Readonly<Record<string, string>> = {
   lastErrorAt: 'Último error', publishedAt: 'Publicación', lastSyncedAt: 'Última sincronización', revision: 'Revisión',
 };
 
+const conversationOptions = new Map(Object.entries({
+  channel: conversationChannels, status: conversationStatuses, followUp: conversationFollowUps, tags: conversationTagLabels,
+  automation: { PENDING: 'Pendiente', FULL: 'Total', PARTIAL: 'Parcial', NONE: 'Ninguna' },
+}).map(([name, labels]) => [name, Object.entries(labels).map(([value, label]) => ({ value, label }))]));
+
 export const builtinDashboardCatalog: DashboardCatalog = new Map(
   Object.entries(SOURCES).map(([key, definition]) => {
     const entries = new Map<string, DashboardField>();
     for (const name of definition.dimensions) {
       const column = name === 'categoryId' ? 'category' : name === 'caseTypeId' ? 'caseType' : name;
-      const kind = column !== name ? 'relation' : name === 'tags' || name === 'customTags' || name === 'scopeTags' ? 'array' : 'text';
-      entries.set(name, { key: name, column, kind, label: builtinLabels[name] ?? name });
+      const options = key === 'supportCases' ? conversationOptions.get(name) : undefined;
+      const kind = column !== name ? 'relation' : name === 'tags' || name === 'customTags' || name === 'scopeTags' ? 'array' : options ? 'select' : 'text';
+      entries.set(name, { key: name, column, kind, label: builtinLabels[name] ?? name, options });
     }
     for (const name of definition.numeric) entries.set(name, { key: name, column: name, label: builtinLabels[name] ?? name, kind: 'number' });
     for (const name of definition.dates) entries.set(name, { key: name, column: name, label: builtinLabels[name] ?? name, kind: 'dateTime' });
@@ -83,14 +90,19 @@ const compoundFields = new Map<string, Array<[string, string]>>([
   ['ADDRESS', [['addressCity','Ciudad'], ['addressState','Provincia'], ['addressCountry','País'], ['addressPostcode','Código postal']]],
 ]);
 
-function fromMetadata(field: MetadataField): DashboardField[] {
+function fromMetadata(field: MetadataField, source: string): DashboardField[] {
   const { name, label, type } = field;
   if (field.isActive === false || !isDashboardField(name) || name.includes('.') || isSecretField(name)) return [];
   if (type === 'RELATION' && field.relation?.type === 'MANY_TO_ONE') {
     return [{ key: name + 'Id', column: name, label, kind: 'relation' }];
   }
   const simpleKind = simpleKinds.get(type);
-  if (simpleKind) return [{ key: name, column: name, label, kind: simpleKind, options: optionsFrom(field.options) }];
+  if (simpleKind) {
+    const options = optionsFrom(field.options) ?? [];
+    const fallback = source === 'supportCases' ? conversationOptions.get(name) : undefined;
+    const missing = fallback?.filter(option => !options.some(item => item.value === option.value)) ?? [];
+    return [{ key: name, column: name, label, kind: simpleKind, options: [...options, ...missing] }];
+  }
   return compoundFields.get(type)?.map(([property, component]) => ({
     key: name + '.' + property, column: name, label: label + ' · ' + component, kind: 'composite', property,
   })) ?? [];
@@ -102,7 +114,7 @@ function readDashboardSource(object: MetadataObject, restricted: unknown): Dashb
     ? restricted as Record<string, { canRead?: boolean } | undefined> : {};
   const visible = object.fieldsList.filter(field => denials[field.id]?.canRead !== false);
   if (!visible.some(field => field.name === 'id' && field.isActive !== false)) return null;
-  const entries = visible.filter(field => field.name !== 'id').flatMap(fromMetadata);
+  const entries = visible.filter(field => field.name !== 'id').flatMap(field => fromMetadata(field, object.namePlural));
   const preferred = visible.find(field => field.id === object.labelIdentifierFieldMetadataId)?.name;
   entries.sort((a,b) => Number(b.key === preferred) - Number(a.key === preferred) || a.label.localeCompare(b.label, 'es'));
   return { key: object.namePlural, label: object.labelPlural, fields: new Map(entries.map(field => [field.key, field])) };

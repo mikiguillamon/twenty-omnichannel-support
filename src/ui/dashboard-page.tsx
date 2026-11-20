@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { copyToClipboard, openCommandConfirmationModal, useColorScheme, useLocation } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import {
-  WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS,
+  WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS, MAX_WIDGET_FILTERS,
   createDashboard, defaultDashboard, makeWidget, moveDashboardWidget, resizeDashboardWidgetTo, newId, normalizeWidget, periodFrom,
   type Source, type WidgetKind, type Dashboard, type DashboardWidget, type DashboardFilter, type Period, type StoredDashboard,
 } from '../lib/dashboard-model.ts';
@@ -25,6 +25,13 @@ const CALCULATIONS: Record<DashboardWidget['aggregation'], string> = {
 };
 const WIDTHS=[3,4,6,8,12] as const;
 type SourceResult = { signature: string; data?: Dataset; error?: string };
+type FilterDraft = DashboardFilter & { index?: number };
+const emptyFilter: FilterDraft = { field: '', operator: 'eq', value: '' };
+const filterModes = [['eq', 'Incluir'], ['neq', 'Excluir']] as const;
+const filterConditions = {
+  array: { eq: 'Incluye', neq: 'No incluye' },
+  scalar: { eq: 'Es igual a', neq: 'Es distinto de' },
+};
 
 function referenceDates(fields: DashboardField[], kind: WidgetKind): DashboardField[] {
   return fields.filter(field => field.kind === 'dateTime' || (kind !== 'hour' && field.kind === 'date'));
@@ -58,8 +65,16 @@ function widgetDataMessage(widget: DashboardWidget, source: DashboardSource | un
 
 const responsiveDashboardStyles = `
 .omni-dashboard { container-name: omni-dashboard; container-type: inline-size; }
+.omni-dashboard__widget-editor { flex: 0 1 295px; min-width: min(255px, 100%); }
+.omni-dashboard__filter-editor { display: grid; gap: 12px; }
+.omni-dashboard__filter-field { display: grid; gap: 5px; min-width: 0; }
+.omni-dashboard__filter-mode { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.omni-dashboard__filter-mode input { margin: 0; }
+.omni-dashboard__filter-mode:focus-within { outline: 2px solid currentColor; outline-offset: 2px; }
+.omni-dashboard__filter-editor :is(button, input, select):disabled { cursor: default; opacity: .65; }
 @container omni-dashboard (width <= 800px) {
   .omni-dashboard__grid { --omni-dashboard-columns: 2; }
+  .omni-dashboard__widget-editor { flex-basis: 100%; }
   .omni-dashboard__widget { --omni-dashboard-responsive-span: 1; }
   .omni-dashboard__widget[data-wide='true'] { --omni-dashboard-responsive-span: 2; }
 }
@@ -100,9 +115,8 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
   const [linkHelp,setLinkHelp]=useState(false);
   const [addKind,setAddKind]=useState<WidgetKind>('kpi');
   const [addSource,setAddSource]=useState<Source>('supportCases');
-  const [filterField,setFilterField]=useState('');
-  const [filterValue,setFilterValue]=useState('');
-  const [filterOperator,setFilterOperator]=useState<DashboardFilter['operator']>('eq');
+  const [filterDraft, setFilterDraft] = useState<FilterDraft>(emptyFilter);
+  const filterModeName = useId();
 
   const bg=dark?'#1D232C':'#F8FAFC';
   const surface=dark?'#252D38':'#FFFFFF';
@@ -129,7 +143,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
     if (!source || keys.some(key => !source.fields.has(key))) continue;
     const fields = fieldsBySource.get(item.source) ?? new Set<string>();
     keys.forEach(key => fields.add(key));
-    if (item.id === editingWidget && source.fields.has(filterField)) fields.add(filterField);
+    if (item.id === editingWidget && source.fields.has(filterDraft.field)) fields.add(filterDraft.field);
     fieldsBySource.set(item.source, fields);
   }
   const queries = [...fieldsBySource].map(([source,keys]) => {
@@ -327,7 +341,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
     const source = catalog.get(addSourceKey);
     const base = makeWidget(addKind,addSourceKey || 'supportCases');
     const next = source ? usingSource(base,source) : base;
-    setFilterField('');setFilterValue('');setFilterOperator('eq');
+    setFilterDraft(emptyFilter);
     mutate(d=>({...d,widgets:[...d.widgets,next]}));setEditingWidget(next.id);
   }
   function renderChart(w:DashboardWidget){
@@ -344,6 +358,11 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
     function change<K extends keyof DashboardWidget>(name:K,value:DashboardWidget[K]) { modifyWidget(w.id,{[name]:value}); }
     const source = catalog.get(w.source);
     const fields = [...(source?.fields.values() ?? [])];
+    const selectedFilterField = source?.fields.get(filterDraft.field);
+    const filterIndex = filterDraft.index;
+    const showFilterEditor = filterIndex !== undefined || w.filters.length < MAX_WIDGET_FILTERS;
+    const canApplyFilter = Boolean(selectedFilterField && filterDraft.value.trim() && filterDraft.value.length <= 120);
+    const filterLabel = { fontSize: 12, fontWeight: 550 };
     const numeric = fields.filter(field => field.kind === 'number');
     const dates = referenceDates(fields, w.kind);
     const aggregationOptions: DashboardWidget['aggregation'][] = ['count', 'ratio', 'distinct'];
@@ -353,6 +372,18 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
       {selected && !values.some(value => value.key === selected) && <option value={selected} disabled>{fieldLabel(source, selected)} · No disponible</option>}
       {values.map(value => <option key={value.key} value={value.key}>{value.label}</option>)}
     </>;
+    function applyFilter() {
+      if (!canApplyFilter) return;
+      const filter = { field: filterDraft.field, operator: filterDraft.operator, value: filterDraft.value.trim() };
+      const filters = filterIndex === undefined ? [...w.filters, filter] : w.filters.map((item, index) => index === filterIndex ? filter : item);
+      change('filters', filters);
+      setFilterDraft(emptyFilter);
+    }
+    function removeFilter(index: number) {
+      change('filters', w.filters.filter((_, position) => position !== index));
+      if (filterIndex === index) setFilterDraft(emptyFilter);
+      else if (filterIndex !== undefined && filterIndex > index) setFilterDraft({ ...filterDraft, index: filterIndex - 1 });
+    }
     function valueInput(key: string, value: string, onChange: (value: string) => void, placeholder: string) {
       const selectedField = source?.fields.get(key);
       const choices = fieldOptions(selectedField);
@@ -391,7 +422,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
         <label style={{fontSize:12}}>Objeto de Twenty<select style={field} value={w.source} disabled={!catalogState} onChange={e=>{
           const next = catalog.get(e.target.value);
           if (!next) return;
-          setFilterField('');setFilterValue('');setFilterOperator('eq');
+          setFilterDraft(emptyFilter);
           changeWidget(w.id,previous=>usingSource({...makeWidget(previous.kind,next.key,previous.title),id:previous.id,width:previous.width,height:previous.height,compare:previous.compare}, next));
         }}>
           {!source && <option value={w.source} disabled>{w.source} · No disponible</option>}
@@ -415,28 +446,60 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
           <option value="inherit">Heredar del dashboard</option>{PERIOD_KEYS.filter(k=>k!=='custom').map(k=><option key={k} value={k}>{PERIOD_LABELS[k]}</option>)}</select></label>
         <label style={{display:'flex',alignItems:'center',gap:7,fontSize:12}}>
           <input type="checkbox" checked={w.compare} onChange={e=>change('compare',e.target.checked)}/>Comparar con período anterior</label>
-        <div style={{borderTop:'1px solid '+border,paddingTop:10,display:'flex',flexDirection:'column',gap:8}}>
-          <strong style={{fontSize:12}}>Filtros del widget</strong>
-          {w.filters.map((f,i)=><div key={i} style={{display:'flex',gap:5,alignItems:'center',fontSize:12}}>
-            <span style={{flex:1,overflowWrap:'anywhere'}}>{fieldLabel(source,f.field)} {f.operator==='eq'?'=':'≠'} {displayDashboardValue(source?.fields.get(f.field),f.value)}</span>
-            <button style={btn} type="button" aria-label={'Quitar filtro de '+fieldLabel(source,f.field)} onClick={()=>change('filters',w.filters.filter((_,j)=>j!==i))}>×</button>
-          </div>)}
-          {w.filters.length<5&&<div style={{display:'flex',flexDirection:'column',gap:6}}>
-            <select style={field} value={filterField} aria-label="Campo del filtro" onChange={e=>{setFilterField(e.target.value);setFilterValue('');}}>
-              <option value="">Selecciona un campo</option>{optionsFor(fields,filterField)}</select>
-            {filterField && <>
-              <select style={field} aria-label="Condición del filtro" value={filterOperator} onChange={e=>setFilterOperator(e.target.value==='neq'?'neq':'eq')}>
-                <option value="eq">{source?.fields.get(filterField)?.kind==='array'?'Incluye':'Es igual a'}</option>
-                <option value="neq">{source?.fields.get(filterField)?.kind==='array'?'No incluye':'Es distinto de'}</option>
+        <section className="omni-dashboard__filter-editor" aria-label="Filtros del widget" style={{ borderBlock: '1px solid ' + border, paddingBlock: 14 }}>
+          <header>
+            <h3 style={{ margin: 0, fontSize: 14 }}>Filtros del widget</h3>
+            {w.filters.length > 1 && <p style={{ margin: '4px 0 0', color: muted, fontSize: 12 }}>Los registros deben cumplir todos los filtros.</p>}
+          </header>
+          {w.filters.length > 0 && <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {w.filters.map((filter, index) => {
+              const name = fieldLabel(source, filter.field);
+              const definition = source?.fields.get(filter.field);
+              const condition = filterConditions[definition?.kind === 'array' ? 'array' : 'scalar'][filter.operator];
+              return <li key={index} style={{ display: 'grid', gap: 4, fontSize: 12, paddingBlock: 8, borderBottom: '1px solid ' + border }}>
+                <strong style={{ overflowWrap: 'anywhere' }}>{name}</strong>
+                <span style={{ color: muted, overflowWrap: 'anywhere' }}>{condition} {displayDashboardValue(definition, filter.value)}</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={{ ...btn, padding: '5px 9px' }} type="button" aria-label={'Editar filtro de ' + name}
+                    onClick={() => setFilterDraft({ ...filter, index })}>Editar</button>
+                  <button style={{ ...btn, padding: '5px 9px' }} type="button" aria-label={'Quitar filtro de ' + name}
+                    onClick={() => removeFilter(index)}>Quitar</button>
+                </div>
+              </li>;
+            })}
+          </ul>}
+          {showFilterEditor ? <div className="omni-dashboard__filter-editor">
+            <label className="omni-dashboard__filter-field" style={filterLabel}>Campo
+              <select style={field} value={filterDraft.field} aria-label="Campo del filtro"
+                onChange={e => setFilterDraft({ ...filterDraft, field: e.target.value, value: '' })}>
+                <option value="">Selecciona un campo</option>{optionsFor(fields, filterDraft.field)}
               </select>
-              {valueInput(filterField,filterValue,setFilterValue,'Valor exacto')}
-            </>}
-            <button style={btn} disabled={!source?.fields.has(filterField)||!filterValue.trim()} onClick={()=>{
-              change('filters',[...w.filters,{field:filterField,operator:filterOperator,value:filterValue.trim()}]);
-              setFilterField('');setFilterValue('');setFilterOperator('eq');
-            }}>Añadir filtro</button>
-          </div>}
-        </div>
+            </label>
+            <fieldset style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }}>
+              <legend style={{ ...filterLabel, padding: 0, marginBottom: 5 }}>Condición</legend>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                {filterModes.map(([operator, label]) => <label className="omni-dashboard__filter-mode" key={operator}
+                  style={{ ...btn, borderColor: operator === filterDraft.operator ? accent : border }}>
+                  <input type="radio" name={filterModeName} checked={operator === filterDraft.operator} style={{ accentColor: accent }}
+                    onChange={() => setFilterDraft({ ...filterDraft, operator })} />{label}
+                </label>)}
+              </div>
+              {filterDraft.operator === 'neq' && <p style={{ margin: '6px 0 0', color: muted, fontSize: 12 }}>Los registros con el campo vacío también se incluyen.</p>}
+            </fieldset>
+            <div className="omni-dashboard__filter-field">
+              <span style={filterLabel}>Valor</span>
+              {selectedFilterField ? valueInput(filterDraft.field, filterDraft.value,
+                value => setFilterDraft({ ...filterDraft, value }), 'Valor exacto') :
+                <select style={field} aria-label="Valor exacto" disabled><option>Selecciona primero un campo</option></select>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button style={canApplyFilter ? primary : btn} type="button" disabled={!canApplyFilter} onClick={applyFilter}>
+                {filterIndex === undefined ? 'Añadir filtro' : 'Aplicar cambios'}
+              </button>
+              {filterIndex !== undefined && <button style={btn} type="button" onClick={() => setFilterDraft(emptyFilter)}>Cancelar</button>}
+            </div>
+          </div> : <p style={{ margin: 0, color: muted, fontSize: 12 }}>Puedes aplicar hasta {MAX_WIDGET_FILTERS} filtros.</p>}
+        </section>
       </>}
       <label style={{fontSize:12}}>Anchura<select style={field} value={w.width} onChange={e=>change('width',Number(e.target.value) as DashboardWidget['width'])}>
         {WIDTHS.map(n=><option key={n} value={n}>{n}/12 columnas</option>)}</select></label>
@@ -554,7 +617,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
               {editing&&<div style={{display:'flex',gap:3,alignItems:'center',flexShrink:0}}>
                 <button style={{...btn,padding:'3px 7px'}} title="Configurar" aria-label={'Configurar '+w.title}
                   onPointerDown={e=>e.stopPropagation()}
-                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');setFilterOperator('eq');}}>
+                  onClick={()=>{setEditingWidget(w.id);setFilterDraft(emptyFilter);}}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4V21H9v-1.6a1.7 1.7 0 0 0-1.88-.34l-.06.06L4.2 16.26l.06-.06A1.7 1.7 0 0 0 4.6 14.3H3v-4.6h1.6a1.7 1.7 0 0 0-.34-1.88L4.2 7.76 7.06 4.9l.06.06A1.7 1.7 0 0 0 9 4.6V3h6v1.6a1.7 1.7 0 0 0 1.88.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 9.7H21v4.6h-1.6z"/></svg>
                 </button>
@@ -597,7 +660,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
           </section>}
         </div>
       </div>
-      {editing&&widget&&<aside style={{flex:'0 1 295px',minWidth:255}}>{widgetEditor(widget)}</aside>}
+      {editing&&widget&&<aside className="omni-dashboard__widget-editor">{widgetEditor(widget)}</aside>}
     </div>}
     {dashboard&&<p style={{fontSize:11,color:muted}}>Períodos calculados en la zona horaria del navegador. Los datos pertenecen al workspace actual. Hasta 3.000 registros por fuente; si se supera el límite, las métricas no se muestran como definitivas.</p>}
   </div>;

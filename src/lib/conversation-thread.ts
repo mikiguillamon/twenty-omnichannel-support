@@ -1,6 +1,7 @@
 import { RestApiClientError, type RestApiClient } from 'twenty-client-sdk/rest';
 import { readRestCollection } from './rest-collections.ts';
 import { sortMessagesChronologically } from './sort-support-messages.ts';
+import { storedMessageText } from './message-text.ts';
 
 export { PROPOSAL_BODY_LIMIT } from './proposal-constants.ts';
 export type ProposalStatus = 'PENDING' | 'CONFIRMED' | 'DISCARDED';
@@ -30,7 +31,12 @@ export async function loadConversationMessages(client: Pick<RestApiClient, 'get'
       fields: 'id,body,draftBody,occurredAt,senderType,direction,deliveryStatus,proposalStatus,replyDecision,callTranscription,callRecording',
     },
   });
-  return readRestCollection<ConversationMessage>(response, 'supportMessages');
+  const page = readRestCollection<ConversationMessage>(response, 'supportMessages');
+  return { ...page, records: page.records.map(message => ({
+    ...message,
+    ...(typeof message.body === 'string' && { body: storedMessageText(message.body) }),
+    ...(typeof message.draftBody === 'string' && { draftBody: storedMessageText(message.draftBody) }),
+  })) };
 }
 
 export function mergeConversationMessages(current: ConversationMessage[], older: ConversationMessage[]): ConversationMessage[] {

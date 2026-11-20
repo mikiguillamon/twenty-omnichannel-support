@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { IngestError, PROPOSAL_BODY_LIMIT } from '../ingestion/contract.ts';
+import { normalizeLineEndings } from '../message-text.ts';
 import type { DbRecord, IngestionStore } from '../ingestion/processor.ts';
 import { proposalStorageKey, type PrivateProposalStorage, type StoredProposalCallback } from './create.ts';
 import { n8nWaitUrl } from './n8n-wait.ts';
@@ -22,7 +23,7 @@ export function parseProposalDecision(value: unknown): ProposalDecision {
     throw new IngestError('INVALID_PROPOSAL_DECISION', 'Expected messageId and a boolean confirmed');
   }
   if (confirmed && typeof message === 'string' && message.trim() && message.length <= PROPOSAL_BODY_LIMIT) {
-    return { messageId, confirmed: true, message };
+    return { messageId, confirmed: true, message: normalizeLineEndings(message) };
   }
   if (!confirmed && !Object.hasOwn(record, 'message')) return { messageId, confirmed: false };
   throw new IngestError('INVALID_PROPOSAL_DECISION', 'Confirm with nonempty message text or discard without message');

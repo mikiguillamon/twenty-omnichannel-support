@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { ConversationThread } from '../front-components/case-timeline.tsx';
+import { openConversationRecord } from '../lib/conversation-inbox-navigation.ts';
 import {
-  conversationChannels, conversationFollowUps, conversationRecordHref, conversationStatuses,
+  conversationChannels, conversationFollowUps, conversationStatuses,
   conversationTagLabels, loadConversationDetails, updateConversationStatus,
   type ConversationCatalogItem, type ConversationChannel, type ConversationDetails, type ConversationRow, type ConversationStatus,
 } from '../lib/conversation-inbox.ts';
@@ -137,15 +138,13 @@ export function ConversationTable({ rows, catalogs, selectedId, loading, onSelec
           const accountName = catalogName(catalogs.channels, row.channelInstanceId);
           const activity = activityOf(row);
           const classification = [catalogName(catalogs.types, row.caseTypeId), catalogName(catalogs.categories, row.categoryId)].filter(Boolean).join(' · ');
-          const href = conversationRecordHref(row.id);
           return <tr key={row.id} data-open={row.id === selectedId}>
             <td className="omni-inbox__primary-cell">
-              {href ? <a className="omni-inbox__subject" href={href}><strong>{subjectOf(row)}</strong></a>
-                : <strong>{subjectOf(row)}</strong>}
+              <button className="omni-inbox__subject" type="button" onClick={() => onSelect(row)} aria-expanded={row.id === selectedId}>
+                <strong>{subjectOf(row)}</strong>
+              </button>
               {origin && <span className="omni-inbox__note" style={{ overflowWrap: 'anywhere' }}>{origin}</span>}
               <ConversationTags row={row} onFilter={onFilterTag} />
-              <button className="omni-inbox__preview" type="button" onClick={() => onSelect(row)} aria-expanded={row.id === selectedId}
-                aria-label={'Vista previa de ' + subjectOf(row)}><InboxIcon name="chat" />Vista previa</button>
             </td>
             <td><ChannelLabel channel={row.channel} />{accountName && <div className="omni-inbox__note">{accountName}</div>}</td>
             <td><StatusLabel status={row.status} /></td>
@@ -213,8 +212,16 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
   const account = catalogName(catalogs.channels, row.channelInstanceId);
   const origin = originOf(row);
   const title = subjectOf(row);
-  const href = conversationRecordHref(row.id);
   const classification = [catalogName(catalogs.types, row.caseTypeId), catalogName(catalogs.categories, row.categoryId)].filter(Boolean).join(' · ');
+
+  async function openRecord() {
+    setError('');
+    try {
+      await openConversationRecord(row.id);
+    } catch {
+      setError('No se pudo abrir la ficha de la conversación.');
+    }
+  }
 
   return <aside className="omni-inbox__detail" aria-label={`Detalle de ${title}`}>
     <header>
@@ -234,7 +241,7 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
       <div className="omni-inbox__controls">
         <InboxSelect label="Estado" value={row.status ?? ''} allLabel={row.status ? undefined : 'Seleccionar estado'}
           options={Object.entries(conversationStatuses)} onChange={value => void changeStatus(value)} disabled={saving} />
-        {href && <a className="omni-inbox__control" href={href}><InboxIcon name="open" />Abrir ficha</a>}
+        <button type="button" className="omni-inbox__control" onClick={() => void openRecord()}><InboxIcon name="open" />Abrir ficha</button>
       </div>
       {error && <p role="alert" className="omni-inbox__alert" style={{ marginTop: 10 }}>{error}</p>}
       {notice && <p role="status" className="omni-inbox__notice">{notice}</p>}

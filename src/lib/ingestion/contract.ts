@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { messageText } from '../message-text.ts';
 import { PROPOSAL_BODY_LIMIT } from '../proposal-constants.ts';
 
 export { PROPOSAL_BODY_LIMIT } from '../proposal-constants.ts';
@@ -113,12 +114,13 @@ const lower = (value: unknown): string => string(value).toLowerCase();
 
 function normalizeProposedReply(raw: unknown): ProposedReply {
   const proposal = object(raw);
+  const body = messageText(proposal.body);
   if (Object.keys(proposal).some(key => key !== 'body' && key !== 'callbackUrl') ||
-      typeof proposal.body !== 'string' || !proposal.body.trim() || proposal.body.length > PROPOSAL_BODY_LIMIT ||
+      !body.trim() || body.length > PROPOSAL_BODY_LIMIT ||
       typeof proposal.callbackUrl !== 'string' || !proposal.callbackUrl.trim() || proposal.callbackUrl.length > 2048) {
     throw new IngestError('INVALID_PROPOSAL', 'proposedReply requires body and a Wait callbackUrl');
   }
-  return { body: proposal.body, callbackUrl: proposal.callbackUrl.trim() };
+  return { body, callbackUrl: proposal.callbackUrl.trim() };
 }
 
 function max(value: string, limit: number, name: string): string {
@@ -329,7 +331,14 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     (direction === 'INBOUND' ? 'CUSTOMER' : 'AGENT');
   if (!['CUSTOMER', 'BOT', 'AGENT'].includes(sender)) throw new IngestError('INVALID_SENDER', 'Invalid senderType');
 
-  const body = max(string(message.body ?? message.text ?? top.body), 100000, 'body');
+  let body = messageText(message.text ?? top.text);
+  if (!body.trim()) body = messageText(message.body ?? top.body);
+  if (!body.trim()) {
+    const html = [message.html, message.bodyHtml, message.textHtml, top.html, top.bodyHtml, top.textHtml]
+      .find(value => typeof value === 'string' && value.trim());
+    body = messageText(html, 'html');
+  }
+  body = max(body.trim() ? body : '', 100000, 'body');
   const subject = max(string(message.subject ?? top.subject), 500, 'subject');
   const contactFirstName = max(string(contact.firstName ?? top.firstName), 255, 'contact.firstName');
   const contactLastName = max(string(contact.lastName ?? top.lastName), 255, 'contact.lastName');

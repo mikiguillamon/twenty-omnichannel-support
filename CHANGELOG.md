@@ -1,3 +1,11 @@
+## 1.2.1 — Historial de conversaciones y etiquetas en dashboards
+
+- Abre el historial de correo y chat al pulsar el asunto en la bandeja. La ficha se abre desde el historial.
+- Guarda el contenido recibido por la API de ingestión en texto plano con sus saltos de línea. Muestra el HTML de mensajes anteriores como texto al consultar el historial.
+- Permite seleccionar etiquetas propias en la bandeja y agrupar por cada etiqueta en dashboards. Las variantes de mayúsculas y Unicode de una misma etiqueta comparten grupo.
+- Muestra los nombres de los estados y canales en las visualizaciones y los filtros de dashboards.
+- Da acceso directo a **Incluir** y **Excluir** en los filtros de widgets, con opciones legibles y edición de las condiciones activas.
+
 ## 1.2.0 — Conversaciones, etiquetas y datos del workspace
 
 - Abre la ficha de Twenty desde el título de la conversación y ofrece una vista previa en la bandeja.

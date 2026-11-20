@@ -120,7 +120,8 @@ Para `EMAIL`, la app puede encontrar o crear una Persona por correo electrónico
 | `direction` | enum | `INBOUND` o `OUTBOUND`. Por defecto `INBOUND`, excepto `message.sent`. |
 | `senderType` | enum | `CUSTOMER`, `BOT`, `AGENT`. Predeterminado: cliente en entrada, agente en salida. |
 | `deliveryStatus` | enum | `RECEIVED`, `PENDING`, `SENT`, `DELIVERED`, `FAILED`. Predeterminado: `RECEIVED` en entradas y `PENDING` en salidas, salvo `message.sent` que presume `SENT` si se omite. |
-| `body` o `text` | string | Texto, máximo 100.000 caracteres. Si está vacío, el registro usa el marcador `[Message without text or with attachment]`. Alternativa `body` en raíz. |
+| `text`, `body` | string | Contenido. Se usa el primer valor con texto en este orden. El HTML reconocible se convierte a texto plano. Se conservan los saltos de línea y se normalizan a `\n`. También se admiten en raíz. |
+| `html`, `bodyHtml`, `textHtml` | string | Cuerpo HTML opcional cuando no hay contenido en `text` o `body`. Se convierte a texto plano conservando párrafos y saltos de línea. También se admiten en raíz. |
 | `subject` | string | Asunto, máximo 500 caracteres. Valor predeterminado: `Support enquiry`. Alternativa en raíz. |
 | `fromAddress` o `from` | string | Origen, máximo 500 caracteres. Alternativa `fromAddress` en raíz. |
 | `toAddress` o `to` | string | Destino, máximo 500 caracteres. Alternativa `toAddress` en raíz. |
@@ -135,6 +136,8 @@ Para `EMAIL`, la app puede encontrar o crear una Persona por correo electrónico
 | `remoteJid`, `remoteJidAlt` | string | También se utilizan para descubrir alias WhatsApp, como en `contact`. |
 | `callTranscription` | string o null | Transcripción del mensaje o llamada, máximo 100.000 caracteres. Se guarda en `supportMessages.callTranscription` si contiene texto. |
 | `callRecordingUrl` | string o null | URL HTTPS de audio, máximo 2.048 caracteres, sin usuario/contraseña en la URL. Se guarda como `LINKS` en `supportMessages.callRecording`. |
+
+El contenido guardado admite 100.000 caracteres. Si no queda texto disponible, se guarda el marcador `[Message without text or with attachment]` o el texto predeterminado de la llamada.
 
 Si no envías `externalId` ni `idempotencyKey`, el servidor genera una clave distinta para esa petición y responde `stableId: false`. **Los reintentos no quedan deduplicados** en ese caso. En producción conviene aportar siempre un ID estable por mensaje.
 

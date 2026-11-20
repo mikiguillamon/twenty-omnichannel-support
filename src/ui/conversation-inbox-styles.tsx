@@ -100,9 +100,10 @@ const stylesheet = `
   container: omni-list / inline-size;
   min-width: 0; border: 1px solid var(--inbox-line); border-radius: 10px; overflow: hidden;
 }
-.omni-inbox__table-scroll { overflow-x: auto; }
+.omni-inbox__table-scroll { overflow: auto; max-height: 65dvh; }
 .omni-inbox__table { width: 100%; border-collapse: collapse; table-layout: auto; text-align: left; }
 .omni-inbox__table th {
+  position: sticky; top: 0; z-index: 1;
   background: var(--inbox-soft); color: var(--inbox-muted); font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .omni-inbox__table :where(th, td) { padding: 10px 13px; border-bottom: 1px solid var(--inbox-line); }
@@ -111,16 +112,11 @@ const stylesheet = `
 .omni-inbox__table tr[data-open="true"]:hover td { background: var(--inbox-accent-bg); }
 .omni-inbox__subject {
   display: block; width: fit-content; max-width: 100%; padding: 2px 0;
+  border: 0; background: transparent; text-align: left; cursor: pointer;
   color: var(--inbox-accent); text-decoration: underline; text-underline-offset: 2px;
 }
 .omni-inbox__subject strong { overflow-wrap: anywhere; font-weight: 650; }
 .omni-inbox__subject:hover strong { color: var(--inbox-accent); text-decoration: underline; text-underline-offset: 3px; }
-.omni-inbox__preview {
-  display: flex; width: fit-content; align-items: center; gap: 5px; margin-top: 5px; padding: 2px 4px;
-  color: var(--inbox-muted); font-size: 12px; border: 0; background: transparent; cursor: pointer; border-radius: 4px;
-}
-.omni-inbox__preview:hover { color: var(--inbox-accent); background: var(--inbox-accent-bg); }
-.omni-inbox__preview svg { width: 13px; height: 13px; }
 .omni-inbox__tags { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; margin: 5px 0; }
 .omni-inbox__tags .omni-inbox__pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .omni-inbox__tag-action { border: 1px solid var(--inbox-line); cursor: pointer; }
@@ -151,7 +147,9 @@ const stylesheet = `
 .omni-inbox__context :where(p, audio) { margin-top: 7px; max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap; }
 @container omni-inbox (min-width: 1020px) {
   .omni-inbox__workspace[data-has-detail="true"] { grid-template-columns: minmax(0, 1.25fr) minmax(380px, 1fr); }
-  .omni-inbox__workspace[data-has-detail="true"] .omni-inbox__detail { grid-row: 1; grid-column: 2; }
+  .omni-inbox__workspace[data-has-detail="true"] .omni-inbox__detail {
+    grid-row: 1; grid-column: 2; position: sticky; top: 0; max-height: 75dvh; overflow-y: auto;
+  }
   .omni-inbox__workspace[data-has-detail="true"] .omni-inbox__list { grid-row: 1; grid-column: 1; }
 }
 @container omni-inbox (max-width: 1019px) {

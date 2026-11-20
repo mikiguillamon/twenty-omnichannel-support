@@ -39,8 +39,8 @@ function ProposalEditor({ message, onDecide }: DecisionProps) {
   const [error, setError] = useState('');
 
   async function submit(confirmed: boolean) {
-    const text = value.trim();
-    if (submitLock.current || (confirmed && !text)) return;
+    const text = value;
+    if (submitLock.current || (confirmed && !text.trim())) return;
     submitLock.current = true;
     setBusy(true);
     setError('');

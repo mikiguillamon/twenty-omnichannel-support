@@ -1,6 +1,7 @@
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { fieldsFor, isBuiltinSource, type DashboardWidget, type Period, type Source } from './dashboard-model.ts';
-import { displayDashboardValue, type DashboardField, type DashboardSource } from './dashboard-metadata.ts';
+import { builtinDashboardCatalog, displayDashboardValue, type DashboardField, type DashboardSource } from './dashboard-metadata.ts';
+import { hasTag, stringTags, tagKey } from './tag-values.ts';
 
 export type RecordData = Record<string,unknown>;
 export type Dataset = {rows:RecordData[];complete:boolean;total:number;fields?: ReadonlyMap<string,DashboardField>};
@@ -134,7 +135,7 @@ const localTimestamp = (value: unknown): number => typeof value==='string'
   ? Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value+'T00:00:00' : value) : NaN;
 function filtered(rows:RecordData[],w:DashboardWidget,range:Range):RecordData[]{
   return rows.filter(row=>(!w.dateField||within(row[w.dateField],range))&&w.filters.every(f=>{
-    const matches=dashboardValues(row[f.field]).includes(f.value);
+    const matches=f.field==='customTags' ? hasTag(row.customTags,f.value) : dashboardValues(row[f.field]).includes(f.value);
     return f.operator==='eq'?matches:!matches;
   }));
 }
@@ -166,7 +167,7 @@ function groupKeys(row:RecordData,w:DashboardWidget,monthly=false):string[]{
     if(w.kind==='hour')return [String(date.getHours()).padStart(2,'0')+':00'];
     return [localDate(date).slice(0,monthly?7:10)];
   }
-  const values = dashboardValues(row[w.groupBy]);
+  const values = w.groupBy === 'customTags' ? stringTags(row.customTags) : dashboardValues(row[w.groupBy]);
   return values.length ? values : [''];
 }
 
@@ -213,11 +214,15 @@ export function summarize(data:Dataset,w:DashboardWidget,period:Period,now=new D
   const timelineRange=isTimeline?seriesPeriod(range,relevant,w):range;
   const monthly=isTimeline&&monthDistance(timelineRange);
   const groups=new Map<string,RecordData[]>();
+  const customTagLabels = new Map<string, string>();
+  const groupByCustomTag = w.groupBy === 'customTags' && (w.kind === 'bar' || w.kind === 'donut' || w.kind === 'table');
   let overlappingGroups=false;
   if(w.kind!=='kpi')for(const row of relevant){
     const keys=groupKeys(row,w,monthly);
     if(keys.length>1)overlappingGroups=true;
-    for(const key of keys){
+    for(const value of keys){
+      const key = groupByCustomTag ? tagKey(value) : value;
+      if (groupByCustomTag && key && !customTagLabels.has(key)) customTagLabels.set(key, value);
       const group=groups.get(key)??[];group.push(row);groups.set(key,group);
     }
   }
@@ -230,9 +235,9 @@ export function summarize(data:Dataset,w:DashboardWidget,period:Period,now=new D
   }else if(isTimeline){
     points=timelinePoints(groups,w,timelineRange,monthly);
   }else{
-    const field = data.fields?.get(w.groupBy);
+    const field = data.fields?.get(w.groupBy) ?? builtinDashboardCatalog.get(w.source)?.fields.get(w.groupBy);
     points=[...groups.entries()].map(([key,records])=>({
-      name:!w.groupBy ? 'Todos los registros' : key ? displayDashboardValue(field,key) : 'Sin clasificar',value:aggregate(records,w)??0,
+      name:!w.groupBy ? 'Todos los registros' : key ? customTagLabels.get(key) ?? displayDashboardValue(field,key) : 'Sin clasificar',value:aggregate(records,w)??0,
     }));
     points.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
   }

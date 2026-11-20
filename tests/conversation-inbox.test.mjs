@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buildConversationFilter, conversationRecordHref, loadConversationPage, normalizeConversationFilters,
+  buildConversationFilter, loadConversationPage, normalizeConversationFilters,
   parseConversationView, saveConversationView,
 } from '../src/lib/conversation-inbox.ts';
 import {
-  conversationViewLink, readConversationViewId, publishConversationViewLink,
+  conversationViewLink, openConversationRecord, readConversationViewId, publishConversationViewLink,
 } from '../src/lib/conversation-inbox-navigation.ts';
 
 const viewId = '811d0d5e-d23c-4f25-95cf-fc545087b8d9';
@@ -91,9 +91,14 @@ test('continúa una página filtrada antes del primer registro de la página sig
   assert.equal(second.nextCursor, null);
 });
 
-test('enlaza la ficha nativa de una conversación por UUID sin depender del panel', () => {
-  assert.equal(conversationRecordHref(viewId), '/object/supportCase/' + viewId);
-  assert.equal(conversationRecordHref('../settings'), null);
+test('abre la ficha nativa de una conversación en Twenty y rechaza un ID inválido', async () => {
+  const calls = [];
+  const navigate = async (...args) => { calls.push(args); };
+  await openConversationRecord(viewId, navigate);
+  await assert.rejects(openConversationRecord('../settings', navigate), /CONVERSATION_ID_INVALID/);
+  assert.deepEqual(calls, [['/object/:objectNameSingular/:objectRecordId', {
+    objectNameSingular: 'supportCase', objectRecordId: viewId,
+  }, undefined, { surface: 'main' }]]);
 });
 
 test('un filtro poco frecuente ofrece continuar aunque las primeras páginas no coincidan', async () => {

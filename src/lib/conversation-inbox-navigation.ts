@@ -1,8 +1,14 @@
 import { MetadataApiClient } from 'twenty-client-sdk/metadata';
+import { AppPath, navigate } from 'twenty-sdk/front-component';
 import { isRecordUuid, type ConversationView } from './conversation-inbox.ts';
 import { validateNavigationName } from './dashboard-navigation.ts';
 
 export const CONVERSATION_VIEW_PARAM = 'omniView';
+
+export async function openConversationRecord(id: string, navigateRecord = navigate): Promise<void> {
+  if (!isRecordUuid(id)) throw new Error('CONVERSATION_ID_INVALID');
+  await navigateRecord(AppPath.RecordShowPage, { objectNameSingular: 'supportCase', objectRecordId: id }, undefined, { surface: 'main' });
+}
 
 export function readConversationViewId(search: string): string | null {
   const values = new URLSearchParams(search).getAll(CONVERSATION_VIEW_PARAM);

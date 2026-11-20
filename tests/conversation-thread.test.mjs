@@ -28,6 +28,14 @@ test('merges overlapping message pages chronologically and keeps the current mes
   assert.deepEqual(mergeConversationMessages([last], [first, { ...last, proposalStatus: 'PENDING' }]), [first, last]);
 });
 
+test('reads previously saved HTML bodies and drafts as text with line breaks', async () => {
+  const api = { async get() {
+    return { data: { supportMessages: [{ id: 'old', body: '<p>Hola<br>Adiós</p>', draftBody: '<div>Un &amp; dos</div>' }] } };
+  } };
+  const page = await loadConversationMessages(api, 'case-a');
+  assert.deepEqual(page.records, [{ id: 'old', body: 'Hola\nAdiós', draftBody: 'Un & dos' }]);
+});
+
 test('posts approval with edited text and discards without a message or a callback URL', async () => {
   const calls = [];
   const api = {
