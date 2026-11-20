@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { openCommandConfirmationModal, useColorScheme } from 'twenty-sdk/front-component';
+import {
+  closeSidePanel, enqueueSnackbar, openCommandConfirmationModal, openSidePanelPage,
+  SidePanelPages, useColorScheme, useFrontComponentId, useSelectedObjectMetadata,
+  useSelectedRecordIds,
+} from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import {
-  blankFaqEditor, editorFromFaq, faqEditorPayload, fetchAllRestRecords, filterFaqs,
+  FAQ_FIELDS, blankFaqEditor, editorFromFaq, faqEditorPayload, fetchAllRestRecords, filterFaqs,
 } from '../lib/faq-manager.ts';
 import type { FaqEditor, FaqStatus, SupportFaq, SupportFaqCategory } from '../lib/faq-manager.ts';
 
@@ -30,7 +34,205 @@ function errorMessage(error: unknown): string {
   return 'Twenty no ha podido completar la operación. Comprueba los permisos y vuelve a intentarlo.';
 }
 
-function FaqManager() {
+
+type FaqSidePanelProps = { recordId: string | null };
+
+function faqFromRestResponse(response: unknown, expectedId: string): SupportFaq {
+  const root = response && typeof response === 'object' ? response as Record<string, unknown> : {};
+  const data = root.data && typeof root.data === 'object' ? root.data as Record<string, unknown> : root;
+  const value = data.supportFaq ?? data.record ?? data;
+  if (!value || typeof value !== 'object' || (value as SupportFaq).id !== expectedId) {
+    throw new Error('FAQ_NOT_FOUND');
+  }
+  return value as SupportFaq;
+}
+
+/** This component is rendered by Twenty inside its native side panel.
+ * No app-owned Dialog, portal or global DOM access is necessary. */
+function FaqEditorSidePanel({ recordId }: FaqSidePanelProps) {
+  const dark = useColorScheme() === 'dark';
+  const [editor, setEditor] = useState<FaqEditor | null>(null);
+  const [previousFaq, setPreviousFaq] = useState<SupportFaq | undefined>(undefined);
+  const [categories, setCategories] = useState<SupportFaqCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [advanced, setAdvanced] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const fg = dark ? '#F1F5F9' : '#20252D';
+  const muted = dark ? '#A8B4C4' : '#667382';
+  const border = dark ? '#465162' : '#E0E4EA';
+  const surface = dark ? '#252B34' : '#FFFFFF';
+  const fieldStyle = { ...inputBase, background: surface, color: fg, border: '1px solid ' + border };
+  const buttonStyle = { border: '1px solid ' + border, background: surface, color: fg, padding: '8px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 13 };
+  const primaryStyle = { ...buttonStyle, color: '#fff', background: '#485BFA', borderColor: '#485BFA' };
+
+  useEffect(() => {
+    let live = true;
+    setError('');
+    setLoading(true);
+    setEditor(null);
+    setPreviousFaq(undefined);
+    setAdvanced(false);
+    const api = new RestApiClient();
+    void Promise.all([
+      fetchAllRestRecords<SupportFaqCategory>(api, 'supportCategories', 'id,name,code,enabled'),
+      recordId
+        ? api.get('/rest/supportFaqs/' + encodeURIComponent(recordId), { query: { fields: FAQ_FIELDS, depth: 0 } })
+        : Promise.resolve(null),
+    ]).then(([nextCategories, faqResponse]) => {
+      if (!live) return;
+      const existing = recordId ? faqFromRestResponse(faqResponse, recordId) : undefined;
+      setCategories(nextCategories);
+      setPreviousFaq(existing);
+      setEditor(existing ? editorFromFaq(existing) : blankFaqEditor());
+    }).catch(reason => {
+      if (live) setError(reason instanceof Error && reason.message === 'FAQ_NOT_FOUND'
+        ? 'La FAQ ya no existe o no se puede leer.' : errorMessage(reason));
+    }).finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [recordId]);
+
+  function updateEditor<K extends keyof FaqEditor>(field: K, value: FaqEditor[K]) {
+    setEditor(prev => prev ? { ...prev, [field]: value } : null);
+  }
+  async function save() {
+    if (saving || loading || !editor) return;
+    setSaving(true); setError('');
+    try {
+      const payload = faqEditorPayload(editor, previousFaq);
+      const api = new RestApiClient();
+      if (recordId) await api.patch('/rest/supportFaqs/' + encodeURIComponent(recordId), payload);
+      else await api.post('/rest/supportFaqs', payload);
+      await enqueueSnackbar({
+        message: 'FAQ guardada. Pulsa Actualizar para ver los cambios en el listado.',
+        variant: 'success',
+      });
+      await closeSidePanel();
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { setSaving(false); }
+  }
+
+  return <section style={{
+    padding: '16px 18px 24px', display: 'flex', flexDirection: 'column', gap: 15,
+    color: fg, fontFamily: 'inherit', boxSizing: 'border-box', width: '100%',
+  }}>
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+      <div>
+        <strong style={{ fontSize: 16 }}>{recordId ? 'Editar FAQ' : 'Nueva FAQ'}</strong>
+        <p style={{ color: muted, fontSize: 12, margin: '5px 0 0' }}>Pregunta y respuesta para el asistente.</p>
+      </div>
+      <button type="button" title="Cerrar editor" aria-label="Cerrar editor" disabled={saving}
+        onClick={() => void closeSidePanel()} style={{ ...buttonStyle, padding: 6, display: 'inline-flex' }}>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </header>
+    {loading && <p style={{ fontSize: 13, color: muted }}>Cargando formulario…</p>}
+    {error && <p role="alert" style={{ fontSize: 13, color: dark ? '#FFB0B0' : '#B42318', margin: 0 }}>{error}</p>}
+    {editor && <form onSubmit={event => { event.preventDefault(); void save(); }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <label style={{ fontSize: 12 }}>Categoría
+        <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.categoryId}
+          onChange={e => updateEditor('categoryId', e.target.value)}>
+          <option value="">Sin categoría</option>
+          {categories.map(category => <option key={category.id} value={category.id}>
+            {category.name?.trim() || category.code || 'Sin nombre'}{category.enabled === false ? ' (inactiva)' : ''}
+          </option>)}
+        </select>
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <label style={{ fontSize: 12 }}>Idioma
+          <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.language}
+            onChange={e => updateEditor('language', e.target.value as FaqEditor['language'])}>
+            {Object.entries(LANGUAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: 12 }}>Estado
+          <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.status}
+            onChange={e => updateEditor('status', e.target.value as FaqStatus)}>
+            <option value="DRAFT">Borrador</option>
+            <option value="PUBLISHED">Publicada</option>
+            <option value="ARCHIVED">Archivada</option>
+          </select>
+        </label>
+      </div>
+      <label style={{ fontSize: 12 }}>Pregunta *
+        <textarea required value={editor.question} rows={3} maxLength={2000}
+          style={{ ...fieldStyle, marginTop: 5, resize: 'vertical' }}
+          onChange={e => updateEditor('question', e.target.value)} />
+      </label>
+      <label style={{ fontSize: 12 }}>Respuesta *
+        <textarea required value={editor.answer} rows={7} maxLength={25000}
+          style={{ ...fieldStyle, marginTop: 5, resize: 'vertical' }}
+          onChange={e => updateEditor('answer', e.target.value)} />
+      </label>
+      <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} disabled={saving}
+        onClick={() => setAdvanced(value => !value)}>
+        {advanced ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
+      </button>
+      {advanced && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <label style={{ fontSize: 12 }}>Alcances (separados por coma o salto de línea)
+          <textarea style={{ ...fieldStyle, marginTop: 5 }} rows={3} value={editor.scopeTags}
+            onChange={e => updateEditor('scopeTags', e.target.value)} />
+        </label>
+        <label style={{ fontSize: 12 }}>Variantes de pregunta (una por línea)
+          <textarea style={{ ...fieldStyle, marginTop: 5 }} rows={4} value={editor.variants}
+            onChange={e => updateEditor('variants', e.target.value)} />
+        </label>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {TAG_OPTIONS.map(tag => <label key={tag}
+            style={{ fontSize: 12, display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+            <input type="checkbox" checked={editor.tags.includes(tag)}
+              onChange={e => updateEditor('tags', e.target.checked
+                ? [...editor.tags, tag] : editor.tags.filter(value => value !== tag))} />
+            {tag}
+          </label>)}
+        </div>
+        <label style={{ fontSize: 12 }}>Etiquetas propias (separadas por coma)
+          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.customTags}
+            onChange={e => updateEditor('customTags', e.target.value)} />
+        </label>
+        <label style={{ fontSize: 12 }}>URL de referencia (HTTPS)
+          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.sourceUrl}
+            onChange={e => updateEditor('sourceUrl', e.target.value)} />
+        </label>
+        <label style={{ fontSize: 12 }}>Revisado por
+          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.updatedByReference}
+            onChange={e => updateEditor('updatedByReference', e.target.value)} />
+        </label>
+      </div>}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 7 }}>
+        <button type="button" style={buttonStyle} disabled={saving}
+          onClick={() => void closeSidePanel()}>Cancelar</button>
+        <button type="submit" style={primaryStyle} disabled={saving}>
+          {saving ? 'Guardando…' : 'Guardar FAQ'}
+        </button>
+      </div>
+    </form>}
+  </section>;
+}
+
+function ActionIcon({ icon }: { icon: 'edit' | 'archive' | 'restore' }) {
+  return <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
+    {icon === 'edit' && <>
+      <path d="M12 20h9" />
+      <path d="M16.6 3.8a2.1 2.1 0 0 1 3 3L9.4 17.1 5 18l.9-4.4L16.6 3.8Z" />
+    </>}
+    {icon === 'archive' && <>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v12h14V8M10 12h4" />
+    </>}
+    {icon === 'restore' && <>
+      <path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M10 12h4" />
+    </>}
+  </svg>;
+}
+
+function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   const dark = useColorScheme() === 'dark';
   const [faqs, setFaqs] = useState<SupportFaq[]>([]);
   const [categories, setCategories] = useState<SupportFaqCategory[]>([]);
@@ -42,9 +244,6 @@ function FaqManager() {
   const [scope, setScope] = useState('all');
   const [expanded, setExpanded] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editor, setEditor] = useState<FaqEditor | null>(null);
-  const [advanced, setAdvanced] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -94,36 +293,21 @@ function FaqManager() {
   const totalPublished = faqs.filter(faq => faq.status === 'PUBLISHED').length;
   const totalDrafts = faqs.filter(faq => faq.status === 'DRAFT').length;
 
-  function beginCreate() {
-    setEditingId('new'); setEditor(blankFaqEditor()); setAdvanced(false);
+  async function openEditor(recordId?: string) {
     setError(''); setFeedback('');
-  }
-  function beginEdit(faq: SupportFaq) {
-    setEditingId(faq.id); setEditor(editorFromFaq(faq));
-    setAdvanced(false); setError(''); setFeedback('');
-  }
-  function cancelEdit() { setEditingId(null); setEditor(null); setAdvanced(false); }
-  function updateEditor<K extends keyof FaqEditor>(field: K, value: FaqEditor[K]) {
-    setEditor(previous => previous ? { ...previous, [field]: value } : null);
-  }
-  async function saveEditor() {
-    if (!editor || !editingId || busyId) return;
-    const previous = faqs.find(faq => faq.id === editingId);
-    setBusyId(editingId); setError(''); setFeedback('');
     try {
-      const payload = faqEditorPayload(editor, previous);
-      const api = new RestApiClient();
-      if (editingId === 'new') {
-        await api.post('/rest/supportFaqs', payload);
-        setFeedback('FAQ creada correctamente.');
-      } else {
-        await api.patch('/rest/supportFaqs/' + encodeURIComponent(editingId), payload);
-        setFeedback('FAQ actualizada correctamente.');
-      }
-      cancelEdit(); setRefresh(value => value + 1);
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally { setBusyId(null); }
+      await openSidePanelPage({
+        page: SidePanelPages.ViewFrontComponent,
+        frontComponentId,
+        objectNameSingular: 'supportFaq',
+        selectedRecordIds: recordId ? [recordId] : [],
+        pageTitle: recordId ? 'Editar FAQ' : 'Nueva FAQ',
+        pageIcon: 'IconBook',
+        resetNavigationStack: true,
+      });
+    } catch {
+      setError('Twenty no ha podido abrir el editor. Comprueba que la app esté actualizada.');
+    }
   }
   async function updateStatus(faq: SupportFaq, next: FaqStatus) {
     if (busyId || loading) return;
@@ -156,7 +340,6 @@ function FaqManager() {
     if (rows.length) shownGroups.push({ name: group.name, rows });
     remaining -= rows.length;
   }
-  const isEditing = editor !== null;
 
   return <div style={{ padding: '20px 22px', color: fg, background, minHeight: '100%', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: 18 }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -168,7 +351,7 @@ function FaqManager() {
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button type="button" style={buttonStyle} disabled={loading || Boolean(busyId)} onClick={() => setRefresh(n => n + 1)}>Actualizar</button>
-        <button type="button" style={primaryStyle} disabled={loading || Boolean(busyId)} onClick={beginCreate}>+ Nueva FAQ</button>
+        <button type="button" style={primaryStyle} disabled={loading || Boolean(busyId)} onClick={() => void openEditor()}>+ Nueva FAQ</button>
       </div>
     </header>
 
@@ -199,74 +382,6 @@ function FaqManager() {
     {error && <p role="alert" style={{ color: dark ? '#FFB0B0' : '#B42318', margin: 0 }}>{error}</p>}
     {feedback && <p role="status" style={{ color: dark ? '#8DE0AD' : '#257549', margin: 0 }}>{feedback}</p>}
     {loading && <p style={{ color: muted }}>Cargando preguntas y categorías del workspace…</p>}
-
-    {isEditing && <section aria-label={editingId === 'new' ? 'Crear FAQ' : 'Editar FAQ'} style={{ ...cardStyle, borderColor: dark ? '#8490FF' : '#8C97FF', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-        <strong style={{ fontSize: 16 }}>{editingId === 'new' ? 'Nueva FAQ' : 'Editar FAQ'}</strong>
-        <button type="button" style={buttonStyle} disabled={Boolean(busyId)} onClick={cancelEdit}>Cerrar</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-        <label style={{ fontSize: 12 }}>Categoría
-          <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.categoryId} onChange={e => updateEditor('categoryId', e.target.value)}>
-            <option value="">Sin categoría</option>
-            {categories.map(category => <option key={category.id} value={category.id}>
-              {categoryLabels.get(category.id)}{category.enabled === false ? ' (inactiva)' : ''}
-            </option>)}
-          </select>
-        </label>
-        <label style={{ fontSize: 12 }}>Idioma
-          <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.language} onChange={e => updateEditor('language', e.target.value as FaqEditor['language'])}>
-            {Object.entries(LANGUAGES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </label>
-        <label style={{ fontSize: 12 }}>Estado
-          <select style={{ ...fieldStyle, marginTop: 5 }} value={editor.status} onChange={e => updateEditor('status', e.target.value as FaqStatus)}>
-            <option value="DRAFT">Borrador</option><option value="PUBLISHED">Publicada</option><option value="ARCHIVED">Archivada</option>
-          </select>
-        </label>
-      </div>
-      <label style={{ fontSize: 12 }}>Pregunta *
-        <textarea value={editor.question} rows={2} maxLength={2000} style={{ ...fieldStyle, marginTop: 5, resize: 'vertical' }}
-          onChange={e => updateEditor('question', e.target.value)} />
-      </label>
-      <label style={{ fontSize: 12 }}>Respuesta *
-        <textarea value={editor.answer} rows={5} maxLength={25000} style={{ ...fieldStyle, marginTop: 5, resize: 'vertical' }}
-          onChange={e => updateEditor('answer', e.target.value)} />
-      </label>
-      <button type="button" style={{ ...buttonStyle, alignSelf: 'flex-start' }} onClick={() => setAdvanced(value => !value)}>
-        {advanced ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
-      </button>
-      {advanced && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <label style={{ fontSize: 12 }}>Alcances (separados por coma o salto de línea)
-          <textarea style={{ ...fieldStyle, marginTop: 5 }} rows={2} value={editor.scopeTags} onChange={e => updateEditor('scopeTags', e.target.value)} />
-        </label>
-        <label style={{ fontSize: 12 }}>Variantes de pregunta (una por línea)
-          <textarea style={{ ...fieldStyle, marginTop: 5 }} rows={3} value={editor.variants} onChange={e => updateEditor('variants', e.target.value)} />
-        </label>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          {TAG_OPTIONS.map(tag => <label key={tag} style={{ fontSize: 12, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <input type="checkbox" checked={editor.tags.includes(tag)}
-              onChange={e => updateEditor('tags', e.target.checked ? [...editor.tags, tag] : editor.tags.filter(value => value !== tag))} />
-            {tag}
-          </label>)}
-        </div>
-        <label style={{ fontSize: 12 }}>Etiquetas propias (separadas por coma)
-          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.customTags} onChange={e => updateEditor('customTags', e.target.value)} />
-        </label>
-        <label style={{ fontSize: 12 }}>URL de referencia (HTTPS)
-          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.sourceUrl} onChange={e => updateEditor('sourceUrl', e.target.value)} />
-        </label>
-        <label style={{ fontSize: 12 }}>Revisado por
-          <input style={{ ...fieldStyle, marginTop: 5 }} value={editor.updatedByReference} onChange={e => updateEditor('updatedByReference', e.target.value)} />
-        </label>
-      </div>}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button type="button" style={buttonStyle} disabled={Boolean(busyId)} onClick={cancelEdit}>Cancelar</button>
-        <button type="button" style={primaryStyle} disabled={Boolean(busyId)} onClick={() => void saveEditor()}>
-          {busyId ? 'Guardando…' : 'Guardar FAQ'}
-        </button>
-      </div>
-    </section>}
 
     {!loading && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: muted, flexWrap: 'wrap' }}>
       <span>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''} en {groups.length} categoría{groups.length !== 1 ? 's' : ''}</span>
@@ -299,16 +414,48 @@ function FaqManager() {
                 {faq.scopeTags?.length ? <span>· {faq.scopeTags.join(', ')}</span> : <span>· Sin alcance</span>}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}>
-              <label title="Publicar o pasar a borrador" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: muted }}>
-                <input aria-label={'Publicar ' + (faq.question ?? 'FAQ')} type="checkbox" checked={isPublished}
-                  disabled={Boolean(busyId)} onChange={e => void updateStatus(faq, e.target.checked ? 'PUBLISHED' : 'DRAFT')} />
-                {isPublished ? 'Publicada' : 'Sin publicar'}
-              </label>
-              <button type="button" style={buttonStyle} disabled={Boolean(busyId)} onClick={() => beginEdit(faq)}>Editar</button>
-              {faq.status === 'ARCHIVED'
-                ? <button type="button" style={buttonStyle} disabled={Boolean(busyId)} onClick={() => void updateStatus(faq, 'DRAFT')}>Restaurar</button>
-                : <button type="button" style={buttonStyle} disabled={Boolean(busyId)} onClick={() => void updateStatus(faq, 'ARCHIVED')}>Archivar</button>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              <button type="button" role="switch" aria-checked={isPublished}
+                aria-label={'Activa: ' + (faq.question || 'FAQ')}
+                title={faq.status === 'ARCHIVED' ? 'Restaura la FAQ antes de activarla'
+                  : isPublished ? 'Desactivar FAQ (pasar a borrador)' : 'Activar FAQ (publicar)'}
+                disabled={Boolean(busyId) || faq.status === 'ARCHIVED'}
+                onClick={() => void updateStatus(faq, isPublished ? 'DRAFT' : 'PUBLISHED')}
+                style={{
+                  border: 0, background: 'transparent', color: muted, cursor: 'pointer',
+                  fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 3px',
+                  opacity: faq.status === 'ARCHIVED' ? 0.55 : 1,
+                }}>
+                <span aria-hidden="true" style={{
+                  position: 'relative', display: 'inline-block', height: 20, width: 36,
+                  borderRadius: 20, background: isPublished ? '#4C5DFF' : dark ? '#606878' : '#CDD3DD',
+                  transition: 'background-color 0.15s ease',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: isPublished ? 18 : 2,
+                    height: 16, width: 16, borderRadius: 10, background: '#FFFFFF',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s ease',
+                  }} />
+                </span>
+                <span>Activa</span>
+              </button>
+              <button type="button" title="Editar FAQ" aria-label={'Editar FAQ: ' + (faq.question || '')}
+                style={{
+                  ...buttonStyle, padding: 6, borderColor: 'transparent', background: 'transparent',
+                  display: 'inline-flex', justifyContent: 'center', alignItems: 'center',
+                }}
+                disabled={Boolean(busyId)} onClick={() => void openEditor(faq.id)}>
+                <ActionIcon icon="edit" />
+              </button>
+              <button type="button" title={faq.status === 'ARCHIVED' ? 'Restaurar FAQ' : 'Archivar FAQ'}
+                aria-label={(faq.status === 'ARCHIVED' ? 'Restaurar FAQ: ' : 'Archivar FAQ: ') + (faq.question || '')}
+                style={{
+                  ...buttonStyle, padding: 6, borderColor: 'transparent', background: 'transparent',
+                  display: 'inline-flex', justifyContent: 'center', alignItems: 'center',
+                }}
+                disabled={Boolean(busyId)} onClick={() => void updateStatus(faq, faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED')}>
+                <ActionIcon icon={faq.status === 'ARCHIVED' ? 'restore' : 'archive'} />
+              </button>
             </div>
           </div>
         </article>;
@@ -321,9 +468,23 @@ function FaqManager() {
   </div>;
 }
 
+
+function FaqManagerEntry() {
+  const objectMetadata = useSelectedObjectMetadata();
+  const selectedRecordIds = useSelectedRecordIds();
+  const frontComponentId = useFrontComponentId();
+
+  // A standalone page has no selected object. The native side panel provides
+  // the supportFaq context, even for a new FAQ without a selected record.
+  if (objectMetadata?.nameSingular === 'supportFaq') {
+    return <FaqEditorSidePanel recordId={selectedRecordIds.length === 1 ? selectedRecordIds[0] : null} />;
+  }
+  return <FaqManager frontComponentId={frontComponentId} />;
+}
+
 export default defineFrontComponent({
   universalIdentifier: IDS.FRONT_FAQ_MANAGER,
   name: 'faq-manager',
   description: 'Gestión visual de preguntas frecuentes con categorías, filtros y editor.',
-  component: FaqManager,
+  component: FaqManagerEntry,
 });

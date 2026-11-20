@@ -1,4 +1,20 @@
-## 0.3.0-beta.24 (2026-11-20)\n\n- Replace the fixed Omnichannel overview with editable dashboards and a fullscreen front-component layout.\n- Persist multiple dashboards per workspace with configurable KPIs, charts, visual dimensions, widget-specific filters, preset/custom dates, period comparisons and reusable import/export.\n- Include guarded, paginated analytics for cases, messages, evaluations, channels and FAQs. Incomplete datasets are explicitly flagged, never silently presented as complete.\n- Add dashboard model/analytics tests and user documentation.\n\n## Unreleased
+## Unreleased
+
+## 0.3.0-beta.25 — Dashboards configurables
+
+- Nuevo editor de dashboards Omnichannel por workspace con KPIs, gráficos, filtros, períodos y layouts persistidos en Twenty.
+- Métricas de conversaciones, mensajes, evaluaciones, canales y FAQs, con exportación/importación de configuraciones.
+- Conserva íntegramente los cambios en FAQs publicados en beta.24; no altera sus objetos ni APIs.
+- Paginación y límite explícito de datos para evitar presentar agregados parciales como completos.
+
+## 0.3.0-beta.24 — Interacción de FAQs: toggle, iconos y editor lateral
+
+- Sustituye el checkbox Publicada por un toggle accesible «Activa» (PUBLISHED ↔ DRAFT), sin alterar el estado persistido ni el filtro de publicación del bot.
+- Sustituye Editar y Archivar por botones con iconos SVG accesibles, e incluye Restaurar para FAQs archivadas.
+- Traslada el formulario de creación y edición al panel lateral nativo de Twenty 2.50 (`SidePanelPages.ViewFrontComponent`), evitando modales personalizados no soportados por el SDK.
+- Mantiene categorías, opciones avanzadas, permisos de usuario, confirmación de archivo y API de FAQs; incorpora pruebas de regresión.
+- No modifica los objetos, UUID ni la navegación de Omnichannel.
+
 
 ## 0.3.0-beta.23 — Corrección de actualización del gestor visual de FAQs
 

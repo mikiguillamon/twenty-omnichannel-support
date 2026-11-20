@@ -1,14 +1,14 @@
 # Gestor visual de FAQs
 
-Omnichannel → **FAQs** abre un listado visual de preguntas frecuentes con tarjetas, agrupación por categoría y un editor de contenido. **FAQs (tabla)** mantiene el acceso al listado de registros original de Twenty y sus vistas guardadas.
+Omnichannel → **FAQs** abre un listado visual de preguntas frecuentes con tarjetas, agrupación por categoría y un editor de contenido en el panel lateral nativo de Twenty. **FAQs (tabla)** mantiene el acceso al listado de registros original de Twenty y sus vistas guardadas.
 
 ## Uso diario
 
 1. Selecciona **FAQs** en el menú de Omnichannel. El encabezado muestra el total, las publicadas y los borradores.
 2. Busca por pregunta, respuesta o variantes. Combina la búsqueda con Estado, Idioma y Alcance. Las FAQs archivadas quedan ocultas en el filtro inicial, pero puedes mostrarlas.
-3. Usa **Nueva FAQ** o **Editar**. El formulario principal tiene categoría, idioma, estado, pregunta y respuesta. **Mostrar opciones avanzadas** ofrece alcance, variantes, etiquetas y URL de referencia sin ocultar ni sobrescribir datos durante una edición.
-4. Guarda la FAQ. La vista se vuelve a cargar desde la API y conserva tus filtros.
-5. Usa el interruptor para publicar o volver a borrador. **Archivar** pide confirmación, conserva el registro y permite restaurarlo desde el filtro Archivadas.
+3. Usa **Nueva FAQ** o el icono del lápiz. Se abre el editor en el panel lateral nativo (sin desplazar las tarjetas). El formulario principal tiene categoría, idioma, estado, pregunta y respuesta. **Mostrar opciones avanzadas** ofrece alcance, variantes, etiquetas y URL de referencia sin ocultar ni sobrescribir datos durante una edición.
+4. Guarda la FAQ en el panel. Twenty confirma el cambio y cierra el panel. Pulsa **Actualizar** en el gestor para recargar datos conservando tus filtros.
+5. Usa el interruptor **Activa** para publicar o devolver a borrador. El icono de archivo pide confirmación, conserva el registro y permite restaurarlo desde el filtro Archivadas. Las FAQs archivadas requieren restauración antes de activarlas.
 
 ## Cómo funciona
 
@@ -20,7 +20,7 @@ Los cambios afectan a \`supportFaqs\` mediante REST. No se modifica la búsqueda
 
 ## Limitaciones de Twenty 2.50
 
-La aplicación no renderiza diálogos propios: los formularios se editan dentro de la página y la confirmación de archivo utiliza el modal gestionado por el host. La tabla nativa sigue siendo la opción para operaciones masivas y ajustes de columnas. No se elimina ningún registro desde el gestor. Las nuevas FAQs se crean como borrador en catalán por defecto, con alcance GENERAL modificable; al editar, todos los valores se toman del registro existente.
+La aplicación no renderiza diálogos propios: los formularios de creación y edición se abren en el **panel lateral nativo de Twenty**, mediante `openSidePanelPage` y `SidePanelPages.ViewFrontComponent`. La confirmación de archivo sigue utilizando el modal gestionado por el host. La tabla nativa sigue siendo la opción para operaciones masivas y ajustes de columnas. No se elimina ningún registro desde el gestor. Las nuevas FAQs se crean como borrador en catalán por defecto, con alcance GENERAL modificable; al editar, todos los valores se toman del registro existente.
 
 ## Actualización
 
