@@ -70,17 +70,20 @@ export async function publishDashboardLink(input:{name:string;link:string;icon?:
   const name=checkedName(input.name);
   const link=normalizeDashboardNavigationLink(input.link);
   const rows=await readNavigation(client);
-  const duplicate=rows.find(row=>isPublishedDashboardLink(row)&&row.link===link);
+  const duplicate=rows.find(row=>row.type==='LINK'&&row.userWorkspaceId===null&&row.link===link);
   if(duplicate)throw Error('ALREADY_PUBLISHED');
   const position=rows.filter(row=>row.userWorkspaceId===null&&row.folderId===null)
     .reduce((max,row)=>Math.max(max,row.position),-1)+1;
   const {createNavigationMenuItem}=await client.mutation({
     createNavigationMenuItem:{
-      __args:{input:{name,link,icon:input.icon||'IconLayoutDashboard',type:'LINK',position}},
-      id:true,name:true,link:true,icon:true,position:true,
+      __args:{input:{name,link,icon:input.icon||'IconLayoutDashboard',type:'LINK',position,userWorkspaceId:null}},
+      id:true,name:true,link:true,icon:true,position:true,applicationId:true,userWorkspaceId:true,folderId:true,type:true,
     },
   });
   if(!createNavigationMenuItem?.id||createNavigationMenuItem.link!==link)throw Error('PUBLISH_NOT_CONFIRMED');
+  // Fail closed if the server silently creates a personal, app-owned or nested item.
+  // Never delete a server-created item implicitly: an admin must inspect first.
+  if(!isPublishedDashboardLink(createNavigationMenuItem as NavigationRow))throw Error('PUBLISH_NOT_SHARED');
   return {id:createNavigationMenuItem.id,name:createNavigationMenuItem.name||name,link,icon:createNavigationMenuItem.icon||null,position:createNavigationMenuItem.position};
 }
 
@@ -88,12 +91,14 @@ export async function renameDashboardLink(id:string,name:string,client=new Metad
   const rows=await readNavigation(client);
   const item=rows.find(row=>row.id===id);
   if(!item||!isPublishedDashboardLink(item))throw Error('LINK_NOT_MANAGED');
-  await client.mutation({updateNavigationMenuItem:{__args:{input:{id,update:{name:checkedName(name)}}},id:true}});
+  const {updateNavigationMenuItem}=await client.mutation({updateNavigationMenuItem:{__args:{input:{id,update:{name:checkedName(name)}}},id:true,name:true}});
+  if(updateNavigationMenuItem?.id!==id)throw Error('UPDATE_NOT_CONFIRMED');
 }
 
 export async function unpublishDashboardLink(id:string,client=new MetadataApiClient()):Promise<void> {
   const rows=await readNavigation(client);
   const item=rows.find(row=>row.id===id);
   if(!item||!isPublishedDashboardLink(item))throw Error('LINK_NOT_MANAGED');
-  await client.mutation({deleteNavigationMenuItem:{__args:{id},id:true}});
+  const {deleteNavigationMenuItem}=await client.mutation({deleteNavigationMenuItem:{__args:{id},id:true}});
+  if(deleteNavigationMenuItem?.id!==id)throw Error('DELETE_NOT_CONFIRMED');
 }
