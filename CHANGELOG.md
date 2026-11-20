@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.0-beta.24 (2026-11-20)\n\n- Replace the fixed Omnichannel overview with editable dashboards and a fullscreen front-component layout.\n- Persist multiple dashboards per workspace with configurable KPIs, charts, visual dimensions, widget-specific filters, preset/custom dates, period comparisons and reusable import/export.\n- Include guarded, paginated analytics for cases, messages, evaluations, channels and FAQs. Incomplete datasets are explicitly flagged, never silently presented as complete.\n- Add dashboard model/analytics tests and user documentation.\n\n## Unreleased
 
 ## 0.3.0-beta.23 — Corrección de actualización del gestor visual de FAQs
 
