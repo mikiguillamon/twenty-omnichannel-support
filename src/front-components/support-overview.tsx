@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { openCommandConfirmationModal, useColorScheme } from 'twenty-sdk/front-component';
+import { copyToClipboard, openCommandConfirmationModal, useColorScheme, useLocation } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import {
   SOURCES, WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS,
-  createDashboard, defaultDashboard, fieldsFor, makeWidget, newId, normalizeWidget, periodFrom,
+  createDashboard, defaultDashboard, fieldsFor, makeWidget, moveDashboardWidget, resizeDashboardWidget, newId, normalizeWidget, periodFrom,
   type Source, type WidgetKind, type Dashboard, type DashboardWidget, type Period, type StoredDashboard,
 } from '../lib/dashboard-model.ts';
 import { loadDashboards, persistDashboard, removeDashboard, importDashboard, exportDashboard } from '../lib/dashboard-store.ts';
-import { fetchDataset, summarize, formatMetric, metricDelta, type Dataset } from '../lib/dashboard-analytics.ts';
+import { fetchDataset, type Dataset } from '../lib/dashboard-analytics.ts';
+import { readDashboardFromSearch, getDashboardLink } from '../lib/dashboard-links.ts';
+import { DashboardVisualization } from './dashboard-visualization.tsx';
 
 const SOURCE_KEYS=Object.keys(SOURCES) as Source[];
 const KINDS=Object.keys(WIDGET_LABELS) as WidgetKind[];
@@ -19,6 +21,10 @@ const WIDTHS=[3,4,6,8,12] as const;
 
 function Dashboards() {
   const dark=useColorScheme()==='dark';
+  const location=useLocation();
+  const requestedDashboard=readDashboardFromSearch(location?.search??'');
+  const handledLink=useRef<string|null>(null);
+  const pointerSource=useRef<string|null>(null);
   const [stored,setStored]=useState<StoredDashboard[]>([]);
   const [active,setActive]=useState('');
   const [draft,setDraft]=useState<Dashboard|null>(null);
@@ -33,6 +39,9 @@ function Dashboards() {
   const [sourceErrors,setSourceErrors]=useState<Partial<Record<Source,string>>>({});
   const [importOpen,setImportOpen]=useState(false);
   const [importJson,setImportJson]=useState('');
+  const [draggingId,setDraggingId]=useState<string|null>(null);
+  const [dropTarget,setDropTarget]=useState<string|null>(null);
+  const [linkHelp,setLinkHelp]=useState(false);
   const [addKind,setAddKind]=useState<WidgetKind>('kpi');
   const [addSource,setAddSource]=useState<Source>('supportCases');
   const [filterField,setFilterField]=useState('');
@@ -66,6 +75,14 @@ function Dashboards() {
     return()=>{live=false;};
   },[reload]);
 
+  // Resolve direct navigation from a custom link in Twenty's left sidebar.
+  useEffect(()=>{
+    if(!requestedDashboard||handledLink.current===requestedDashboard)return;
+    if(!stored.some(row=>row.dashboard.id===requestedDashboard))return;
+    handledLink.current=requestedDashboard;
+    setActive(requestedDashboard);setDraft(null);setEditing(false);setEditingWidget(null);
+  },[requestedDashboard,stored]);
+
   useEffect(()=>{
     const sources=[...new Set((dashboard?.widgets??[]).filter(w=>w.kind!=='text'&&w.kind!=='shortcut').map(w=>w.source))];
     const missing=sources.filter(source=>!datasets[source]&&!sourceErrors[source]);
@@ -98,6 +115,28 @@ function Dashboards() {
   }
   function modifyWidget(id:string,partial:Partial<DashboardWidget>){
     changeWidget(id,w=>({...w,...partial}));
+  }
+  function finishDrag(targetId:string) {
+    const source=pointerSource.current;
+    pointerSource.current=null;
+    setDraggingId(null);setDropTarget(null);
+    if(source&&source!==targetId)mutate(d=>moveDashboardWidget(d,source,targetId));
+  }
+  function clearDrag(){
+    pointerSource.current=null;setDraggingId(null);setDropTarget(null);
+  }
+  function resizeWidget(id:string,direction:-1|1){
+    mutate(d=>resizeDashboardWidget(d,id,direction));
+  }
+  async function copyDashboardLink(){
+    if(!dashboard)return;
+    const url=getDashboardLink(location,dashboard.id);
+    if(!url){setError('No se pudo generar un enlace para esta página.');return;}
+    try{
+      await copyToClipboard(url);
+      setFeedback('Enlace del dashboard copiado. Puedes añadirlo al menú de Twenty.');
+      setLinkHelp(true);
+    }catch{setError('No se pudo copiar. Selecciona el enlace del campo inferior.');setLinkHelp(true);}
   }
   function swapWidget(id:string,delta:number){
     mutate(d=>{
@@ -173,79 +212,8 @@ function Dashboards() {
     mutate(d=>({...d,widgets:[...d.widgets,next]}));setEditingWidget(next.id);
   }
   function renderChart(w:DashboardWidget){
-    if(w.kind==='shortcut')return <a href={w.url||'#'} target="_blank" rel="noopener noreferrer"
-      style={{color:accent,textDecoration:'none',fontSize:13}}>{w.url?'Abrir acceso directo ↗':'Configura una URL para este acceso directo'}</a>;
-    if(w.kind==='text')return <p style={{whiteSpace:'pre-wrap',fontSize:13,color:muted,margin:0}}>{w.text||'Escribe una descripción o instrucción.'}</p>;
-    if(sourceErrors[w.source])return <p role="alert" style={{color:'#D94848',fontSize:12}}>{sourceErrors[w.source]}</p>;
-    const data=datasets[w.source];
-    if(!data)return <div style={{fontSize:12,color:muted}}>Cargando datos…</div>;
-    const summary=summarize(data,w,dashboard?.period??{key:'30d'});
-    if(!summary.complete)return <div style={{padding:'6px 0',fontSize:11,color:'#B47420'}}>
-      Vista incompleta: hay más de 3.000 registros. No se presenta un resultado parcial como definitivo.
-    </div>;
-    if(w.kind==='kpi')return <div style={{display:'flex',flexDirection:'column',gap:6}}>
-      <div style={{fontSize:30,fontWeight:650,fontVariantNumeric:'tabular-nums'}}>{formatMetric(summary.value,w.aggregation)}</div>
-      {w.compare&&summary.previous!==null&&<div style={{fontSize:11,color:muted}}>
-        {metricDelta(summary.value,summary.previous)} frente al período anterior
-      </div>}
-    </div>;
-    if(!summary.points.length)return <p style={{fontSize:12,color:muted,margin:0}}>Sin registros para este período.</p>;
-    const points=summary.points;
-    if(w.kind==='table')return <div style={{maxHeight:260,overflow:'auto'}}>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-        <thead><tr><th style={{textAlign:'left',padding:7,borderBottom:'1px solid '+border}}>Grupo</th>
-          <th style={{textAlign:'right',padding:7,borderBottom:'1px solid '+border}}>Valor</th></tr></thead>
-        <tbody>{points.map(p=><tr key={p.name}><td style={{padding:7,borderBottom:'1px solid '+border}}>{p.name}</td>
-          <td style={{padding:7,textAlign:'right',borderBottom:'1px solid '+border}}>{formatMetric(p.value,w.aggregation)}</td></tr>)}</tbody>
-      </table>
-    </div>;
-    if(w.kind==='donut'){
-      const total=points.reduce((n,p)=>n+p.value,0);
-      let progress=0;
-      const colors=['#5363E9','#23A78B','#F1A736','#E66B73','#8B78DE','#60A5FA'];
-      const gradient=points.map((p,i)=>{
-        const start=progress;progress+=total?100*p.value/total:0;
-        return colors[i%colors.length]+' '+start+'% '+progress+'%';
-      }).join(',');
-      return <div style={{display:'flex',gap:18,alignItems:'center',flexWrap:'wrap'}}>
-        <div aria-label="Distribución circular" style={{width:130,height:130,borderRadius:'50%',
-          background:total?'conic-gradient('+gradient+')':border,display:'grid',placeItems:'center',flexShrink:0}}>
-          <div style={{width:79,height:79,borderRadius:'50%',background:surface,display:'grid',placeItems:'center',fontSize:17,fontWeight:650}}>{formatMetric(total,'count')}</div>
-        </div>
-        <div style={{flex:'1 1 130px',display:'flex',flexDirection:'column',gap:6}}>
-          {points.slice(0,9).map((p,i)=><div key={p.name} style={{fontSize:11,display:'flex',alignItems:'center',gap:7}}>
-            <span style={{width:8,height:8,borderRadius:2,background:colors[i%colors.length]}}/>
-            <span style={{flex:1,wordBreak:'break-word'}}>{p.name}</span>
-            <strong>{formatMetric(p.value,w.aggregation)}</strong>
-          </div>)}
-        </div>
-      </div>;
-    }
-    const max=Math.max(1,...points.map(p=>Math.abs(p.value)));
-    if(w.kind==='line'||w.kind==='area'){
-      const coordinates=points.map((p,i)=>[18+(points.length===1?0:i*340/(points.length-1)),155-(p.value/max)*130]);
-      const segments=coordinates.map(([x,y])=>x+','+y).join(' ');
-      return <div>
-        <svg viewBox="0 0 380 180" preserveAspectRatio="none" style={{width:'100%',height:190}} role="img" aria-label={w.title}>
-          {[25,90,155].map(y=><line key={y} x1="18" x2="365" y1={y} y2={y} stroke={border} strokeDasharray="3 4"/>)}
-          {w.kind==='area'&&coordinates.length>1&&<polygon points={'18,155 '+segments+' '+coordinates[coordinates.length-1][0]+',155'} fill="#5363E9" opacity=".14"/>}
-          <polyline points={segments} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
-          {coordinates.map(([x,y],i)=><circle key={points[i].name} cx={x} cy={y} r="3" fill={accent}><title>{points[i].name+': '+formatMetric(points[i].value,w.aggregation)}</title></circle>)}
-        </svg>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:muted}}>
-          <span>{points[0].name}</span><span>{points[points.length-1].name}</span>
-        </div>
-      </div>;
-    }
-    return <div style={{display:'flex',flexDirection:'column',gap:9,maxHeight:320,overflow:'auto'}}>
-      {points.map(p=><div key={p.name} style={{display:'grid',gridTemplateColumns:'minmax(70px,1fr) 3fr 60px',alignItems:'center',gap:9,fontSize:11}}>
-        <span title={p.name} style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
-        <div style={{height:12,borderRadius:3,background:dark?'#344052':'#EEF1F7',overflow:'hidden'}}>
-          <div style={{height:'100%',width:Math.max(0,Math.min(100,p.value/max*100))+'%',background:accent,borderRadius:3}}/>
-        </div>
-        <strong style={{textAlign:'right'}}>{formatMetric(p.value,w.aggregation)}</strong>
-      </div>)}
-    </div>;
+    return <DashboardVisualization widget={w} period={dashboard?.period??{key:'30d'}}
+      data={datasets[w.source]} sourceError={sourceErrors[w.source]} dark={dark}/>;
   }
 
   function widgetEditor(w:DashboardWidget){
@@ -311,13 +279,12 @@ function Dashboards() {
   return <div style={{...basic,background:bg,padding:'24px 26px',minHeight:'100%',display:'flex',flexDirection:'column',gap:18}}>
     <header style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
       <div style={{display:'flex',flexDirection:'column',gap:5}}>
-        <div style={{fontSize:11,color:accent,textTransform:'uppercase',letterSpacing:1.3,fontWeight:700}}>Omnichannel / Dashboards</div>
         <h1 style={{fontSize:23,margin:0,fontWeight:650}}>{dashboard?.title??'Dashboards'}</h1>
         <div style={{fontSize:12,color:muted}}>{dashboard?.description||'Indicadores personalizables de tu workspace'}</div>
       </div>
       <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
         <button style={btn} onClick={resetData} disabled={editing}>Actualizar datos</button>
-        {!editing&&<button style={btn} onClick={startEdit} disabled={!dashboard}>Editar</button>}
+        {!editing&&<button style={btn} onClick={startEdit} disabled={!dashboard}>Editar diseño</button>}
         {!editing&&draft&&<button style={primary} onClick={()=>void save()} disabled={busy}>Guardar período</button>}
         {editing&&<><button style={btn} onClick={cancelEdit} disabled={busy}>Descartar</button><button style={primary} onClick={()=>void save()} disabled={busy}>{busy?'Guardando…':'Guardar cambios'}</button></>}
       </div>
@@ -336,8 +303,21 @@ function Dashboards() {
       <button style={btn} onClick={()=>void createNew(true)} disabled={editing||!dashboard}>Duplicar</button>
       <button style={btn} onClick={()=>void archive()} disabled={editing||!selected||!selected.settingId||busy}>Archivar</button>
       <button style={btn} onClick={downloadConfig} disabled={!dashboard}>Copiar JSON</button>
+      <button style={btn} onClick={()=>void copyDashboardLink()} disabled={!dashboard||editing}>Copiar enlace</button>
+      <button style={btn} onClick={()=>setLinkHelp(v=>!v)} disabled={!dashboard}>En el menú de Twenty</button>
       <button style={btn} onClick={()=>setImportOpen(v=>!v)} disabled={editing}>Importar</button>
     </div>
+    {linkHelp&&dashboard&&<section style={{...card,display:'flex',flexDirection:'column',gap:8}} aria-label="Acceso directo al dashboard">
+      <strong style={{fontSize:13}}>Acceso directo en el menú principal</strong>
+      <p style={{fontSize:12,color:muted,margin:0,lineHeight:1.6}}>
+        Copia este enlace y, en la barra lateral de Twenty, utiliza Editar menú → Añadir → Enlace.
+        Asigna el nombre que quieras y sitúalo en la raíz o en la carpeta que prefieras.
+        Cada dashboard tiene su propio enlace y seguirá abriéndose con sus datos guardados.
+      </p>
+      <input aria-label="Enlace directo del dashboard" readOnly value={getDashboardLink(location,dashboard.id)??''}
+        style={{...field,fontSize:11}} onFocus={e=>e.target.select()}/>
+      <div><button style={primary} onClick={()=>void copyDashboardLink()}>Copiar enlace de este dashboard</button></div>
+    </section>}
     {importOpen&&<section style={card}><strong style={{fontSize:13}}>Importar dashboard</strong>
       <textarea value={importJson} onChange={e=>setImportJson(e.target.value)} style={{...field,minHeight:110,marginTop:9}} placeholder="Pega el JSON exportado"/>
       <button style={{...primary,marginTop:8}} onClick={importConfig}>Revisar y editar</button>
@@ -374,25 +354,49 @@ function Dashboards() {
         <label style={{fontSize:12,display:'flex',alignItems:'center',gap:7}}><input type="checkbox" checked={dashboard.isDefault} onChange={e=>mutate(d=>({...d,isDefault:e.target.checked}))}/>Panel predeterminado</label>
       </div>}
     </section>}
+    {editing&&dashboard&&<div role="status" style={{fontSize:12,color:muted,margin:'-4px 0 0'}}>Arrastra cada widget desde el asa para reordenarlo. Ajusta su anchura con − / + o desde Configurar. Pulsa Guardar cambios al terminar.</div>}
     {dashboard&&<div style={{display:'flex',gap:15,alignItems:'flex-start',flexWrap:'wrap'}}>
       <div style={{flex:'1 1 680px',minWidth:0}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(12,minmax(0,1fr))',gap:12}}>
+        <div style={{display:'flex',flexWrap:'wrap',gap:12}} onPointerUp={()=>{if(pointerSource.current)clearDrag();}}>
           {dashboard.widgets.map((w,index)=><section key={w.id} style={{
-            ...card,gridColumn:'span '+w.width, minWidth:0,
-            outline:editingWidget===w.id&&editing?'2px solid '+accent:'none',
-          }}>
-            <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'start',marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:650,flex:1,minWidth:0}}>{w.title}</div>
-              {editing&&<div style={{display:'flex',gap:3}}>
-                <button style={{...btn,padding:'3px 7px'}} title="Mover antes" disabled={index===0} onClick={()=>swapWidget(w.id,-1)}>←</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Mover después" disabled={index===dashboard.widgets.length-1} onClick={()=>swapWidget(w.id,1)}>→</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Configurar" onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');}}>⚙</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Eliminar" onClick={()=>mutate(d=>({...d,widgets:d.widgets.filter(row=>row.id!==w.id)}))}>×</button>
+            ...card,flex:'1 1 '+(w.width/12*100-1)+'%',minWidth:w.width===3?220:280,maxWidth:'100%',
+            outline:draggingId&&dropTarget===w.id&&draggingId!==w.id?'2px dashed '+accent:
+              editingWidget===w.id&&editing?'2px solid '+accent:'none',
+            opacity:draggingId===w.id?0.7:1,transition:'opacity 150ms ease',
+          }} onPointerEnter={()=>{if(pointerSource.current&&pointerSource.current!==w.id)setDropTarget(w.id);}}
+            onPointerUp={()=>{if(pointerSource.current)finishDrag(w.id);}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:650,flex:1,minWidth:0,overflowWrap:'anywhere'}}>{w.title}</div>
+              {editing&&<div style={{display:'flex',gap:3,alignItems:'center',flexShrink:0}}>
+                <button type="button" aria-label={'Arrastrar '+w.title} title="Arrastra para cambiar el orden"
+                  style={{...btn,padding:'3px 5px',cursor:'grab',touchAction:'none',userSelect:'none',display:'inline-flex',alignItems:'center'}}
+                  onPointerDown={()=>{pointerSource.current=w.id;setDraggingId(w.id);setDropTarget(null);}}
+                  onPointerCancel={clearDrag}
+                  onKeyDown={e=>{if(e.key==='ArrowLeft'||e.key==='ArrowUp')swapWidget(w.id,-1);
+                    if(e.key==='ArrowRight'||e.key==='ArrowDown')swapWidget(w.id,1);}}>
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="5" cy="3.5" r="1.1"/><circle cx="11" cy="3.5" r="1.1"/>
+                    <circle cx="5" cy="8" r="1.1"/><circle cx="11" cy="8" r="1.1"/>
+                    <circle cx="5" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>
+                  </svg>
+                </button>
+                <button style={{...btn,padding:'3px 7px'}} title="Mover antes" aria-label={'Mover antes '+w.title}
+                  disabled={index===0} onClick={()=>swapWidget(w.id,-1)}>←</button>
+                <button style={{...btn,padding:'3px 7px'}} title="Mover después" aria-label={'Mover después '+w.title}
+                  disabled={index===dashboard.widgets.length-1} onClick={()=>swapWidget(w.id,1)}>→</button>
+                <button style={{...btn,padding:'3px 7px'}} title="Reducir anchura" aria-label={'Reducir anchura '+w.title}
+                  disabled={w.width===3} onClick={()=>resizeWidget(w.id,-1)}>−</button>
+                <button style={{...btn,padding:'3px 7px'}} title="Ampliar anchura" aria-label={'Ampliar anchura '+w.title}
+                  disabled={w.width===12} onClick={()=>resizeWidget(w.id,1)}>+</button>
+                <button style={{...btn,padding:'3px 7px'}} title="Configurar" aria-label={'Configurar '+w.title}
+                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');}}>⚙</button>
+                <button style={{...btn,padding:'3px 7px'}} title="Eliminar" aria-label={'Eliminar '+w.title}
+                  onClick={()=>mutate(d=>({...d,widgets:d.widgets.filter(row=>row.id!==w.id)}))}>×</button>
               </div>}
             </div>
             {renderChart(w)}
           </section>)}
-          {editing&&<section style={{...card,gridColumn:'span 12',background:'transparent',borderStyle:'dashed',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {editing&&<section style={{...card,flex:'1 1 100%',background:'transparent',borderStyle:'dashed',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <select style={{...field,width:'auto'}} value={addKind} onChange={e=>setAddKind(e.target.value as WidgetKind)}>
               {KINDS.map(kind=><option key={kind} value={kind}>{WIDGET_LABELS[kind]}</option>)}</select>
             <select style={{...field,width:'auto'}} value={addSource} onChange={e=>setAddSource(e.target.value as Source)}>
