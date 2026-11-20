@@ -5,7 +5,7 @@ import { IDS } from '../constants/ids.ts';
 import { addChannel, destroyDisabledChannel, getChannels, isValidCode, normalizeCode, updateChannelStatus } from '../lib/support-channels.ts';
 import type { ChannelStatus, ChannelType, SupportChannel } from '../lib/support-channels.ts';
 
-function ChannelSetup() {
+export function ChannelSetup() {
   const dark=useColorScheme()==='dark';
   const [rows,setRows]=useState<SupportChannel[]>([]);
   const [loading,setLoading]=useState(true);
