@@ -20,7 +20,7 @@ test('multichannel types and per-channel policies are preserved',()=>{
   for(const field of ['groupingMode','continuationHours','reopenHours','semanticClassification','minClassificationConfidence','ambiguousAction','autoCloseEnabled','autoCloseDays'])assert(channel.includes(field));
   assert(read('src/objects/support-external-identity.object.ts').includes('externalKey'));
   assert(read('src/indexes/external-identity-unique.index.ts').includes('isUnique: true'));
-  assert(read('src/front-components/channel-policies.tsx').includes('updateChannelPolicy'));
+  assert(read('src/ui/channel-policies-page.tsx').includes('updateChannelPolicy'));
 });
 test('WhatsApp PN and LID can map to the same identity through aliases',()=>{
   const aliases=read('src/objects/support-identity-alias.object.ts');
@@ -48,7 +48,7 @@ test('new omnichannel fields, person relations and labels are stable',()=>{
   for(const field of ['followUp','followUpAt','comments','language','transcription','recording'])assert(source.includes("name: '"+field+"'"));
   assert(source.includes("labelPlural: 'Conversaciones'"));
   assert(read('src/page-layouts/person-omnichannel.page.ts').includes('personRecordPage'));
-  assert(read('src/front-components/support-overview.tsx').includes('fetchDataset('));
+  assert(read('src/ui/dashboard-page.tsx').includes('fetchDataset('));
 });
 
 
