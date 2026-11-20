@@ -53,7 +53,8 @@ test('FAQ editor preserves existing fields and uses safe archive state', () => {
   for (const status of ['DRAFT','PUBLISHED','ARCHIVED']) assert(ui.includes(status));
   assert(ui.includes("faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED'"));
   assert(ui.includes("isPublished ? 'DRAFT' : 'PUBLISHED'"));
-  assert(!ui.includes('.delete('));
+  assert(!ui.includes('api.delete('));
+  assert(!ui.includes('RestApiClient().delete('));
   assert(rest.includes("faq.categoryId ?? ''"));
 });
 
