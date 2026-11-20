@@ -5,6 +5,7 @@
 - Reúne dashboards, FAQs, configuración de canales, políticas de conversación y enlaces a todos los objetos nativos en un centro administrativo reutilizando los componentes existentes.
 - Sustituye las flechas y controles +/- del editor de dashboards por el arrastre desde la cabecera y el redimensionamiento mediante un tirador en la esquina. Mantiene configuración, IDs, período y enlaces de los dashboards existentes.
 - Unifica estilos de canales y políticas con las nuevas FAQs y dashboards; los cambios de estado de canal actualizan la tarjeta sin recargar todo el listado.
+- Separa el almacenamiento operativo de dashboards en el objeto `supportDashboards`, con permisos propios. Incluye migración explícita e idempotente desde `supportSettings` sin borrar los registros antiguos, y pruebas de no regresión.
 - Amplía pruebas de compatibilidad y documentación de instalación y migración. **Aún no es una release publicada**: faltan las pruebas de permisos y actualización de un workspace real.
 
 
