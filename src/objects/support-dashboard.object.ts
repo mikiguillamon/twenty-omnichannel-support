@@ -34,7 +34,6 @@ export default defineObject({
       label: 'Activo',
       type: FieldType.BOOLEAN,
       icon: 'IconToggleRight',
-      defaultValue: true,
     },
   ],
 });
