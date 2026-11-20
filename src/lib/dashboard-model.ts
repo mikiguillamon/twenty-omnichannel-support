@@ -85,8 +85,7 @@ export function periodFrom(value:unknown):Period {
   const key=oneOf(raw.key,PERIODS,'30d');
   const date=(v:unknown)=>typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : '';
   const start=date(raw.start),end=date(raw.end);
-  return key==='custom' && start && end && start<=end ? {key,start,end}
-    : key==='custom' ? {key:'30d'} : {key};
+  return key==='custom' ? {key,start:start||undefined,end:end||undefined} : {key};
 }
 export function makeWidget(kind:WidgetKind='kpi',source:Source='supportCases',title?:string):DashboardWidget {
   return {id:newId(),title:title||('Nuevo '+(kind==='kpi'?'indicador':'gráfico')),kind,source,
