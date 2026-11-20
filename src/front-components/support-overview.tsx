@@ -19,7 +19,7 @@ const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
 const WIDTHS=[3,4,6,8,12] as const;
 
-function Dashboards() {
+export function Dashboards() {
   const dark=useColorScheme()==='dark';
   const location=useLocation();
   const requestedDashboard=readDashboardFromSearch(location?.search??'');
