@@ -26,7 +26,7 @@ export async function fetchDataset(source:Source,api:RestApiClient,signal?:{canc
   let cursor:string|null=null,total=0,hasMore=false;
   for(let index=0;index<MAX_RECORDS/PAGE_SIZE;index++){
     if(signal?.cancelled)throw Error('DASHBOARD_CANCELLED');
-    const query:Record<string,string|number>={fields:fieldsFor(source,'fields').join(','),limit:PAGE_SIZE,depth:0,order_by:'createdAt[DescNullsLast]'};
+    const query:Record<string,string|number>={fields:fieldsFor(source,'fields').join(','),limit:PAGE_SIZE,depth:0,order_by:'id[AscNullsLast]'};
     if(cursor)query.starting_after=cursor;
     const response:unknown=await api.get('/rest/'+source,{query});
     const page=responseCollection(response,source);
@@ -101,31 +101,80 @@ function aggregate(rows:RecordData[],w:DashboardWidget):number|null {
   if(w.aggregation==='max')return Math.max(...numbers);
   return null;
 }
-function groupKey(row:RecordData,w:DashboardWidget):string{
+function groupKey(row:RecordData,w:DashboardWidget,monthly=false):string{
   if(w.kind==='hour'){
     const date=typeof row[w.dateField]==='string'?new Date(row[w.dateField] as string):null;
     return date&&!Number.isNaN(date.getTime())?String(date.getHours()).padStart(2,'0')+':00':'Sin hora';
   }
   if(w.kind==='line'||w.kind==='area'){
     const date=typeof row[w.dateField]==='string'?new Date(row[w.dateField] as string):null;
-    return date&&!Number.isNaN(date.getTime())?localDate(date):'Sin fecha';
+    return date&&!Number.isNaN(date.getTime())?(monthly?localDate(date).slice(0,7):localDate(date)):'Sin fecha';
   }
   return text(row[w.groupBy]);
 }
-export function summarize(data:Dataset,w:DashboardWidget,period:Period):Summary{
+
+function seriesPeriod(range:Range,rows:RecordData[],w:DashboardWidget):Range {
+  if(range.from&&range.to)return range;
+  const values=rows.map(r=>typeof r[w.dateField]==='string'?Date.parse(r[w.dateField] as string):NaN)
+    .filter(Number.isFinite);
+  if(!values.length)return {from:null,to:null};
+  const min=new Date(Math.min(...values));
+  const max=new Date(Math.max(...values));
+  return {from:new Date(min.getFullYear(),min.getMonth(),min.getDate()),
+    to:new Date(max.getFullYear(),max.getMonth(),max.getDate()+1)};
+}
+function monthDistance(range:Range):boolean{
+  return Boolean(range.from&&range.to&&range.to.getTime()-range.from.getTime()>120*86400000);
+}
+function timelinePoints(groups:Map<string,RecordData[]>,w:DashboardWidget,range:Range,monthly:boolean):Point[]{
+  if(!range.from||!range.to)return [];
+  const cursor=new Date(range.from);
+  if(monthly)cursor.setDate(1);
+  const points:Point[]=[];
+  // At most 120 monthly buckets or 125 daily buckets. Longer historical ranges
+  // are collapsed to existing buckets rather than silently truncating dates.
+  const maxBuckets=monthly?120:125;
+  for(let i=0;cursor<range.to&&i<maxBuckets;i++){
+    const key=monthly?localDate(cursor).slice(0,7):localDate(cursor);
+    points.push({name:key,value:aggregate(groups.get(key)??[],w)??0});
+    if(monthly)cursor.setMonth(cursor.getMonth()+1);
+    else cursor.setDate(cursor.getDate()+1);
+  }
+  if(cursor<range.to){
+    // Highly unusual >10-year range. Preserve all known buckets rather than
+    // representing a truncated timeline as the entire range.
+    return [...groups.entries()].map(([name,records])=>({name,value:aggregate(records,w)??0}))
+      .sort((a,b)=>a.name.localeCompare(b.name));
+  }
+  return points;
+}
+export function summarize(data:Dataset,w:DashboardWidget,period:Period,now=new Date()):Summary{
   const effective=w.periodOverride??period;
-  const range=getRange(effective);
+  const range=getRange(effective,now);
   const relevant=filtered(data.rows,w,range);
   const previous=w.compare&&range.from?aggregate(filtered(data.rows,w,prior(range)),w):null;
+  const isTimeline=w.kind==='line'||w.kind==='area';
+  const timelineRange=isTimeline?seriesPeriod(range,relevant,w):range;
+  const monthly=isTimeline&&monthDistance(timelineRange);
   const groups=new Map<string,RecordData[]>();
   for(const row of relevant){
-    const key=groupKey(row,w);
+    const key=groupKey(row,w,monthly);
     const group=groups.get(key)??[];group.push(row);groups.set(key,group);
   }
-  let points=[...groups.entries()].map(([name,records])=>({name,value:aggregate(records,w)??0}));
-  if(w.kind==='line'||w.kind==='area'||w.kind==='hour')points.sort((a,b)=>a.name.localeCompare(b.name));
-  else points.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
-  return {value:aggregate(relevant,w),points:points.slice(0,20),previous,complete:data.complete,total:data.total};
+  let points:Point[];
+  if(w.kind==='hour'){
+    points=Array.from({length:24},(_,i)=>{
+      const name=String(i).padStart(2,'0')+':00';
+      return {name,value:aggregate(groups.get(name)??[],w)??0};
+    });
+  }else if(isTimeline){
+    points=timelinePoints(groups,w,timelineRange,monthly);
+  }else{
+    points=[...groups.entries()].map(([name,records])=>({name,value:aggregate(records,w)??0}));
+    points.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
+    points=points.slice(0,20);
+  }
+  return {value:aggregate(relevant,w),points,previous,complete:data.complete,total:data.total};
 }
 export function formatMetric(value:number|null,aggregation:DashboardWidget['aggregation']):string{
   if(value===null||!Number.isFinite(value))return '—';
