@@ -41,12 +41,9 @@ test('dashboard edit mode exposes only configure and remove buttons on each widg
 });
 
 test('no app-owned entries recreate the Omnichannel sidebar folder for members',()=>{
-  const {existsSync,readdirSync}=requireFilesystem();
   const path=new URL('../src/navigation-menu-items/',import.meta.url);
-  if(existsSync(path))assert.equal(readdirSync(path).filter(file=>file.endsWith('.ts')).length,0);
+  if(fsExistsSync(path))assert.deepEqual(fsReaddirSync(path).filter(file=>file.endsWith('.ts')),[]);
   const center=read('src/settings-menu-items/omnichannel-admin.settings.ts');
   assert(center.includes("scope: 'WORKSPACE'"));
+  assert(center.includes('IDS.FRONT_ADMIN_CENTER'));
 });
-function requireFilesystem(){
-  return {existsSync:fsExistsSync,readdirSync:fsReaddirSync};
-}
