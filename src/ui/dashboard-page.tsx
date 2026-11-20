@@ -18,7 +18,7 @@ const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
 const WIDTHS=[3,4,6,8,12] as const;
 
-export function Dashboards() {
+export function Dashboards({enableLinks=true}:{enableLinks?:boolean}={}) {
   const dark=useColorScheme()==='dark';
   const location=useLocation();
   const requestedDashboard=readDashboardFromSearch(location?.search??'');
@@ -147,7 +147,7 @@ export function Dashboards() {
     setResizingId(null);
   }
   async function copyDashboardLink(){
-    if(!dashboard)return;
+    if(!dashboard||!enableLinks)return;
     const url=getDashboardLink(location,dashboard.id);
     if(!url){setError('No se pudo generar un enlace para esta página.');return;}
     try{
@@ -323,11 +323,11 @@ export function Dashboards() {
       <button style={btn} onClick={()=>void createNew(true)} disabled={editing||!dashboard}>Duplicar</button>
       <button style={btn} onClick={()=>void archive()} disabled={editing||!selected||!selected.settingId||busy}>Archivar</button>
       <button style={btn} onClick={downloadConfig} disabled={!dashboard}>Copiar JSON</button>
-      <button style={btn} onClick={()=>void copyDashboardLink()} disabled={!dashboard||editing}>Copiar enlace</button>
-      <button style={btn} onClick={()=>setLinkHelp(v=>!v)} disabled={!dashboard}>En el menú de Twenty</button>
+      {enableLinks&&<button style={btn} onClick={()=>void copyDashboardLink()} disabled={!dashboard||editing}>Copiar enlace</button>}
+      {enableLinks&&<button style={btn} onClick={()=>setLinkHelp(v=>!v)} disabled={!dashboard}>En el menú de Twenty</button>}
       <button style={btn} onClick={()=>setImportOpen(v=>!v)} disabled={editing}>Importar</button>
     </div>
-    {linkHelp&&dashboard&&<section style={{...card,display:'flex',flexDirection:'column',gap:8}} aria-label="Acceso directo al dashboard">
+    {enableLinks&&linkHelp&&dashboard&&<section style={{...card,display:'flex',flexDirection:'column',gap:8}} aria-label="Acceso directo al dashboard">
       <strong style={{fontSize:13}}>Acceso directo en el menú principal</strong>
       <p style={{fontSize:12,color:muted,margin:0,lineHeight:1.6}}>
         Copia este enlace y, en la barra lateral de Twenty, utiliza Editar menú → Añadir → Enlace.
