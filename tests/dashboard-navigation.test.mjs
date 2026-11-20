@@ -5,7 +5,8 @@ import {
   listPublishedDashboardLinks, publishDashboardLink, renameDashboardLink, unpublishDashboardLink,
 } from '../src/lib/dashboard-navigation.ts';
 
-const good='/page/1234abcd?omniDashboard=dashboard-1234';
+const operational='/page/1234abcd?omniDashboard=dashboard-1234';
+const good=operational+'&omniShortcut=managed-v1';
 const item=(overrides={})=>({
   id:'shared-1',name:'General',link:good,icon:'IconLayoutDashboard',
   position:1,type:'LINK',applicationId:null,userWorkspaceId:null,folderId:null,...overrides,
@@ -43,6 +44,7 @@ const mock=()=>{
 
 test('dashboard URL allowlist rejects external, Settings and ambiguous routes',()=>{
   assert.equal(normalizeDashboardNavigationLink(good),good);
+  assert.equal(normalizeDashboardNavigationLink(operational),operational);
   for(const invalid of [
     'https://evil.example/page/1234?omniDashboard=dashboard-1234',
     '//evil.example/page/1234?omniDashboard=dashboard-1234',
@@ -55,6 +57,7 @@ test('dashboard URL allowlist rejects external, Settings and ambiguous routes',(
 });
 test('navigation manager excludes personal, app-owned and nested links',()=>{
   assert.equal(isPublishedDashboardLink(item()),true);
+  assert.equal(isPublishedDashboardLink(item({link:operational})),false);
   assert.equal(isPublishedDashboardLink(item({applicationId:'app'})),false);
   assert.equal(isPublishedDashboardLink(item({userWorkspaceId:'person'})),false);
   assert.equal(isPublishedDashboardLink(item({folderId:'folder'})),false);
@@ -62,7 +65,7 @@ test('navigation manager excludes personal, app-owned and nested links',()=>{
 test('published links are created shared, renamed and removed without deleting dashboards',async()=>{
   const {client,mutations}=mock();
   const created=await publishDashboardLink({name:'Incidencias',link:'/page/1234abcd?omniDashboard=issues-1234'},client);
-  assert.equal(created.link,'/page/1234abcd?omniDashboard=issues-1234');
+  assert.equal(created.link,'/page/1234abcd?omniDashboard=issues-1234&omniShortcut=managed-v1');
   assert.equal(mutations[0].createNavigationMenuItem.__args.input.userWorkspaceId,null);
   assert.equal((await listPublishedDashboardLinks(client)).length,2);
   await renameDashboardLink(created.id,'Incidencias activas',client);
@@ -76,5 +79,7 @@ test('refuse mutations of unrelated navigation entries',async()=>{
   await assert.rejects(()=>renameDashboardLink('personal','Changed',client),/LINK_NOT_MANAGED/);
   await assert.rejects(()=>unpublishDashboardLink('personal',client),/LINK_NOT_MANAGED/);
   await assert.rejects(()=>publishDashboardLink({name:'Duplicate',link:good},client),/ALREADY_PUBLISHED/);
+  entries.push(item({id:'manual',link:'/page/xyz12345?omniDashboard=manual-1234'}));
+  await assert.rejects(()=>unpublishDashboardLink('manual',client),/LINK_NOT_MANAGED/);
   assert.equal(mutations.length,0);
 });
