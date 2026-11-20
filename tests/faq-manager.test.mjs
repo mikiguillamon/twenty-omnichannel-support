@@ -51,8 +51,26 @@ test('FAQ editor preserves existing fields and uses safe archive state', () => {
   for (const field of ['question','answer','categoryId','status','language','variants','scopeTags',
     'tags','customTags','sourceUrl','updatedByReference']) assert(rest.includes(field));
   for (const status of ['DRAFT','PUBLISHED','ARCHIVED']) assert(ui.includes(status));
-  assert(ui.includes("updateStatus(faq, 'ARCHIVED')"));
-  assert(ui.includes("updateStatus(faq, 'DRAFT')"));
+  assert(ui.includes("faq.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED'"));
+  assert(ui.includes("isPublished ? 'DRAFT' : 'PUBLISHED'"));
   assert(!ui.includes('.delete('));
   assert(rest.includes("faq.categoryId ?? ''"));
+});
+
+test('FAQ actions use an accessible toggle, icons and native side panel', () => {
+  const ui = read('src/front-components/faq-manager.tsx');
+  for (const key of [
+    'role="switch"',
+    'aria-checked={isPublished}',
+    '<span>Activa</span>',
+    '<ActionIcon icon="edit" />',
+    'SidePanelPages.ViewFrontComponent',
+    "objectNameSingular: 'supportFaq'",
+    'selectedRecordIds: recordId ? [recordId] : []',
+    '<FaqEditorSidePanel',
+    'await closeSidePanel()',
+    "await api.post('/rest/supportFaqs', payload)",
+  ]) assert(ui.includes(key), key);
+  assert(!ui.includes('<dialog'));
+  assert(!ui.includes('createPortal('));
 });

@@ -1,5 +1,14 @@
 ## Unreleased
 
+## 0.3.0-beta.24 — Interacción de FAQs: toggle, iconos y editor lateral
+
+- Sustituye el checkbox Publicada por un toggle accesible «Activa» (PUBLISHED ↔ DRAFT), sin alterar el estado persistido ni el filtro de publicación del bot.
+- Sustituye Editar y Archivar por botones con iconos SVG accesibles, e incluye Restaurar para FAQs archivadas.
+- Traslada el formulario de creación y edición al panel lateral nativo de Twenty 2.50 (`SidePanelPages.ViewFrontComponent`), evitando modales personalizados no soportados por el SDK.
+- Mantiene categorías, opciones avanzadas, permisos de usuario, confirmación de archivo y API de FAQs; incorpora pruebas de regresión.
+- No modifica los objetos, UUID ni la navegación de Omnichannel.
+
+
 ## 0.3.0-beta.23 — Corrección de actualización del gestor visual de FAQs
 
 - Corrige el rechazo de Twenty 2.50 al actualizar la navegación: el identificador ya instalado de «FAQs» conserva su tipo OBJECT y abre la tabla nativa, ahora llamada «FAQs (tabla)».
