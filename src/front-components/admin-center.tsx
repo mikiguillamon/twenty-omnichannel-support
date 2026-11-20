@@ -87,7 +87,7 @@ export function OmnichannelAdminCenter() {
           <p style={{fontSize:12,margin:'5px 0 0',color:muted}}>{sections.find(item=>item.key===section)?.description}</p>
         </div>
         {navigationError&&<p role="alert" style={{color:dark?'#F7A0A0':'#BA3E44',fontSize:12}}>{navigationError}</p>}
-        {section==='dashboards'&&<Dashboards/>}
+        {section==='dashboards'&&<><p style={{fontSize:12,color:muted,margin:0}}>Para copiar un acceso público, abre la página Dashboards del menú principal; los enlaces creados desde Ajustes quedarían restringidos a administración.</p><Dashboards enableLinks={false}/></>}
         {section==='faqs'&&<FaqManagerEntry/>}
         {section==='channels'&&<ChannelSetup/>}
         {section==='policies'&&<ChannelPolicies/>}
