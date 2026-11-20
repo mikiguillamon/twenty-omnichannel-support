@@ -12,7 +12,7 @@ Omnichannel Support gives your team a place to follow support cases, read messag
 - **Open history from People.** Find related conversations and channel identities in the Omnichannel tab on a Person.
 - **Choose how conversations become cases.** Keep email replies in the same thread, or group chat messages by activity and topic. Each channel has its own settings.
 - **Manage FAQs visually.** Open Omnichannel → FAQs for grouped cards, filters, an inline editor and publication controls. Use FAQs (tabla) to access Twenty's original record interface. Maintain FAQs with configurable scope tags (GENERAL, VERANO, etc.) so each bot retrieves only published answers relevant to its audience; review automated replies before or after they are sent.
-- **See what needs attention.** Choose which KPIs to show in the workspace summary, and create additional graphs and dashboards with Twenty's native editor.
+- **Build dashboards in Omnichannel.** Create and rename multiple workspace dashboards, configure individual KPIs, distributions and timelines, adjust date ranges, compare periods, add shortcut widgets, and save or export the layout. The editor runs inside Twenty, independently of its native dashboard builder. For large histories, the current analytics engine explicitly refuses to display partial aggregates.
 
 WhatsApp integrations can associate number-based JIDs and LIDs with the same customer identity when the provider supplies reliable matching information.
 
