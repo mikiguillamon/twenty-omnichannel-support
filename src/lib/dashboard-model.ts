@@ -1,6 +1,6 @@
 /**
  * Workspace dashboard definitions. Persisted as versioned JSON in the existing
- * supportSettings object (one setting per dashboard, never in browser storage).
+ * supportDashboards object with legacy supportSettings read during migration.
  * The catalogs are intentionally allow-listed: widget config cannot select
  * arbitrary REST endpoints or metadata fields.
  */
@@ -63,7 +63,7 @@ export type Dashboard = {
   id: string; title: string; description: string; icon: string; period: Period;
   widgets: DashboardWidget[]; isDefault: boolean; updatedAt: string;
 };
-export type StoredDashboard = { settingId: string|null; dashboard: Dashboard };
+export type StoredDashboard = { settingId: string|null; dashboard: Dashboard; storage?: 'dedicated'|'legacy' };
 
 const PERIODS: PeriodKey[] = ['today','yesterday','7d','30d','90d','thisMonth','previousMonth','all','custom'];
 const KINDS: WidgetKind[] = ['kpi','bar','donut','line','area','table','hour','shortcut','text'];
