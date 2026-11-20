@@ -1,4 +1,12 @@
-## Unreleased
+## Unreleased — camino a Omnichannel Support 1.0.0
+
+- Mueve la administración de la aplicación a **Ajustes → Aplicaciones → Omnichannel Support → Administración Omnichannel**, bajo el permiso nativo `APPLICATIONS` de Twenty 2.50.
+- Retira las 11 entradas de navegación propiedad de la aplicación, incluida la antigua carpeta lateral Omnichannel. Los enlaces creados independientemente en el workspace no forman parte del manifiesto de la app y permanecen administrados por Twenty. **Antes de actualizar**, hay que convertir en enlaces propios del workspace las entradas de la app que se hayan movido fuera de la carpeta.
+- Reúne dashboards, FAQs, configuración de canales, políticas de conversación y enlaces a todos los objetos nativos en un centro administrativo reutilizando los componentes existentes.
+- Sustituye las flechas y controles +/- del editor de dashboards por el arrastre desde la cabecera y el redimensionamiento mediante un tirador en la esquina. Mantiene configuración, IDs, período y enlaces de los dashboards existentes.
+- Unifica estilos de canales y políticas con las nuevas FAQs y dashboards; los cambios de estado de canal actualizan la tarjeta sin recargar todo el listado.
+- Amplía pruebas de compatibilidad y documentación de instalación y migración. **Aún no es una release publicada**: faltan las pruebas de permisos y actualización de un workspace real.
+
 
 ## 0.3.0-beta.26 — FAQs instantáneas y editor visual de dashboards
 
