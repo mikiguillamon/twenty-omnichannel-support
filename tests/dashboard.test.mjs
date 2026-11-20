@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   defaultDashboard,createDashboard,normalizeDashboard,normalizeWidget,makeWidget,periodFrom,MAX_WIDGETS,
-  moveDashboardWidget,resizeDashboardWidget,
+  moveDashboardWidget,resizeDashboardWidget,resizeDashboardWidgetTo,MIN_WIDGET_HEIGHT,MAX_WIDGET_HEIGHT,
 } from '../src/lib/dashboard-model.ts';
 import {getRange,summarize,metricDelta} from '../src/lib/dashboard-analytics.ts';
 import {importDashboard,exportDashboard} from '../src/lib/dashboard-store.ts';
@@ -112,4 +112,34 @@ test('dashboard direct links select only validated IDs and remain on current wor
   assert.equal(readDashboardFromSearch('?omniDashboard=javascript:alert(1)'),null);
   assert.equal(getDashboardLink(current,'../../evil'),null);
   assert.equal(getDashboardLink({...current,origin:'javascript:evil'},'d123456'),null);
+});
+
+test('corner resizing preserves widget identity, filters, and numeric configuration',()=>{
+  const dashboard=defaultDashboard();
+  const first=dashboard.widgets[0];
+  const taller=resizeDashboardWidgetTo(dashboard,first.id,8,8);
+  assert.equal(taller.widgets[0].width,8);
+  assert.equal(taller.widgets[0].height,8);
+  assert.equal(dashboard.widgets[0].height,first.height);
+  assert.equal(taller.widgets[0].id,first.id);
+  assert.deepEqual(taller.widgets[0].filters,first.filters);
+  assert.equal(resizeDashboardWidgetTo(taller,'does-not-exist',6,5),taller);
+});
+
+test('legacy dashboard layouts gain safe heights without changing IDs',()=>{
+  const old=defaultDashboard();
+  const id=old.widgets[0].id;
+  const legacy={...old,widgets:old.widgets.map(w=>{
+    const {height,...rest}=w;
+    return rest;
+  })};
+  const loaded=normalizeDashboard(legacy);
+  assert.equal(loaded.widgets[0].id,id);
+  assert(loaded.widgets.every(w=>w.height>=MIN_WIDGET_HEIGHT&&w.height<=MAX_WIDGET_HEIGHT));
+  const huge=resizeDashboardWidgetTo(loaded,id,900,999);
+  assert.equal(huge.widgets[0].width,12);
+  assert.equal(huge.widgets[0].height,MAX_WIDGET_HEIGHT);
+  const small=resizeDashboardWidgetTo(loaded,id,0,-300);
+  assert.equal(small.widgets[0].width,3);
+  assert.equal(small.widgets[0].height,MIN_WIDGET_HEIGHT);
 });

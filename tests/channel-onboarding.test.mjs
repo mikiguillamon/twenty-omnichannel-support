@@ -5,10 +5,13 @@ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 test('channels start disabled',()=>{
   assert.match(read('src/objects/support-channel.object.ts'),/name: 'status'[^\n]+defaultValue:"'DISABLED'"/);
 });
-test('channel page is installed in navigation',()=>{
+test('channel pages remain installed and reachable through admin center',()=>{
   assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_SETUP'));
   assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_POLICIES'));
-  assert(read('src/navigation-menu-items/menu-channels.menu.ts').includes('LAYOUT_CHANNEL_SETUP'));
+  const admin=read('src/front-components/admin-center.tsx');
+  assert(admin.includes('<ChannelSetup/>'));
+  assert(admin.includes('<ChannelPolicies/>'));
+  assert(admin.includes("plural:'supportChannels'"));
 });
 test('email and whatsapp views remain while fixed sidebar links are removed',()=>{
   for(const path of ['menu-email.menu.ts','menu-whatsapp.menu.ts','menu-human.menu.ts','menu-case-errors.menu.ts','menu-evaluations-bad.menu.ts','menu-messages.menu.ts'])

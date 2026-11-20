@@ -21,7 +21,10 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'release' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish npm]'))
+    permissions:
+      contents: write
+      id-token: write
+    if: github.event_name == 'release' || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[publish npm]') || contains(github.event.head_commit.message, '[publish stable]')))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -67,12 +70,14 @@ jobs:
           else
             node scripts/release-preflight.mjs --public
             CURRENT="$(node -p "require('./package.json').version")"
-            # Package versions may be bumped in a reviewed PR before the
-            # separately triggered [publish npm] commit. npm immutability,
-            # release metadata and the explicit commit marker guard publishing.
-            case "$CURRENT" in *-beta.[0-9]*) ;; *) echo "Expected a beta version"; exit 1;; esac
-            if npm view "twenty-omnichannel-support@$CURRENT" version --json >/dev/null 2>&1; then
-              echo "Version already published, refusing to overwrite"; exit 1
+            if [[ "${{ github.event.head_commit.message }}" == *"[publish stable]"* ]]; then
+              # Stable publication requires the reviewed release commit on main.
+              test "$CURRENT" = "1.0.0" || { echo "This one-time stable workflow requires 1.0.0"; exit 1; }
+            else
+              case "$CURRENT" in *-beta.[0-9]*) ;; *) echo "Expected a beta version"; exit 1;; esac
+              if npm view "twenty-omnichannel-support@$CURRENT" version --json >/dev/null 2>&1; then
+                echo "Version already published, refusing to overwrite"; exit 1
+              fi
             fi
           fi
       - name: Tests, types and Twenty SDK build
@@ -97,14 +102,52 @@ jobs:
       - name: Install npm with OIDC support
         run: npm install --global 'npm@^11.21.0'
       - name: Publish beta to npm
-        if: github.event_name == 'push' || github.event.release.prerelease == true
+        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[publish stable]')) || (github.event_name == 'release' && github.event.release.prerelease == true)
         run: corepack yarn twenty app:publish --tag beta
       - name: Publish stable to npm
-        if: github.event_name == 'release' && github.event.release.prerelease == false
-        run: corepack yarn twenty app:publish
+        if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish stable]'))
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "twenty-omnichannel-support@$VERSION" version --json >/dev/null 2>&1; then
+            echo "$VERSION already published; will verify and ensure latest dist-tag"
+          else
+            corepack yarn twenty app:publish
+          fi
+      - name: Verify stable latest dist-tag
+        if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish stable]'))
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          for attempt in $(seq 1 18); do
+            if npm dist-tag add "twenty-omnichannel-support@$VERSION" latest; then break; fi
+            if [ "$attempt" -eq 18 ]; then echo "Could not set npm latest"; exit 1; fi
+            sleep 10
+          done
+          for attempt in $(seq 1 18); do
+            npm view twenty-omnichannel-support dist-tags --json --prefer-online --cache "/tmp/npm-stable-tag-check-$attempt" > /tmp/stable-tags.json
+            if node -e "const tags=require('/tmp/stable-tags.json');const version=require('./package.json').version;if(tags.latest!==version)process.exit(1)"; then
+              echo "Verified npm latest = $VERSION"
+              break
+            fi
+            if [ "$attempt" -eq 18 ]; then cat /tmp/stable-tags.json; exit 1; fi
+            sleep 10
+          done
+      - name: Create first stable GitHub release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish stable]')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "GitHub release v$VERSION already exists"
+          else
+            gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Omnichannel Support v$VERSION" --notes-file docs/RELEASE_NOTES_1_0_0.md --latest
+          fi
 
       - name: Promote released beta to npm latest
-        if: github.event_name == 'push' || github.event.release.prerelease == true
+        if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[publish stable]')) || (github.event_name == 'release' && github.event.release.prerelease == true)
         id: promote_latest
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}

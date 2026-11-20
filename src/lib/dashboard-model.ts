@@ -1,6 +1,6 @@
 /**
  * Workspace dashboard definitions. Persisted as versioned JSON in the existing
- * supportSettings object (one setting per dashboard, never in browser storage).
+ * supportDashboards object with legacy supportSettings read during migration.
  * The catalogs are intentionally allow-listed: widget config cannot select
  * arbitrary REST endpoints or metadata fields.
  */
@@ -56,19 +56,24 @@ export type DashboardWidget = {
   id: string; title: string; kind: WidgetKind; source: Source;
   aggregation: Aggregation; valueField: string; groupBy: string; dateField: string;
   filters: DashboardFilter[]; ratioField: string; ratioValue: string;
-  width: 3|4|6|8|12; compare: boolean;
+  width: 3|4|6|8|12; height: number; compare: boolean;
   periodOverride: Period|null; text: string; url: string;
 };
 export type Dashboard = {
   id: string; title: string; description: string; icon: string; period: Period;
   widgets: DashboardWidget[]; isDefault: boolean; updatedAt: string;
 };
-export type StoredDashboard = { settingId: string|null; dashboard: Dashboard };
+export type StoredDashboard = { settingId: string|null; dashboard: Dashboard; storage?: 'dedicated'|'legacy' };
 
 const PERIODS: PeriodKey[] = ['today','yesterday','7d','30d','90d','thisMonth','previousMonth','all','custom'];
 const KINDS: WidgetKind[] = ['kpi','bar','donut','line','area','table','hour','shortcut','text'];
 const AGGREGATIONS: Aggregation[] = ['count','sum','avg','min','max','distinct','ratio'];
 const WIDTHS: DashboardWidget['width'][] = [3,4,6,8,12];
+export const MIN_WIDGET_HEIGHT = 2;
+export const MAX_WIDGET_HEIGHT = 12;
+const initialHeight = (kind: WidgetKind) => kind === 'kpi' || kind === 'shortcut' ? 3 : kind === 'text' ? 4 : 6;
+const safeHeight = (value: unknown, kind: WidgetKind) => typeof value === 'number' && Number.isFinite(value)
+  ? Math.max(MIN_WIDGET_HEIGHT, Math.min(MAX_WIDGET_HEIGHT, Math.round(value))) : initialHeight(kind);
 const safeText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
 const object = (value:unknown): Record<string,unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string,unknown> : {};
 const oneOf = <T extends string>(value:unknown, allowed: readonly T[], fallback:T):T =>
@@ -90,8 +95,8 @@ export function periodFrom(value:unknown):Period {
 export function makeWidget(kind:WidgetKind='kpi',source:Source='supportCases',title?:string):DashboardWidget {
   return {id:newId(),title:title||('Nuevo '+(kind==='kpi'?'indicador':'gráfico')),kind,source,
     aggregation:'count',valueField:'',groupBy:fieldsFor(source,'dimensions')[0]||'',
-    dateField:dateFor(source),filters:[],ratioField:'',ratioValue:'',width:kind==='kpi'?3:kind==='text'||kind==='shortcut'?6:6,
-    compare:kind==='kpi',periodOverride:null,text:'',url:''};
+    dateField:dateFor(source),filters:[],ratioField:'',ratioValue:'',width:kind==='kpi'?3:6,
+    height:initialHeight(kind),compare:kind==='kpi',periodOverride:null,text:'',url:''};
 }
 export function normalizeWidget(value:unknown):DashboardWidget {
   const raw=object(value);
@@ -116,7 +121,7 @@ export function normalizeWidget(value:unknown):DashboardWidget {
     filters,ratioField:dimensions.includes(ratioField)?ratioField:'',
     ratioValue:safeText(raw.ratioValue,120),
     width:WIDTHS.includes(raw.width as DashboardWidget['width'])?raw.width as DashboardWidget['width']:kind==='kpi'?3:6,
-    compare:raw.compare===true,periodOverride:raw.periodOverride?periodFrom(raw.periodOverride):null,
+    height:safeHeight(raw.height,kind),compare:raw.compare===true,periodOverride:raw.periodOverride?periodFrom(raw.periodOverride):null,
     text:safeText(raw.text,4000),url:safeUrl,
   };
 }
@@ -152,6 +157,23 @@ export function resizeDashboardWidget(dashboard:Dashboard,widgetId:string,direct
     return {...widget,width:next};
   });
   return {...dashboard,widgets};
+}
+
+/**
+ * The resize gesture snaps to a twelve-column grid. Widget identities and all
+ * query configuration stay unchanged, including when imported from beta v2.
+ */
+export function resizeDashboardWidgetTo(
+  dashboard: Dashboard, widgetId: string, width: number, height: number,
+): Dashboard {
+  const safeWidth = WIDTHS.reduce((closest, candidate) =>
+    Math.abs(candidate - width) < Math.abs(closest - width) ? candidate : closest, WIDTHS[0]);
+  const widget = dashboard.widgets.find(entry => entry.id === widgetId);
+  if (!widget) return dashboard;
+  const safeNextHeight = safeHeight(height, widget.kind);
+  if (safeWidth === widget.width && safeNextHeight === widget.height) return dashboard;
+  return {...dashboard, widgets:dashboard.widgets.map(entry =>
+    entry.id === widgetId ? {...entry,width:safeWidth,height:safeNextHeight} : entry)};
 }
 
 export function createDashboard(title='Nuevo dashboard'):Dashboard {

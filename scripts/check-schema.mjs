@@ -33,7 +33,7 @@ for(const [from,{to,file}] of relationships){
   if(relationships.get(to).to!==from)throw new Error(`Relation ${from} and ${to} are not reciprocal`);
 }
 const objectCount=contents.filter(({file})=>file.includes('/objects/')).length;
-if(objectCount!==10)throw new Error(`Expected 10 objects, got ${objectCount}`);
+if(objectCount!==11)throw new Error(`Expected 11 objects, got ${objectCount}`);
 const pageCount=contents.filter(({file})=>file.includes('/page-layouts/')).length;
 if(pageCount<2)throw new Error('Missing page layouts');
 console.log(`OK: ${files.length} source modules; ${uuids.size} stable IDs; ${objectCount} objects; ${relationships.size/2} relations; ${pageCount} layouts`);
