@@ -44,6 +44,13 @@ Si no se carga la lista, revisa los permisos del objeto `supportSettings`. Si un
 
 ## Preparación de la versión 1.0.0
 
-El nuevo layout bidimensional es **compatible con los registros existentes**. Se añade el campo opcional `height` a la representación de cada widget; las versiones anteriores sin ese campo se normalizan al cargarse y conservan su identificador y filtros. La clave `omnichannel.dashboard.v2.<id>` y la estructura exportada de esquema 2 no cambian en esta fase, para evitar una migración destructiva antes de disponer de un almacenamiento con permisos independientes.
+El nuevo layout bidimensional es **compatible con los registros existentes**. Se añade el campo opcional `height` a la representación de cada widget; las versiones anteriores sin ese campo se normalizan al cargarse y conservan su identificador y filtros. La clave `omnichannel.dashboard.v2.<id>` y la estructura exportada de esquema 2 no cambian. La versión 1.0.0 utiliza el nuevo objeto `supportDashboards` y permite copiar los registros heredados desde `supportSettings` mediante la acción **Migrar dashboards antiguos** en el centro de administración. Los originales no se borran: esta migración es repetible y conserva los IDs.
 
 La aplicación no publica automáticamente accesos en el menú principal: los enlaces de usuario permanecen bajo control del workspace. Un futuro aislamiento administrativo debe preservar esos enlaces y comprobar en Twenty el control de visibilidad por rol, que no está presente en el manifiesto de navegación del SDK 2.50.
+
+
+## Acceso por roles y migración desde la beta
+
+Los dashboards nuevos se guardan en el objeto `supportDashboards`, independiente de `supportSettings`. Para que los usuarios no Admin puedan visualizarlos, concede a sus roles de Twenty permiso de lectura sobre **Dashboards de soporte** y los objetos de datos que alimentan sus widgets; no concedas acceso a **Ajustes de soporte** solo para usar dashboards. El editor necesita permiso de escritura sobre `supportDashboards`.
+
+Tras actualizar desde una beta, entra con un usuario Admin en **Ajustes → Aplicaciones → Omnichannel Support → Administración Omnichannel → Dashboards** y pulsa **Migrar dashboards antiguos**. Verifica que aparece la cantidad de dashboards copiados; repetir la operación no genera duplicados. Los registros anteriores se conservan para recuperación y los nuevos prevalecen cuando ambos tengan el mismo ID. Después, comprueba un dashboard desde una cuenta Member con permisos mínimos.
