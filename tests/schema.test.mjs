@@ -48,7 +48,7 @@ test('new omnichannel fields, person relations and labels are stable',()=>{
   for(const field of ['followUp','followUpAt','comments','language','transcription','recording'])assert(source.includes("name: '"+field+"'"));
   assert(source.includes("labelPlural: 'Conversaciones'"));
   assert(read('src/page-layouts/person-omnichannel.page.ts').includes('personRecordPage'));
-  assert(read('src/front-components/support-overview.tsx').includes('/rest/supportCases'));
+  assert(read('src/front-components/support-overview.tsx').includes('fetchDataset('));
 });
 
 

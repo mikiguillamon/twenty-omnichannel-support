@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 0.3.0-beta.25 — Dashboards configurables
+
+- Nuevo editor de dashboards Omnichannel por workspace con KPIs, gráficos, filtros, períodos y layouts persistidos en Twenty.
+- Métricas de conversaciones, mensajes, evaluaciones, canales y FAQs, con exportación/importación de configuraciones.
+- Conserva íntegramente los cambios en FAQs publicados en beta.24; no altera sus objetos ni APIs.
+- Paginación y límite explícito de datos para evitar presentar agregados parciales como completos.
+
 ## 0.3.0-beta.24 — Interacción de FAQs: toggle, iconos y editor lateral
 
 - Sustituye el checkbox Publicada por un toggle accesible «Activa» (PUBLISHED ↔ DRAFT), sin alterar el estado persistido ni el filtro de publicación del bot.
