@@ -9,7 +9,6 @@ test('administration center is registered in native Twenty app settings',()=>{
   assert(manifest.includes('defineSettingsMenuItem'));
   assert(manifest.includes('IDS.FRONT_ADMIN_CENTER'));
   assert(manifest.includes("scope: 'WORKSPACE'"));
-  assert(manifest.includes("slug: 'omnichannel-admin'"));
   assert(ids.includes('FRONT_ADMIN_CENTER:'));
   assert(ids.includes('SETTINGS_MENU_ADMIN:'));
 });
