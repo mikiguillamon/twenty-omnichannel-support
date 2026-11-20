@@ -5,7 +5,7 @@ import { copyToClipboard, openCommandConfirmationModal, useColorScheme, useLocat
 import { IDS } from '../constants/ids.ts';
 import {
   SOURCES, WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS,
-  createDashboard, defaultDashboard, fieldsFor, makeWidget, moveDashboardWidget, resizeDashboardWidget, newId, normalizeWidget, periodFrom,
+  createDashboard, defaultDashboard, fieldsFor, makeWidget, moveDashboardWidget, resizeDashboardWidgetTo, newId, normalizeWidget, periodFrom,
   type Source, type WidgetKind, type Dashboard, type DashboardWidget, type Period, type StoredDashboard,
 } from '../lib/dashboard-model.ts';
 import { loadDashboards, persistDashboard, removeDashboard, importDashboard, exportDashboard } from '../lib/dashboard-store.ts';
@@ -25,6 +25,7 @@ function Dashboards() {
   const requestedDashboard=readDashboardFromSearch(location?.search??'');
   const handledLink=useRef<string|null>(null);
   const pointerSource=useRef<string|null>(null);
+  const resizeSource=useRef<{id:string;startX:number;startY:number;width:number;height:number}|null>(null);
   const [stored,setStored]=useState<StoredDashboard[]>([]);
   const [active,setActive]=useState('');
   const [draft,setDraft]=useState<Dashboard|null>(null);
@@ -40,6 +41,7 @@ function Dashboards() {
   const [importOpen,setImportOpen]=useState(false);
   const [importJson,setImportJson]=useState('');
   const [draggingId,setDraggingId]=useState<string|null>(null);
+  const [resizingId,setResizingId]=useState<string|null>(null);
   const [dropTarget,setDropTarget]=useState<string|null>(null);
   const [linkHelp,setLinkHelp]=useState(false);
   const [addKind,setAddKind]=useState<WidgetKind>('kpi');
@@ -125,8 +127,25 @@ function Dashboards() {
   function clearDrag(){
     pointerSource.current=null;setDraggingId(null);setDropTarget(null);
   }
-  function resizeWidget(id:string,direction:-1|1){
-    mutate(d=>resizeDashboardWidget(d,id,direction));
+  function startResize(id:string,width:number,height:number,x:number,y:number){
+    if(!Number.isFinite(x)||!Number.isFinite(y))return;
+    pointerSource.current=null;
+    setDraggingId(null);setDropTarget(null);
+    resizeSource.current={id,startX:x,startY:y,width,height};
+    setResizingId(id);
+  }
+  function moveResize(x:number,y:number){
+    const start=resizeSource.current;
+    if(!start||!Number.isFinite(x)||!Number.isFinite(y))return;
+    // The layout uses 12 columns. Discrete snapping avoids partial-card sizes
+    // and works in Twenty's sandboxed Remote DOM without element measurements.
+    const width=start.width+Math.round((x-start.startX)/72);
+    const height=start.height+Math.round((y-start.startY)/48);
+    mutate(d=>resizeDashboardWidgetTo(d,start.id,width,height));
+  }
+  function endResize(){
+    resizeSource.current=null;
+    setResizingId(null);
   }
   async function copyDashboardLink(){
     if(!dashboard)return;
@@ -272,6 +291,8 @@ function Dashboards() {
       </>}
       <label style={{fontSize:12}}>Anchura<select style={field} value={w.width} onChange={e=>change('width',Number(e.target.value) as DashboardWidget['width'])}>
         {WIDTHS.map(n=><option key={n} value={n}>{n}/12 columnas</option>)}</select></label>
+      <label style={{fontSize:12}}>Altura<select style={field} value={w.height} onChange={e=>change('height',Number(e.target.value))}>
+        {Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n}>{n} filas</option>)}</select></label>
     </section>;
   }
 
@@ -354,49 +375,57 @@ function Dashboards() {
         <label style={{fontSize:12,display:'flex',alignItems:'center',gap:7}}><input type="checkbox" checked={dashboard.isDefault} onChange={e=>mutate(d=>({...d,isDefault:e.target.checked}))}/>Panel predeterminado</label>
       </div>}
     </section>}
-    {editing&&dashboard&&<div role="status" style={{fontSize:12,color:muted,margin:'-4px 0 0'}}>Arrastra cada widget desde el asa para reordenarlo. Ajusta su anchura con − / + o desde Configurar. Pulsa Guardar cambios al terminar.</div>}
+    {editing&&dashboard&&<div role="status" style={{fontSize:12,color:muted,margin:'-4px 0 0'}}>Arrastra las cabeceras para reordenar y la esquina inferior derecha para cambiar ancho y alto. Los tamaños también se ajustan desde Configurar. Guarda al terminar.</div>}
     {dashboard&&<div style={{display:'flex',gap:15,alignItems:'flex-start',flexWrap:'wrap'}}>
       <div style={{flex:'1 1 680px',minWidth:0}}>
-        <div style={{display:'flex',flexWrap:'wrap',gap:12}} onPointerUp={()=>{if(pointerSource.current)clearDrag();}}>
-          {dashboard.widgets.map((w,index)=><section key={w.id} style={{
-            ...card,flex:'1 1 calc('+(w.width/12*100)+'% - '+(12-w.width)+'px)',minWidth:w.width===3?220:280,maxWidth:'100%',
+        <div style={{display:'grid',gridTemplateColumns:'repeat(12,minmax(0,1fr))',gap:12,alignItems:'start'}}
+          onPointerMove={e=>moveResize(e.clientX,e.clientY)}
+          onPointerUp={()=>{if(resizeSource.current)endResize();else if(pointerSource.current)clearDrag();}}
+          onPointerCancel={()=>{endResize();clearDrag();}}>
+          {dashboard.widgets.map(w=><section key={w.id} style={{
+            ...card,gridColumn:'span '+w.width,minWidth:0,
+            minHeight:Math.max(w.height*48,120),position:'relative',overflow:'hidden',
             outline:draggingId&&dropTarget===w.id&&draggingId!==w.id?'2px dashed '+accent:
               editingWidget===w.id&&editing?'2px solid '+accent:'none',
             opacity:draggingId===w.id?0.7:1,transition:'opacity 150ms ease',
           }} onPointerEnter={()=>{if(pointerSource.current&&pointerSource.current!==w.id)setDropTarget(w.id);}}
             onPointerUp={()=>{if(pointerSource.current)finishDrag(w.id);}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:650,flex:1,minWidth:0,overflowWrap:'anywhere'}}>{w.title}</div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:12,
+              cursor:editing?'grab':'default',touchAction:editing?'none':'auto'}}
+              onPointerDown={e=>{if(editing&&!resizeSource.current){pointerSource.current=w.id;setDraggingId(w.id);setDropTarget(null);}}}>
+              <div tabIndex={editing?0:undefined} role={editing?'button':undefined}
+                aria-label={editing?'Mover '+w.title+'. Utiliza las flechas para ordenar.':undefined}
+                onKeyDown={e=>{if(editing&&(e.key==='ArrowLeft'||e.key==='ArrowUp')){e.preventDefault();swapWidget(w.id,-1);}
+                  if(editing&&(e.key==='ArrowRight'||e.key==='ArrowDown')){e.preventDefault();swapWidget(w.id,1);}}}
+                style={{fontSize:12,fontWeight:650,flex:1,minWidth:0,overflowWrap:'anywhere'}}>{w.title}</div>
               {editing&&<div style={{display:'flex',gap:3,alignItems:'center',flexShrink:0}}>
-                <button type="button" aria-label={'Arrastrar '+w.title} title="Arrastra para cambiar el orden"
-                  style={{...btn,padding:'3px 5px',cursor:'grab',touchAction:'none',userSelect:'none',display:'inline-flex',alignItems:'center'}}
-                  onPointerDown={()=>{pointerSource.current=w.id;setDraggingId(w.id);setDropTarget(null);}}
-                  onPointerCancel={clearDrag}
-                  onKeyDown={e=>{if(e.key==='ArrowLeft'||e.key==='ArrowUp')swapWidget(w.id,-1);
-                    if(e.key==='ArrowRight'||e.key==='ArrowDown')swapWidget(w.id,1);}}>
-                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="5" cy="3.5" r="1.1"/><circle cx="11" cy="3.5" r="1.1"/>
-                    <circle cx="5" cy="8" r="1.1"/><circle cx="11" cy="8" r="1.1"/>
-                    <circle cx="5" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>
-                  </svg>
-                </button>
-                <button style={{...btn,padding:'3px 7px'}} title="Mover antes" aria-label={'Mover antes '+w.title}
-                  disabled={index===0} onClick={()=>swapWidget(w.id,-1)}>←</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Mover después" aria-label={'Mover después '+w.title}
-                  disabled={index===dashboard.widgets.length-1} onClick={()=>swapWidget(w.id,1)}>→</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Reducir anchura" aria-label={'Reducir anchura '+w.title}
-                  disabled={w.width===3} onClick={()=>resizeWidget(w.id,-1)}>−</button>
-                <button style={{...btn,padding:'3px 7px'}} title="Ampliar anchura" aria-label={'Ampliar anchura '+w.title}
-                  disabled={w.width===12} onClick={()=>resizeWidget(w.id,1)}>+</button>
                 <button style={{...btn,padding:'3px 7px'}} title="Configurar" aria-label={'Configurar '+w.title}
-                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');}}>⚙</button>
+                  onPointerDown={e=>e.stopPropagation()}
+                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4V21H9v-1.6a1.7 1.7 0 0 0-1.88-.34l-.06.06L4.2 16.26l.06-.06A1.7 1.7 0 0 0 4.6 14.3H3v-4.6h1.6a1.7 1.7 0 0 0-.34-1.88L4.2 7.76 7.06 4.9l.06.06A1.7 1.7 0 0 0 9 4.6V3h6v1.6a1.7 1.7 0 0 0 1.88.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 9.7H21v4.6h-1.6z"/></svg>
+                </button>
                 <button style={{...btn,padding:'3px 7px'}} title="Eliminar" aria-label={'Eliminar '+w.title}
-                  onClick={()=>mutate(d=>({...d,widgets:d.widgets.filter(row=>row.id!==w.id)}))}>×</button>
+                  onPointerDown={e=>e.stopPropagation()}
+                  onClick={()=>mutate(d=>({...d,widgets:d.widgets.filter(row=>row.id!==w.id)}))}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M4 7h16M10 11v7m4-7v7M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>
+                </button>
               </div>}
             </div>
             {renderChart(w)}
+            {editing&&<div title="Arrastrar para cambiar ancho y alto" role="separator"
+              aria-label={'Redimensionar '+w.title+'. También disponible en Configurar.'}
+              style={{position:'absolute',bottom:0,right:0,width:24,height:24,cursor:'nwse-resize',touchAction:'none',
+                display:'flex',alignItems:'end',justifyContent:'end',padding:4,boxSizing:'border-box',
+                color:resizingId===w.id?accent:muted}}
+              onPointerDown={e=>{e.stopPropagation();startResize(w.id,w.width,w.height,e.clientX,e.clientY);}}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+                <path d="M12 4L4 12M12 8L8 12M12 12h-1"/>
+              </svg>
+            </div>}
           </section>)}
-          {editing&&<section style={{...card,flex:'1 1 100%',background:'transparent',borderStyle:'dashed',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {editing&&<section style={{...card,gridColumn:'1 / -1',background:'transparent',borderStyle:'dashed',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             <select style={{...field,width:'auto'}} value={addKind} onChange={e=>setAddKind(e.target.value as WidgetKind)}>
               {KINDS.map(kind=><option key={kind} value={kind}>{WIDGET_LABELS[kind]}</option>)}</select>
             <select style={{...field,width:'auto'}} value={addSource} onChange={e=>setAddSource(e.target.value as Source)}>
