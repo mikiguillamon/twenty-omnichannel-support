@@ -33,6 +33,8 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 
 Omnichannel keeps its administrative tools in **Settings > Applications > Omnichannel Support > Administración Omnichannel**, rather than forcing a technical folder onto every member's main sidebar. This center includes dashboards, FAQs, channels and policies, plus shortcuts to Twenty's native case/message/category/type/identity/evaluation/settings objects.
 
+Dashboards now use a dedicated `supportDashboards` object with independent permissions. On an upgrade, an administrator uses **Migrar dashboards antiguos** in the Settings center to copy legacy configurations without deleting their previous records. Members need read access to `supportDashboards`, not to administrative `supportSettings`.
+
 Users see only the workspace shortcuts that an administrator chooses to create outside the application, such as a published FAQ view, a dashboard deep link or the conversations table. The app does not manage these workspace-owned shortcuts, and upgrades must not delete or reorder them.
 
 Workspace roles determine actual record and API permissions. Removing the technical sidebar is an information-architecture change, not a substitute for permissions. Grant workspace application administration only to trusted admins, and grant normal members the specific object access needed for their job.
