@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { openCommandConfirmationModal, useColorScheme } from 'twenty-sdk/front-component';
@@ -16,7 +16,6 @@ const KINDS=Object.keys(WIDGET_LABELS) as WidgetKind[];
 const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
 const WIDTHS=[3,4,6,8,12] as const;
-const safeId=(id:string)=>encodeURIComponent(id);
 
 function Dashboards() {
   const dark=useColorScheme()==='dark';
@@ -67,7 +66,6 @@ function Dashboards() {
   },[reload]);
 
   useEffect(()=>{
-    if(editing)return;
     const sources=[...new Set((dashboard?.widgets??[]).filter(w=>w.kind!=='text'&&w.kind!=='shortcut').map(w=>w.source))];
     const missing=sources.filter(source=>!datasets[source]&&!sourceErrors[source]);
     if(!missing.length)return;
@@ -81,7 +79,7 @@ function Dashboards() {
       });
     }
     return()=>{signal.cancelled=true;};
-  },[dashboard?.id,dashboard?.widgets,editing,reload,datasets,sourceErrors]);
+  },[dashboard?.id,reload,editing]);
 
   function startEdit(){
     if(!dashboard)return;
@@ -365,6 +363,7 @@ function Dashboards() {
       {editing&&<div style={{display:'flex',gap:8,flexWrap:'wrap',flex:'1 1 420px'}}>
         <label style={{fontSize:12,flex:'1 1 170px'}}>Título<input value={dashboard.title} maxLength={90} style={{...field,marginTop:4}} onChange={e=>mutate(d=>({...d,title:e.target.value}))}/></label>
         <label style={{fontSize:12,flex:'2 1 240px'}}>Descripción<input value={dashboard.description} maxLength={240} style={{...field,marginTop:4}} onChange={e=>mutate(d=>({...d,description:e.target.value}))}/></label>
+        <label style={{fontSize:12,display:'flex',alignItems:'center',gap:7}}><input type="checkbox" checked={dashboard.isDefault} onChange={e=>mutate(d=>({...d,isDefault:e.target.checked}))}/>Panel predeterminado</label>
       </div>}
     </section>}
     {dashboard&&<div style={{display:'flex',gap:15,alignItems:'flex-start',flexWrap:'wrap'}}>
