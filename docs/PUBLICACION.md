@@ -95,3 +95,7 @@ Antes de distribuir una versión que añade campos o valores SELECT a `supportCa
 Para las versiones que modifican la ingestión, ejecuta un mensaje recibido, un duplicado, una actualización de conversación al añadir mensaje, un acuse de entrega y un evento `PHONE`. El contrato de referencia está en [API_REFERENCE.md](API_REFERENCE.md).
 
 Los archivos de documentación pueden actualizarse en `main` sin generar una nueva publicación npm. Solo una GitHub Release publicada activa el workflow de publicación del paquete.
+
+## Recuperación de una promoción npm pendiente
+
+Si la publicación al dist-tag `beta` termina bien, pero la comprobación posterior de `latest` devuelve metadatos antiguos durante el procesamiento de npm, **no vuelvas a publicar la misma versión**. Ejecuta el job `promote_existing` del workflow `publish.yml` (acción `workflow_dispatch` con la versión exacta) o crea un commit de documentación en `main` con el marcador `[promote npm]`. Ese job solo vuelve a aplicar `npm dist-tag add` y verifica `beta` y `latest`; no vuelve a subir el paquete inmutable. Comprueba las etiquetas finales antes de dar la actualización de Twenty por disponible.
