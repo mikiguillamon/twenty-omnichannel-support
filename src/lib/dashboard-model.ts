@@ -14,7 +14,7 @@ export const SOURCES = {
     dates: ['createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
     dimensions: ['channel','status','resolution','automation','technicalStatus','followUp','language','categoryId','caseTypeId','assignedTo'],
     numeric: ['responseCount'],
-    fields: ['id','subject','channel','status','resolution','automation','technicalStatus','followUp','language','categoryId','caseTypeId','assignedTo','responseCount','createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
+    fields: ['id','subject','channel','status','resolution','automation','technicalStatus','followUp','language','category','caseType','assignedTo','responseCount','createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
   },
   supportMessages: {
     label: 'Mensajes', singular: 'Mensaje',
