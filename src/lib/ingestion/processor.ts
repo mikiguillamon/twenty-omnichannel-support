@@ -1,4 +1,6 @@
 import { type IngestEvent, IngestError, keys, type GroupingMode, type ConversationPatch } from './contract.ts';
+import { createProposal, type PrivateProposalStorage, type ProposalReceipt } from '../proposals/create.ts';
+import { n8nWaitUrl } from '../proposals/n8n-wait.ts';
 
 /** One repository per workspace. Implemented by Twenty's authenticated REST client. */
 export type DbRecord = { id: string; [key: string]: unknown };
@@ -9,7 +11,7 @@ export interface IngestionStore {
   create(resource: string, data: Record<string, unknown>): Promise<DbRecord>;
   update(resource: string, id: string, data: Record<string, unknown>): Promise<DbRecord>;
 }
-export type IngestResult = {
+export type IngestResult = Partial<ProposalReceipt> & {
   ok: true;
   status: 'created' | 'duplicate' | 'status_updated';
   channelId: string;
@@ -428,7 +430,9 @@ async function statusChange(store: IngestionStore, existing: DbRecord, newStatus
   return true;
 }
 
-export async function ingest(event: IngestEvent, store: IngestionStore): Promise<IngestResult> {
+type ProposalContext = { storage: PrivateProposalStorage; allowedOrigin?: string };
+
+export async function ingest(event: IngestEvent, store: IngestionStore, proposals?: ProposalContext): Promise<IngestResult> {
   const channel = await first(store, 'supportChannels', { code: event.channelCode });
   if (!channel) throw new IngestError('UNKNOWN_CHANNEL', 'Unknown channelCode', 404);
   const scope = keys(event, {
@@ -436,6 +440,20 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     provider: text(channel.provider),
     externalIdentifier: text(channel.externalIdentifier),
   });
+  if (event.proposedReply && scope.channelType !== 'EMAIL') {
+    throw new IngestError('INVALID_PROPOSAL_EVENT', 'Only incoming email events can include a proposed reply');
+  }
+  const proposedReply = event.proposedReply && {
+    body: event.proposedReply.body,
+    callbackUrl: n8nWaitUrl(event.proposedReply.callbackUrl, proposals?.allowedOrigin).href,
+  };
+  async function attachProposal(inbound: DbRecord): Promise<Partial<ProposalReceipt>> {
+    if (!proposedReply || !proposals) return {};
+    if (inbound.direction !== 'INBOUND') {
+      throw new IngestError('PROPOSAL_CONFLICT', 'The source message is not an incoming email', 409);
+    }
+    return createProposal(store, proposals.storage, inbound, proposedReply);
+  }
   const existing = await first(store, 'supportMessages', { externalKey: scope.messageKey });
   if (event.kind === 'status') {
     if (!existing) throw new IngestError('UNKNOWN_MESSAGE', 'Status references an unknown message', 404);
@@ -452,6 +470,9 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     // Never replace a Person or identity that is already linked.
     const caseId = recordId(existing.supportCaseId) || null;
     const previous = caseId ? await store.get('supportCases', caseId) : null;
+    if (proposedReply && recordId(previous?.channelInstanceId) !== channel.id) {
+      throw new IngestError('PROPOSAL_CONFLICT', 'The source message belongs to a different channel', 409);
+    }
     let identityId = recordId(previous?.externalIdentityId) || null;
     let personId = recordId(previous?.personId) || null;
     let reviewRequired = false;
@@ -493,7 +514,8 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     }
     return { ok: true, status: 'duplicate', channelId: channel.id,
       caseId, identityId, personId: personId || null,
-      messageId: existing.id, reviewRequired, stableId: event.stableId };
+      messageId: existing.id, reviewRequired, stableId: event.stableId,
+      ...await attachProposal(existing) };
   }
   // The caller may omit channelType. Use the resolved channel to derive the
   // same PN identity for outbound WhatsApp events with a validated E.164 phone.
@@ -552,5 +574,6 @@ export async function ingest(event: IngestEvent, store: IngestionStore): Promise
     personId: review ? null : link.personId,
     messageId: created.id, reviewRequired: selectedCase.review,
     stableId: event.stableId,
+    ...await attachProposal(created),
   };
 }

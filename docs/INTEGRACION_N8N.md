@@ -2,7 +2,35 @@
 
 Omnichannel Support recibe eventos normalizados de email, WhatsApp, Instagram, Telegram y llamadas telefónicas. n8n se encarga de hablar con el proveedor, autenticar el evento y preparar los datos. La aplicación registra la Persona, la identidad externa, la conversación y el mensaje en Twenty mediante un único endpoint.
 
-Este procedimiento corresponde al contrato de la versión de código `0.3.0-beta.14`. La [referencia de API](API_REFERENCE.md) contiene todos los parámetros y códigos de error.
+La [referencia de API](API_REFERENCE.md) contiene los parámetros y códigos de error.
+
+## Revisar una respuesta de correo en Twenty
+
+1. En Ajustes de Omnichannel Support, configura `OMNICHANNEL_N8N_ORIGIN` con la URL HTTPS pública que sirve Wait. Guarda un valor aleatorio en `OMNICHANNEL_N8N_PROPOSAL_SECRET` y en la credencial que n8n usa para registrar propuestas. Si Wait usa Header Auth, configura `X-Omnichannel-Webhook-Secret` en su credencial de n8n y guarda el mismo valor en `OMNICHANNEL_N8N_WAIT_SECRET` de Twenty.
+2. Cuando el flujo clasifique un correo como automatizable, prepara el borrador y registra el mensaje entrante mediante `POST /s/omnichannel/v1/ingest`. Envía la credencial Bearer habitual de Twenty y el valor de `OMNICHANNEL_N8N_PROPOSAL_SECRET` en `X-Omnichannel-Proposal-Key`. Incluye un ID de mensaje estable y añade `proposedReply` al cuerpo JSON. Usa la expresión `{{ $execution.resumeUrl }}` como valor de `callbackUrl` en la misma ejecución que entrará en Wait.
+3. Después del HTTP Request, entra en **Wait → On Webhook Call** solo si la respuesta indica `proposalStatus: "PENDING"`. Usa el método **POST** con respuesta inmediata. Al reanudarse, continúa por la rama de envío solo cuando `body.confirmed === true`. Envía `body.message` y usa `body.proposalMessageId` para deduplicar los envíos. La rama de descarte recibe `confirmed: false` sin `message`.
+4. Registra el envío del proveedor en Twenty como `message.sent` con su propio ID y el `caseId` recibido, o con el mismo identificador de hilo. Así el mensaje enviado aparece junto a la propuesta aprobada.
+
+```json
+{
+  "channelCode": "email-support",
+  "channelType": "EMAIL",
+  "eventType": "message.received",
+  "message": {
+    "externalId": "m-2816",
+    "threadId": "thread-320",
+    "fromAddress": "cliente@example.com",
+    "subject": "Cambio de dirección",
+    "body": "¿Puedo cambiar la dirección del pedido?"
+  },
+  "proposedReply": {
+    "body": "Hola, podemos revisar el cambio de dirección.",
+    "callbackUrl": "https://n8n.example.com/webhook-waiting/286"
+  }
+}
+```
+
+Conserva la misma URL y el mismo ID al reintentar el registro. Si el mismo correo llega a otra ejecución mientras la propuesta está pendiente, la API devuelve un conflicto y la primera ejecución conserva su Wait. Si Twenty indica que n8n no confirmó la decisión, verifica la ejecución antes de volver a enviar. La URL de reanudación queda guardada en el almacenamiento privado de la app. Evita incluirla en logs o notificaciones. [Nodo Wait de n8n](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/).
 
 ## Preparar el workspace
 

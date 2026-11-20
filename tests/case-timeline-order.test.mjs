@@ -33,8 +33,8 @@ test('ties are deterministic and invalid dates appear last', () => {
 test('timeline applies API ordering and a local chronological fallback', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../src/front-components/case-timeline.tsx', import.meta.url), 'utf8');
-  assert.match(source, /order_by: 'occurredAt\[AscNullsLast\]'/);
-  assert.match(source, /setItems\(sortMessagesChronologically\(unwrap\(response\)\)\)/);
+  assert.match(source, /loadConversationMessages\(new RestApiClient\(\), caseId\)/);
+  assert.match(source, /setItems\(mergeConversationMessages\(records, \[\]\)\)/);
 });
 
 test('switching cases remounts the timeline and clears the previous messages and reply target', async () => {

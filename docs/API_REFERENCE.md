@@ -1,8 +1,16 @@
 # Referencia de API: Omnichannel Support
 
-Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Se corresponde con la API de la app **0.3.0-beta.21**. Los ejemplos usan datos ficticios.
+Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Los ejemplos usan datos ficticios.
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
+
+## Propuestas de respuesta por correo
+
+- En `POST /s/omnichannel/v1/ingest`, añade `proposedReply: { "body": "…", "callbackUrl": "…" }` a un correo entrante con ID estable. Envía `X-Omnichannel-Proposal-Key` con el secreto de propuestas del workspace. El cuerpo admite hasta 50.000 caracteres. El destino debe ser una URL HTTPS de Wait bajo la base configurada del workspace. El resultado añade `proposalMessageId` y `proposalStatus`. El caso comienza en `IN_PROGRESS` por defecto, sujeto a las reglas de revisión de identidad. Si el mismo correo pendiente se registra con otra URL de Wait, la ruta devuelve `409`.
+- `POST /s/omnichannel/v1/proposals/decide` recibe `messageId`, `confirmed` y `message` al confirmar. El descarte requiere `confirmed: false` y omite `message`. La ruta exige un usuario de Twenty con acceso de escritura al mensaje.
+- La llamada de Twenty a Wait incluye `confirmed`, `proposalMessageId`, `caseId` y, si hay confirmación, `message`. La cabecera `Idempotency-Key` contiene el ID de la propuesta. Una decisión aceptada devuelve `proposalStatus: "CONFIRMED"` o `"DISCARDED"`. El envío real se registra con un evento posterior del proveedor.
+
+Consulta la [configuración del workflow de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-de-correo-en-twenty).
 
 ## Búsqueda inteligente de FAQs (beta.21)
 

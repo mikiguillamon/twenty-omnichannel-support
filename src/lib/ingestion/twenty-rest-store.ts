@@ -11,6 +11,7 @@ const OBJECTS: Record<string, string> = {
   supportCategories: 'supportCategory',
   supportTypes: 'supportType',
   supportMessages: 'supportMessage',
+  supportSettings: 'supportSetting',
 };
 const singular = (resource: string): string => {
   const name = OBJECTS[resource];
@@ -61,7 +62,7 @@ export class TwentyRestIngestionStore implements IngestionStore {
     singular(resource);
     if (!/^[a-fA-F0-9-]{36}$/.test(id)) throw Error('Invalid record ID');
     try {
-      return responseObject(await this.api.get<ApiResponse>('/rest/' + resource + '/' + id), resource, 'get');
+      return responseObject(await this.api.get<ApiResponse>('/rest/' + resource + '/' + id, { query: { depth: 0 } }), resource, 'get');
     } catch (error) {
       if ((error as {status?: number}).status === 404) return null;
       throw error;

@@ -9,9 +9,9 @@ test('channel pages remain installed and reachable through admin center',()=>{
   assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_SETUP'));
   assert(read('src/page-layouts/channel-setup.page.ts').includes('FRONT_CHANNEL_POLICIES'));
   const admin=read('src/front-components/admin-center.tsx');
-  assert(admin.includes('<ChannelSetup/>'));
-  assert(admin.includes('<ChannelPolicies/>'));
-  assert(admin.includes("plural:'supportChannels'"));
+  assert.match(admin, /<ChannelSetup\s*\/>/);
+  assert.match(admin, /<ChannelPolicies\s*\/>/);
+  assert.match(admin, /plural:\s*'supportChannels'/);
 });
 test('email and whatsapp views remain while fixed sidebar links are removed',()=>{
   for(const path of ['menu-email.menu.ts','menu-whatsapp.menu.ts','menu-human.menu.ts','menu-case-errors.menu.ts','menu-evaluations-bad.menu.ts','menu-messages.menu.ts'])

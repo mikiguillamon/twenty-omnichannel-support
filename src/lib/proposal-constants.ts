@@ -1,0 +1,1 @@
+export const PROPOSAL_BODY_LIMIT = 50_000;

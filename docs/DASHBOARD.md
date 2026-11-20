@@ -34,13 +34,13 @@ El período usa la fecha especificada en cada widget. Por ejemplo, `createdAt` a
 La nueva experiencia de gráficos y editor se aplica a los dashboards existentes sin migración de esquema. No se alteran las fuentes, filtros, períodos ni UUID de navegación que usa Twenty 2.50. Los toggles del gestor de FAQs se guardan con actualizaciones optimistas por tarjeta, conservando el scroll, los filtros activos y las respuestas desplegadas. Si falla la API, solo esa tarjeta recupera el estado anterior y aparece el error, sin volver a cargar las 107 (o más) FAQs del workspace.
 
 
-## Administración en la versión posterior a 1.0.0
+## Administración a página completa
 
-El centro de administración usa ahora una distribución horizontal adaptable: las secciones se muestran como pestañas y el editor ocupa todo el ancho disponible dentro del contenedor que Twenty ofrece en Ajustes. Esto elimina la columna lateral fija de 200 píxeles, pero **no elimina el límite de ancho impuesto por el propio host de Ajustes**. Si Twenty renderiza el Front Component en un panel estrecho, ampliar ese contenedor requerirá una ruta operativa de página completa o una modificación compatible del core.
+Desde **Ajustes → Aplicaciones → Omnichannel Support**, pulsa **Abrir administración**. El editor se abre en una página de ancho completo de Twenty, con cuadrícula adaptable y pestañas para dashboards, FAQs, canales, políticas y accesos. La página requiere el permiso de gestión de aplicaciones del workspace.
 
 ## Gestor de accesos compartidos
 
-En la pestaña **Dashboards**, el gestor crea, renombra y retira enlaces compartidos en la raíz del menú. Para realizar estos cambios, el usuario necesita el permiso de diseños (`LAYOUTS`) de Twenty además del acceso a la administración de aplicaciones. El gestor acepta rutas internas `/page/...` con un identificador `omniDashboard`. Twenty asigna los enlaces a la aplicación interna Custom del workspace y el gestor guarda `omniShortcut=managed-v1` para reconocer los que ha creado. Retirar un acceso conserva el dashboard y sus registros.
+En la pestaña **Accesos**, el gestor crea, renombra y retira enlaces compartidos en la raíz del menú. Para realizar estos cambios, el usuario necesita el permiso de diseños (`LAYOUTS`) de Twenty además del acceso a la administración de aplicaciones. El gestor acepta rutas internas `/page/...` con un identificador `omniDashboard`. Twenty asigna los enlaces a la aplicación interna Custom del workspace y el gestor guarda `omniShortcut=managed-v1` para reconocer los que ha creado. Retirar un acceso conserva el dashboard y sus registros.
 
 Antes de desplegar una actualización, comprueba en una instancia Twenty 2.50 que un administrador puede crear, abrir, renombrar y retirar un acceso, y que un usuario de atención puede abrirlo con sus permisos habituales.
 

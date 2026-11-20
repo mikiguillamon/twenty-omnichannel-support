@@ -30,6 +30,12 @@ export default defineObject({
       {value:'PENDING_REVIEW',label:'Esperar aprobación',position:3,color:'blue'},
     ]},
     { universalIdentifier: IDS.MESSAGE_DRAFT_BODY, name: 'draftBody', label: 'Respuesta generada (borrador)', type: FieldType.TEXT, icon: 'IconPencil', description: 'No equivale a un envío; el contenido finalmente enviado va en body.' },
+    { universalIdentifier: IDS.MESSAGE_PROPOSAL_STATUS, name: 'proposalStatus', label: 'Estado de la propuesta', type: FieldType.SELECT, icon: 'IconListCheck', options: [
+      { value: 'PENDING', label: 'Pendiente de revisión', position: 0, color: 'orange' },
+      { value: 'CONFIRMED', label: 'Confirmada', position: 1, color: 'green' },
+      { value: 'DISCARDED', label: 'Descartada', position: 2, color: 'gray' },
+    ] },
+    { universalIdentifier: IDS.MESSAGE_PROPOSAL_UPDATE_TOKEN, name: 'proposalUpdateToken', label: 'Referencia de propuesta', type: FieldType.TEXT, icon: 'IconHash', description: 'Referencia interna generada por Omnichannel para vincular la propuesta con su ejecución.' },
     { universalIdentifier: IDS.MESSAGE_SENTAT, name: 'sentAt', label: 'Fecha de envío confirmado', type: FieldType.DATE_TIME, icon: 'IconSend' },
     { universalIdentifier: IDS.MESSAGE_DELIVEREDAT, name: 'deliveredAt', label: 'Fecha de entrega confirmada', type: FieldType.DATE_TIME, icon: 'IconCheck' },
     { universalIdentifier: IDS.MESSAGE_BOT_CONFIDENCE, name: 'botConfidence', label: 'Confianza del bot (0-1)', type: FieldType.NUMBER, icon: 'IconGauge' },

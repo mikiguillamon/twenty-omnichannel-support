@@ -8,7 +8,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     ? value as Record<string, unknown> : null;
 }
 
-function readRestCollection<T>(response: unknown, resource: string): {
+export function readRestCollection<T>(response: unknown, resource: string): {
   records: T[];
   nextCursor: string | null;
 } {

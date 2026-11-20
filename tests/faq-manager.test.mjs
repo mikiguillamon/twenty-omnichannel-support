@@ -10,8 +10,8 @@ test('FAQ manager remains an installed standalone page without app-owned sidebar
   assert(layout.includes("type: 'STANDALONE_PAGE'"));
   assert(layout.includes("type: 'FRONT_COMPONENT'"));
   assert(layout.includes('IDS.FRONT_FAQ_MANAGER'));
-  assert(admin.includes('<FaqManagerEntry/>'));
-  assert(admin.includes("plural:'supportFaqs'"));
+  assert.match(admin, /<FaqManagerEntry\s*\/>/);
+  assert.match(admin, /plural:\s*'supportFaqs'/);
 });
 
 test('retired FAQ navigation UUIDs are reserved and never reused for another type', () => {

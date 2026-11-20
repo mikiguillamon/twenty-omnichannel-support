@@ -8,7 +8,11 @@ Selecciona **Personalizar indicadores** para elegir qué tarjetas mostrar en el 
 
 ## Gestionar conversaciones
 
-Abre **Omnichannel → Conversaciones**. Puedes filtrar por Canal, estado, categoría o fechas. En el detalle se muestran los datos de la conversación y una pestaña de mensajes ordenados, con enlaces a grabaciones y transcripciones cuando existen.
+Abre **Conversaciones** desde la administración de Omnichannel o desde un acceso del menú de Twenty. Busca por asunto o contacto y combina filtros de canal, cuenta, estado, tipo, categoría y seguimiento. Abre una fila para consultar el historial, cargar mensajes anteriores y ver las grabaciones o transcripciones disponibles.
+
+Guarda la búsqueda, los filtros y el orden como una vista con nombre. Usa **Añadir al menú** para compartir un acceso directo a esa vista o copia su enlace para añadirlo desde el editor de menú de Twenty. La creación del acceso compartido requiere permiso de diseños (`LAYOUTS`). El acceso a la vista guardada y a las conversaciones se rige por los permisos de sus objetos de Twenty.
+
+Si n8n registra una propuesta de correo, encontrarás la respuesta editable en el historial. **Confirmar en n8n** reanuda la ejecución con el texto revisado. **Descartar** envía únicamente la decisión. El historial distingue la propuesta aprobada del correo enviado por el proveedor. [Configuración de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-de-correo-en-twenty).
 
 Para comunicaciones automatizadas, marca `AUTOMATED` o `INFORMATIONAL` cuando no hagan falta personas. Reserva `HUMAN_REQUIRED` para casos que requieren atención humana. Los otros estados son `NEW`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `WAITING_INTERNAL`, `RESOLVED` y `CLOSED`.
 

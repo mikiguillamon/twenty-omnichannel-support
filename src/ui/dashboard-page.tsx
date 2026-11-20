@@ -18,7 +18,24 @@ const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
 const WIDTHS=[3,4,6,8,12] as const;
 
-export function Dashboards({enableLinks=true,enableMigration=false}:{enableLinks?:boolean;enableMigration?:boolean}={}) {
+const responsiveDashboardStyles = `
+.omni-dashboard { container-name: omni-dashboard; container-type: inline-size; }
+@container omni-dashboard (width <= 800px) {
+  .omni-dashboard__grid { --omni-dashboard-columns: 2; }
+  .omni-dashboard__widget { --omni-dashboard-responsive-span: 1; }
+  .omni-dashboard__widget[data-wide='true'] { --omni-dashboard-responsive-span: 2; }
+}
+@container omni-dashboard (width <= 520px) {
+  .omni-dashboard__grid { --omni-dashboard-columns: 1; }
+  .omni-dashboard__widget[data-wide] { --omni-dashboard-responsive-span: 1; }
+}
+`;
+
+export function Dashboards({ embedded = false, enableLinks = true, enableMigration = false }: {
+  embedded?: boolean;
+  enableLinks?: boolean;
+  enableMigration?: boolean;
+} = {}) {
   const dark=useColorScheme()==='dark';
   const location=useLocation();
   const requestedDashboard=readDashboardFromSearch(location?.search??'');
@@ -310,7 +327,8 @@ export function Dashboards({enableLinks=true,enableMigration=false}:{enableLinks
   }
 
   const hasDataError=Object.values(sourceErrors).length>0;
-  return <div style={{...basic,background:bg,padding:'24px 26px',minHeight:'100%',display:'flex',flexDirection:'column',gap:18}}>
+  return <div className="omni-dashboard" style={{ ...basic, background: bg, padding: embedded ? 0 : 'clamp(12px, 2vw, 26px)', minHeight: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <style>{responsiveDashboardStyles}</style>
     <header style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
       <div style={{display:'flex',flexDirection:'column',gap:5}}>
         <h1 style={{fontSize:23,margin:0,fontWeight:650}}>{dashboard?.title??'Dashboards'}</h1>
@@ -392,13 +410,14 @@ export function Dashboards({enableLinks=true,enableMigration=false}:{enableLinks
     {editing&&dashboard&&<div role="status" style={{fontSize:12,color:muted,margin:'-4px 0 0'}}>Arrastra las cabeceras para reordenar y la esquina inferior derecha para cambiar ancho y alto. Los tamaños también se ajustan desde Configurar. Guarda al terminar.</div>}
     {dashboard&&<div style={{display:'flex',gap:15,alignItems:'flex-start',flexWrap:'wrap'}}>
       <div style={{flex:'1 1 680px',minWidth:0}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(12,minmax(0,1fr))',gap:12,alignItems:'start'}}
+        <div className="omni-dashboard__grid"
+          style={{display:'grid',gridTemplateColumns:'repeat(var(--omni-dashboard-columns, 12), minmax(0, 1fr))',gap:12,alignItems:'start'}}
           onPointerLeave={()=>{endResize();clearDrag();}}
           onPointerMove={e=>moveResize(e.clientX,e.clientY)}
           onPointerUp={()=>{if(resizeSource.current)endResize();else if(pointerSource.current)clearDrag();}}
           onPointerCancel={()=>{endResize();clearDrag();}}>
-          {dashboard.widgets.map(w=><section key={w.id} style={{
-            ...card,gridColumn:'span '+w.width,minWidth:0,
+          {dashboard.widgets.map(w=><section key={w.id} className="omni-dashboard__widget" data-wide={w.width >= 8} style={{
+            ...card,gridColumn:`span var(--omni-dashboard-responsive-span, ${w.width})`,minWidth:0,
             minHeight:Math.max(w.height*48,120),position:'relative',overflow:'hidden',
             outline:draggingId&&dropTarget===w.id&&draggingId!==w.id?'2px dashed '+accent:
               editingWidget===w.id&&editing?'2px solid '+accent:'none',

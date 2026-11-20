@@ -1,3 +1,10 @@
+## 1.1.0 — Bandeja de conversaciones y propuestas de correo
+
+- Administración a ancho completo, con accesos y dashboards adaptables a escritorio, tableta y móvil.
+- Bandeja con búsqueda, filtros por canal, buzón, tipo, estado, categoría y seguimiento, y vistas guardadas con accesos al menú de Twenty.
+- Historial paginado, edición del estado de la conversación y acceso a grabaciones y transcripciones de llamadas.
+- Propuestas de respuesta por correo que se pueden editar, confirmar o descartar desde el historial. La decisión reanuda la ejecución de n8n mediante su nodo Wait.
+
 ## 1.0.2 — Fiabilidad de ingestión, FAQs y dashboards
 
 - Recupera los casos de revisión cuando un reintento completa la escritura de un mensaje.

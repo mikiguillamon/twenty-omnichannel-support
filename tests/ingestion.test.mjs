@@ -4,6 +4,7 @@ import { normalizeEvent, keys, IngestError } from '../src/lib/ingestion/contract
 import { readTotalCount } from '../src/lib/overview.ts';
 import { ingest } from '../src/lib/ingestion/processor.ts';
 import { serializeFilter } from '../src/lib/ingestion/twenty-rest-store.ts';
+import * as proposalCreate from '../src/lib/proposals/create.ts';
 
 class MemoryStore {
   constructor(channelType = 'EMAIL') {
@@ -125,6 +126,96 @@ test('messages in the same email thread share a case', async () => {
   assert.equal(first.caseId,second.caseId);
   assert.equal(store.rowsFor('supportCases').length,1);
   assert.equal(store.rowsFor('supportMessages').length,2);
+});
+
+const n8nOrigin = 'https://automation.example.com/n8n';
+const waitUrl = `${n8nOrigin}/webhook-waiting/817/approval`;
+
+test('proposal intake requires its own configured integration credential', () => {
+  assert.throws(() => proposalCreate.requireProposalKey(undefined, 'synthetic'), { code: 'N8N_PROPOSAL_KEY_NOT_CONFIGURED' });
+  assert.throws(() => proposalCreate.requireProposalKey('synthetic', undefined), { code: 'N8N_PROPOSAL_KEY_FORBIDDEN' });
+  assert.throws(() => proposalCreate.requireProposalKey('synthetic', 'incorrect'), { code: 'N8N_PROPOSAL_KEY_FORBIDDEN' });
+  assert.doesNotThrow(() => proposalCreate.requireProposalKey('synthetic', 'synthetic'));
+});
+
+test('an incoming email with a proposal adds a pending outbound draft to the same case', async () => {
+  const store = new MemoryStore();
+  const values = new Map();
+  const proposals = {
+    allowedOrigin: n8nOrigin,
+    storage: { async get(key) { return values.get(key) ?? null; }, async set(key, value) { values.set(key, value); } },
+  };
+  const event = email({ proposedReply: { body: 'Hola, te contestamos enseguida.', callbackUrl: waitUrl } });
+  const result = await ingest(event, store, proposals);
+  const [received, proposal] = store.rowsFor('supportMessages');
+  assert.equal(store.rowsFor('supportCases')[0].status, 'IN_PROGRESS');
+  assert.equal(proposal.id, result.proposalMessageId);
+  assert.equal(result.proposalStatus, 'PENDING');
+  assert.equal(proposal.supportCaseId, received.supportCaseId);
+  assert.equal(proposal.proposalStatus, 'PENDING');
+  assert.equal(proposal.draftBody, 'Hola, te contestamos enseguida.');
+  assert.equal(proposal.body, undefined);
+  assert.equal(proposal.deliveryStatus, 'PENDING');
+  assert.equal(proposal.senderType, 'BOT');
+  assert.equal(proposal.direction, 'OUTBOUND');
+  assert.equal([...values.values()][0].callbackUrl, waitUrl);
+  assert(!JSON.stringify(store.rowsFor('supportMessages')).includes(waitUrl));
+
+  proposal.proposalStatus = 'CONFIRMED';
+  values.clear();
+  const duplicate = await ingest(event, store, proposals);
+  assert.equal(duplicate.proposalMessageId, proposal.id);
+  assert.equal(duplicate.proposalStatus, 'CONFIRMED');
+  assert.equal(proposal.proposalStatus, 'CONFIRMED');
+  assert.equal(values.size, 0);
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+});
+
+test('a second n8n execution cannot replace the Wait URL of a pending proposal', async () => {
+  const store = new MemoryStore();
+  const values = new Map();
+  const proposals = {
+    allowedOrigin: n8nOrigin,
+    storage: { async get(key) { return values.get(key) ?? null; }, async set(key, value) { values.set(key, value); } },
+  };
+  const first = email({ proposedReply: { body: 'El borrador original.', callbackUrl: waitUrl } });
+  const replayUrl = `${n8nOrigin}/webhook-waiting/927/approval`;
+  const replay = email({ proposedReply: { body: 'Un borrador distinto.', callbackUrl: replayUrl } });
+  const result = await ingest(first, store, proposals);
+  assert.equal((await ingest(first, store, proposals)).proposalStatus, 'PENDING');
+  await assert.rejects(ingest(replay, store, proposals), { code: 'PROPOSAL_CALLBACK_CONFLICT', status: 409 });
+  assert.equal([...values.values()][0].callbackUrl, waitUrl);
+  assert.equal(values.size, 1);
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+
+  store.rowsFor('supportMessages')[1].proposalStatus = 'DISCARDED';
+  values.clear();
+  const terminal = await ingest(replay, store, proposals);
+  assert.equal(terminal.proposalStatus, 'DISCARDED');
+  assert.equal(terminal.proposalMessageId, result.proposalMessageId);
+  assert.equal(values.size, 0);
+});
+
+test('retry completes a proposal after the inbound email was already saved and private storage failed', async () => {
+  const store = new MemoryStore();
+  const event = email({ proposedReply: { body: 'Gracias por avisar.', callbackUrl: waitUrl } });
+  const proposals = { allowedOrigin: n8nOrigin, storage: { async get() { return null; }, async set() { throw Error('unavailable'); } } };
+  await assert.rejects(ingest(event, store, proposals), /unavailable/);
+  assert.equal(store.rowsFor('supportMessages').length, 1);
+  proposals.storage.set = async () => {};
+  assert.equal((await ingest(event, store, proposals)).status, 'duplicate');
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+});
+
+test('proposals require a stable inbound email and a configured Wait origin before writing records', async () => {
+  const options = { proposedReply: { body: 'Gracias.', callbackUrl: waitUrl } };
+  assert.throws(() => normalizeEvent({ channelCode: 'email-test', ...options }), { code: 'PROPOSAL_REQUIRES_MESSAGE_ID' });
+  assert.throws(() => email({ eventType: 'message.sent', ...options }), { code: 'INVALID_PROPOSAL_EVENT' });
+  const store = new MemoryStore();
+  const storage = { async get() { return null; }, async set() {} };
+  await assert.rejects(ingest(email(options), store, { storage }), { code: 'N8N_WAIT_NOT_CONFIGURED' });
+  await assert.rejects(ingest(email(options), store, { allowedOrigin: 'https://unrelated.example.com', storage }), { code: 'INVALID_PROPOSAL_CALLBACK' });
+  assert.equal(store.writes.length, 0);
 });
 
 test('an existing Person is reused by verified matching email, never duplicated', async () => {

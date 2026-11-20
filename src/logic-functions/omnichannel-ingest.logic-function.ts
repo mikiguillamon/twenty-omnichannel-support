@@ -1,9 +1,12 @@
 import { defineLogicFunction } from 'twenty-sdk/define';
-import { Response, type RoutePayload } from 'twenty-sdk/logic-function';
+import { Response, kv, type RoutePayload } from 'twenty-sdk/logic-function';
 import { IDS } from '../constants/ids.ts';
 import { IngestError, normalizeEvent } from '../lib/ingestion/contract.ts';
 import { ingest } from '../lib/ingestion/processor.ts';
 import { TwentyRestIngestionStore } from '../lib/ingestion/twenty-rest-store.ts';
+import { requireProposalKey } from '../lib/proposals/create.ts';
+
+const proposalKeyHeader = 'x-omnichannel-proposal-key';
 
 const handler = async (request: RoutePayload) => {
   // Do not log request bodies: they contain customer email addresses and messages.
@@ -12,7 +15,12 @@ const handler = async (request: RoutePayload) => {
       return new Response({ ok: false, error: { code: 'PAYLOAD_TOO_LARGE' } }, { status: 413 });
     }
     const event = normalizeEvent(request.body);
-    const result = await ingest(event, new TwentyRestIngestionStore());
+    if (event.proposedReply) {
+      requireProposalKey(process.env.OMNICHANNEL_N8N_PROPOSAL_SECRET, request.headers[proposalKeyHeader]);
+    }
+    const result = await ingest(event, new TwentyRestIngestionStore(), {
+      storage: kv, allowedOrigin: process.env.OMNICHANNEL_N8N_ORIGIN,
+    });
     return new Response(result, {
       status: result.status === 'created' ? 201 : 200,
       headers: { 'cache-control': 'no-store' },
@@ -42,5 +50,6 @@ export default defineLogicFunction({
     path: '/omnichannel/v1/ingest',
     httpMethod: 'POST',
     isAuthRequired: true,
+    forwardedRequestHeaders: [proposalKeyHeader],
   },
 });

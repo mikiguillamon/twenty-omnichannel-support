@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { PROPOSAL_BODY_LIMIT } from '../proposal-constants.ts';
+
+export { PROPOSAL_BODY_LIMIT } from '../proposal-constants.ts';
 
 /** The public contract is intentionally provider-agnostic. Old flat n8n payloads also work. */
 export type ChannelType = 'EMAIL' | 'WHATSAPP' | 'INSTAGRAM' | 'TELEGRAM' | 'PHONE';
@@ -19,6 +22,7 @@ export const FOLLOW_UP_STATUSES = [
 ] as const;
 export type ConversationStatus = typeof CONVERSATION_STATUSES[number];
 export type FollowUpStatus = typeof FOLLOW_UP_STATUSES[number];
+export type ProposedReply = { body: string; callbackUrl: string };
 
 /**
  * Sparse patch of a conversation. Omitted keys do not change the current value.
@@ -66,6 +70,7 @@ export type IngestEvent = {
   personId: string | null;
   personVerified: boolean;
   conversation: ConversationPatch;
+  proposedReply?: ProposedReply;
   message: {
     direction: Direction;
     senderType: 'CUSTOMER' | 'BOT' | 'AGENT';
@@ -105,6 +110,16 @@ const object = (value: unknown): Dict =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Dict) : {};
 const string = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 const lower = (value: unknown): string => string(value).toLowerCase();
+
+function normalizeProposedReply(raw: unknown): ProposedReply {
+  const proposal = object(raw);
+  if (Object.keys(proposal).some(key => key !== 'body' && key !== 'callbackUrl') ||
+      typeof proposal.body !== 'string' || !proposal.body.trim() || proposal.body.length > PROPOSAL_BODY_LIMIT ||
+      typeof proposal.callbackUrl !== 'string' || !proposal.callbackUrl.trim() || proposal.callbackUrl.length > 2048) {
+    throw new IngestError('INVALID_PROPOSAL', 'proposedReply requires body and a Wait callbackUrl');
+  }
+  return { body: proposal.body, callbackUrl: proposal.callbackUrl.trim() };
+}
 
 function max(value: string, limit: number, name: string): string {
   if (value.length > limit) throw new IngestError('FIELD_TOO_LONG', name + ' exceeds ' + limit + ' characters');
@@ -266,6 +281,17 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   if (eventType === 'message.status' && !(message.deliveryStatus ?? top.deliveryStatus)) {
     throw new IngestError('MISSING_STATUS', 'A status event must include deliveryStatus');
   }
+  let proposedReply: ProposedReply | undefined;
+  if (top.proposedReply !== undefined) {
+    if (eventType !== 'message.received' || direction !== 'INBOUND' || (suppliedType && suppliedType !== 'EMAIL')) {
+      throw new IngestError('INVALID_PROPOSAL_EVENT', 'Only incoming email events can include a proposed reply');
+    }
+    if (!externalId && !fallbackId) {
+      throw new IngestError('PROPOSAL_REQUIRES_MESSAGE_ID', 'A proposed reply requires a stable message ID');
+    }
+    proposedReply = normalizeProposedReply(top.proposedReply);
+    conversation.status ??= 'IN_PROGRESS';
+  }
 
   const fromAddress = max(string(message.fromAddress ?? message.from ?? top.fromAddress), 500, 'fromAddress');
   const toAddress = max(string(message.toAddress ?? message.to ?? top.toAddress), 500, 'toAddress');
@@ -331,6 +357,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     personId: string(contact.personId ?? top.personId) || null,
     personVerified: contact.verified === true,
     conversation,
+    ...(proposedReply ? { proposedReply } : {}),
     aliases,
     message: {
       direction,
