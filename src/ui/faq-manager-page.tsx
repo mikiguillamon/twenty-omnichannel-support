@@ -11,6 +11,7 @@ import {
 } from '../lib/faq-manager.ts';
 import type { FaqEditor, FaqStatus, SupportFaq, SupportFaqCategory } from '../lib/faq-manager.ts';
 import { fetchAllRestRecords } from '../lib/rest-collections.ts';
+import { stringTags } from '../lib/tag-values.ts';
 
 const TAG_OPTIONS = ['URGENTE', 'INTERNA', 'FRECUENTE', 'REVISAR'];
 const LANGUAGES: Record<string, string> = { CA: 'Català', ES: 'Español', EN: 'English' };
@@ -242,6 +243,8 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   const [status, setStatus] = useState('active');
   const [language, setLanguage] = useState('all');
   const [scope, setScope] = useState('all');
+  const [tag, setTag] = useState('');
+  const [customTag, setCustomTag] = useState('');
   const [expanded, setExpanded] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
@@ -279,7 +282,10 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
     new Map(categories.map(cat => [cat.id, cat.name?.trim() || cat.code?.trim() || 'Sin nombre'])),
   [categories]);
   const scopes = useMemo(() => [...new Set(faqs.flatMap(row => row.scopeTags ?? []))].sort((a, b) => a.localeCompare(b)), [faqs]);
-  const filtered = useMemo(() => filterFaqs(faqs, { query, status, language, scope }), [faqs, query, status, language, scope]);
+  const tags = useMemo(() => stringTags(faqs.flatMap(row => row.tags ?? [])).sort((a, b) => a.localeCompare(b, 'es')), [faqs]);
+  const customTags = useMemo(() => stringTags(faqs.flatMap(row => row.customTags ?? [])).sort((a, b) => a.localeCompare(b, 'es')), [faqs]);
+  const filtered = useMemo(() => filterFaqs(faqs, { query, status, language, scope, tag, customTag }),
+    [faqs, query, status, language, scope, tag, customTag]);
   const groups = useMemo(() => {
     const mapping = new Map<string, SupportFaq[]>();
     for (const faq of filtered) {
@@ -393,6 +399,16 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
         <option value="none">Sin alcance</option>
         {scopes.map(value => <option key={value} value={value}>{value}</option>)}
       </select>
+      <select aria-label="Etiqueta" value={tag} style={{ ...fieldStyle, flex: '1 1 150px', width: 'auto' }}
+        onChange={event => { setTag(event.target.value); setVisibleCount(INITIAL_VISIBLE); }}>
+        <option value="">Todas las etiquetas</option>
+        {tags.map(value => <option key={value} value={value}>{value}</option>)}
+      </select>
+      <select aria-label="Etiqueta propia" value={customTag} style={{ ...fieldStyle, flex: '1 1 150px', width: 'auto' }}
+        onChange={event => { setCustomTag(event.target.value); setVisibleCount(INITIAL_VISIBLE); }}>
+        <option value="">Todas las etiquetas propias</option>
+        {customTags.map(value => <option key={value} value={value}>{value}</option>)}
+      </select>
     </section>
 
     {error && <p role="alert" style={{ color: dark ? '#FFB0B0' : '#B42318', margin: 0 }}>{error}</p>}
@@ -427,6 +443,12 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
                 <span>{STATUS[faq.status || 'DRAFT'] || faq.status}</span>
                 <span>· {LANGUAGES[faq.language || 'CA'] || 'Idioma sin definir'}</span>
                 {faq.scopeTags?.length ? <span>· {faq.scopeTags.join(', ')}</span> : <span>· Sin alcance</span>}
+                {stringTags(faq.tags).map(value => <button type="button" key={'tag-' + value}
+                  style={{ ...buttonStyle, padding: '2px 6px', fontSize: 11 }} aria-label={'Filtrar por etiqueta ' + value}
+                  onClick={() => { setTag(value); setVisibleCount(INITIAL_VISIBLE); }}>{value}</button>)}
+                {stringTags(faq.customTags).map(value => <button type="button" key={'custom-' + value}
+                  style={{ ...buttonStyle, padding: '2px 6px', fontSize: 11 }} aria-label={'Filtrar por etiqueta propia ' + value}
+                  onClick={() => { setCustomTag(value); setVisibleCount(INITIAL_VISIBLE); }}>{value}</button>)}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>

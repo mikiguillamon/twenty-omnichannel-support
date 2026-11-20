@@ -1,5 +1,6 @@
 import { MetadataApiClient } from 'twenty-client-sdk/metadata';
 import { isRecordUuid, type ConversationView } from './conversation-inbox.ts';
+import { validateNavigationName } from './dashboard-navigation.ts';
 
 export const CONVERSATION_VIEW_PARAM = 'omniView';
 
@@ -13,9 +14,15 @@ export function conversationViewLink(pathname: string, viewId: string): string |
   return `${pathname}?${CONVERSATION_VIEW_PARAM}=${viewId}`;
 }
 
-export async function publishConversationViewLink(pathname: string, view: ConversationView, client = new MetadataApiClient()): Promise<'created' | 'existing'> {
+export async function publishConversationViewLink(
+  pathname: string,
+  view: ConversationView,
+  client = new MetadataApiClient(),
+  menuName = view.name,
+): Promise<'created' | 'existing'> {
   const link = conversationViewLink(pathname, view.id);
   if (!link) throw new Error('CONVERSATION_VIEW_LINK_INVALID');
+  const name = validateNavigationName(menuName);
   const { currentWorkspace, navigationMenuItems } = await client.query({
     currentWorkspace: { workspaceCustomApplicationId: true },
     navigationMenuItems: { type: true, link: true, position: true, userWorkspaceId: true, folderId: true },
@@ -29,7 +36,7 @@ export async function publishConversationViewLink(pathname: string, view: Conver
 
   const { createNavigationMenuItem: entry } = await client.mutation({
     createNavigationMenuItem: {
-      __args: { input: { name: view.name, link, icon: 'IconInbox', type: 'LINK', position, userWorkspaceId: null } },
+      __args: { input: { name, link, icon: 'IconInbox', type: 'LINK', position, userWorkspaceId: null } },
       id: true, type: true, link: true, applicationId: true, userWorkspaceId: true, folderId: true,
     },
   });

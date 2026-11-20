@@ -1,45 +1,102 @@
 import { RestApiClient } from 'twenty-client-sdk/rest';
-import { fieldsFor, type DashboardWidget, type Period, type Source } from './dashboard-model.ts';
+import { fieldsFor, isBuiltinSource, type DashboardWidget, type Period, type Source } from './dashboard-model.ts';
+import { displayDashboardValue, type DashboardField, type DashboardSource } from './dashboard-metadata.ts';
 
 export type RecordData = Record<string,unknown>;
-export type Dataset = {rows:RecordData[];complete:boolean;total:number};
+export type Dataset = {rows:RecordData[];complete:boolean;total:number;fields?: ReadonlyMap<string,DashboardField>};
 export type Point = {name:string;value:number};
-export type Summary = {value:number|null;points:Point[];previous:number|null;complete:boolean;total:number};
+export type Summary = {value:number|null;points:Point[];previous:number|null;complete:boolean;total:number;overlappingGroups:boolean};
 const PAGE_SIZE=60;
 const MAX_RECORDS=3000;
 
-function responseCollection(response:unknown,resource:string):{rows:RecordData[];cursor:string|null;total:number}{
+function responseCollection(response:unknown,resource:string):{rows:RecordData[];cursor:string|null;total:number|null}{
   if(!response||typeof response!=='object')throw Error('DASHBOARD_REST_INVALID');
   const root=response as Record<string,unknown>;
   const data=root.data&&typeof root.data==='object'?root.data as Record<string,unknown>:root;
   const rows=data[resource];
   if(!Array.isArray(rows))throw Error('DASHBOARD_REST_COLLECTION');
   const page=(root.pageInfo??data.pageInfo) as {hasNextPage?:boolean;endCursor?:string}|undefined;
-  const total=typeof root.totalCount==='number'?root.totalCount:typeof data.totalCount==='number'?data.totalCount:rows.length;
+  const count=root.totalCount??data.totalCount;
+  const total=typeof count==='number'&&Number.isSafeInteger(count)&&count>=0?count:null;
   if(page&&page.hasNextPage===true&&!page.endCursor)throw Error('DASHBOARD_REST_CURSOR');
   if(!page&&rows.length===PAGE_SIZE)throw Error('DASHBOARD_REST_CURSOR');
   return {rows:rows as RecordData[],cursor:page?.hasNextPage?page.endCursor??null:null,total};
 }
-export async function fetchDataset(source:Source,api:RestApiClient,signal?:{cancelled:boolean}):Promise<Dataset>{
-  const rows:RecordData[]=[];
-  const seen=new Set<string>();
-  let cursor:string|null=null,total=0,hasMore=false;
+async function fetchRecords(source:Source,columns:string[],api:RestApiClient,signal?:{cancelled:boolean}):Promise<Dataset>{
+  const records=new Map<string, RecordData>();
+  const seenCursors=new Set<string>();
+  let cursor:string|null=null,total=0;
   for(let index=0;index<MAX_RECORDS/PAGE_SIZE;index++){
     if(signal?.cancelled)throw Error('DASHBOARD_CANCELLED');
-    const query:Record<string,string|number>={fields:fieldsFor(source,'fields').join(','),limit:PAGE_SIZE,depth:0,order_by:'id[AscNullsLast]'};
+    const query:Record<string,string|number>={fields:columns.join(','),limit:PAGE_SIZE,depth:0,order_by:'id[AscNullsLast]'};
     if(cursor)query.starting_after=cursor;
     const response:unknown=await api.get('/rest/'+source,{query});
     const page=responseCollection(response,source);
-    rows.push(...page.rows);
-    total=page.total;
-    cursor=page.cursor;hasMore=Boolean(cursor);
+    for (const row of page.rows) {
+      if (!row || typeof row.id!=='string' || !row.id) throw Error('DASHBOARD_REST_RECORD_ID');
+      records.set(row.id,row);
+    }
+    total=Math.max(total,page.total??0);
+    cursor=page.cursor;
     if(!cursor)break;
-    if(seen.has(cursor))throw Error('DASHBOARD_REST_CURSOR_LOOP');
-    seen.add(cursor);
+    if(seenCursors.has(cursor))throw Error('DASHBOARD_REST_CURSOR_LOOP');
+    seenCursors.add(cursor);
   }
-  return {rows,complete:!hasMore,total};
+  return {rows:[...records.values()],complete:!cursor&&total<=records.size,total:Math.max(total,records.size)};
 }
-const text=(value:unknown):string => value===null||value===undefined||value===''?'Sin clasificar':String(value);
+
+export function fetchDataset(source:Source,api:RestApiClient,signal?:{cancelled:boolean}):Promise<Dataset>{
+  if(!isBuiltinSource(source))return Promise.reject(Error('DASHBOARD_SOURCE_UNAVAILABLE'));
+  return fetchRecords(source,[...fieldsFor(source,'fields')],api,signal);
+}
+
+export function workspaceWidgetFields(widget: DashboardWidget): string[] {
+  if (widget.kind === 'text' || widget.kind === 'shortcut') return [];
+  const group = widget.kind === 'bar' || widget.kind === 'donut' || widget.kind === 'table' ? widget.groupBy : '';
+  const metric = widget.aggregation === 'ratio' ? widget.ratioField : widget.aggregation === 'count' ? '' : widget.valueField;
+  return [...new Set([widget.dateField, group, metric, ...widget.filters.map(filter => filter.field)].filter(Boolean))];
+}
+
+/** Only columns sourced from current workspace metadata can be selected. */
+export async function fetchWorkspaceDataset(source: DashboardSource, keys: string[], api: RestApiClient, signal?: {cancelled:boolean}): Promise<Dataset> {
+  const fields = new Map<string, DashboardField>();
+  for (const key of keys) {
+    const field = source.fields.get(key);
+    if (!field) throw Error('DASHBOARD_FIELD_UNAVAILABLE');
+    fields.set(key, field);
+  }
+  const columns = [...new Set(['id', ...[...fields.values()].map(field => field.column).sort()])];
+  const data = await fetchRecords(source.key, columns, api, signal);
+  const rows = data.rows.map(row => {
+    const projected: RecordData = { id: row.id };
+    for (const field of fields.values()) {
+      const raw = row[field.column];
+      if (field.kind === 'composite') {
+        projected[field.key] = raw && typeof raw === 'object' && field.property
+          ? (raw as RecordData)[field.property] : undefined;
+      } else if (field.kind === 'name') {
+        const name = raw && typeof raw === 'object' ? raw as RecordData : {};
+        projected[field.key] = [name.firstName, name.lastName].filter(v => typeof v === 'string' && v).join(' ');
+      } else {
+        projected[field.key] = field.kind === 'relation' ? row[field.key] : raw;
+      }
+    }
+    return projected;
+  });
+  return { ...data, rows, fields };
+}
+
+export function dashboardValues(value: unknown): string[] {
+  const values: unknown[] = Array.isArray(value) ? value : [value];
+  return [...new Set(values.filter(entry => (typeof entry === 'string' && entry !== '') ||
+    typeof entry === 'boolean' || (typeof entry === 'number' && Number.isFinite(entry))).map(String))];
+}
+
+function numericValue(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) return Number(value);
+  return NaN;
+}
 function localDate(date:Date):string{
   const year=date.getFullYear(),month=String(date.getMonth()+1).padStart(2,'0'),day=String(date.getDate()).padStart(2,'0');
   return year+'-'+month+'-'+day;
@@ -70,14 +127,14 @@ function prior(range:Range):Range{
 }
 function within(value:unknown,range:Range):boolean{
   if(!range.from)return true;
-  if(typeof value!=='string')return false;
-  const millis=Date.parse(value);
+  const millis=localTimestamp(value);
   return Number.isFinite(millis)&&millis>=range.from.getTime()&&(!range.to||millis<range.to.getTime());
 }
+const localTimestamp = (value: unknown): number => typeof value==='string'
+  ? Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value+'T00:00:00' : value) : NaN;
 function filtered(rows:RecordData[],w:DashboardWidget,range:Range):RecordData[]{
-  return rows.filter(row=>within(row[w.dateField],range)&&w.filters.every(f=>{
-    const value=row[f.field];
-    const matches=Array.isArray(value)?value.map(String).includes(f.value):String(value??'')===f.value;
+  return rows.filter(row=>(!w.dateField||within(row[w.dateField],range))&&w.filters.every(f=>{
+    const matches=dashboardValues(row[f.field]).includes(f.value);
     return f.operator==='eq'?matches:!matches;
   }));
 }
@@ -86,14 +143,14 @@ function aggregate(rows:RecordData[],w:DashboardWidget):number|null {
   if(w.aggregation==='ratio'){
     if(!w.ratioField)return null;
     if(!rows.length)return 0;
-    return 100*rows.filter(row=>text(row[w.ratioField])===w.ratioValue).length/rows.length;
+    return 100*rows.filter(row=>dashboardValues(row[w.ratioField]).includes(w.ratioValue)).length/rows.length;
   }
   if(w.aggregation==='distinct'){
     if(!w.valueField)return null;
-    return new Set(rows.map(row=>text(row[w.valueField])).filter(v=>v!=='Sin clasificar')).size;
+    return new Set(rows.flatMap(row=>dashboardValues(row[w.valueField]))).size;
   }
-  if(!fieldsFor(w.source,'numeric').includes(w.valueField))return null;
-  const numbers=rows.map(row=>row[w.valueField]).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
+  if(!w.valueField)return null;
+  const numbers=rows.map(row=>numericValue(row[w.valueField])).filter(Number.isFinite);
   if(!numbers.length)return null;
   if(w.aggregation==='sum')return numbers.reduce((a,b)=>a+b,0);
   if(w.aggregation==='avg')return numbers.reduce((a,b)=>a+b,0)/numbers.length;
@@ -101,22 +158,21 @@ function aggregate(rows:RecordData[],w:DashboardWidget):number|null {
   if(w.aggregation==='max')return Math.max(...numbers);
   return null;
 }
-function groupKey(row:RecordData,w:DashboardWidget,monthly=false):string{
-  if(w.kind==='hour'){
-    const date=typeof row[w.dateField]==='string'?new Date(row[w.dateField] as string):null;
-    return date&&!Number.isNaN(date.getTime())?String(date.getHours()).padStart(2,'0')+':00':'Sin hora';
+function groupKeys(row:RecordData,w:DashboardWidget,monthly=false):string[]{
+  if(w.kind==='hour'||w.kind==='line'||w.kind==='area'){
+    const time=localTimestamp(row[w.dateField]);
+    if(!Number.isFinite(time)) return [];
+    const date=new Date(time);
+    if(w.kind==='hour')return [String(date.getHours()).padStart(2,'0')+':00'];
+    return [localDate(date).slice(0,monthly?7:10)];
   }
-  if(w.kind==='line'||w.kind==='area'){
-    const date=typeof row[w.dateField]==='string'?new Date(row[w.dateField] as string):null;
-    return date&&!Number.isNaN(date.getTime())?(monthly?localDate(date).slice(0,7):localDate(date)):'Sin fecha';
-  }
-  return text(row[w.groupBy]);
+  const values = dashboardValues(row[w.groupBy]);
+  return values.length ? values : [''];
 }
 
 function seriesPeriod(range:Range,rows:RecordData[],w:DashboardWidget):Range {
   if(range.from&&range.to)return range;
-  const values=rows.map(r=>typeof r[w.dateField]==='string'?Date.parse(r[w.dateField] as string):NaN)
-    .filter(Number.isFinite);
+  const values=rows.map(r=>localTimestamp(r[w.dateField])).filter(Number.isFinite);
   if(!values.length)return {from:null,to:null};
   const min=new Date(Math.min(...values));
   const max=new Date(Math.max(...values));
@@ -152,14 +208,18 @@ export function summarize(data:Dataset,w:DashboardWidget,period:Period,now=new D
   const effective=w.periodOverride??period;
   const range=getRange(effective,now);
   const relevant=filtered(data.rows,w,range);
-  const previous=w.compare&&range.from?aggregate(filtered(data.rows,w,prior(range)),w):null;
+  const previous=w.compare&&w.dateField&&range.from?aggregate(filtered(data.rows,w,prior(range)),w):null;
   const isTimeline=w.kind==='line'||w.kind==='area';
   const timelineRange=isTimeline?seriesPeriod(range,relevant,w):range;
   const monthly=isTimeline&&monthDistance(timelineRange);
   const groups=new Map<string,RecordData[]>();
-  for(const row of relevant){
-    const key=groupKey(row,w,monthly);
-    const group=groups.get(key)??[];group.push(row);groups.set(key,group);
+  let overlappingGroups=false;
+  if(w.kind!=='kpi')for(const row of relevant){
+    const keys=groupKeys(row,w,monthly);
+    if(keys.length>1)overlappingGroups=true;
+    for(const key of keys){
+      const group=groups.get(key)??[];group.push(row);groups.set(key,group);
+    }
   }
   let points:Point[];
   if(w.kind==='hour'){
@@ -170,11 +230,13 @@ export function summarize(data:Dataset,w:DashboardWidget,period:Period,now=new D
   }else if(isTimeline){
     points=timelinePoints(groups,w,timelineRange,monthly);
   }else{
-    points=[...groups.entries()].map(([name,records])=>({name,value:aggregate(records,w)??0}));
+    const field = data.fields?.get(w.groupBy);
+    points=[...groups.entries()].map(([key,records])=>({
+      name:!w.groupBy ? 'Todos los registros' : key ? displayDashboardValue(field,key) : 'Sin clasificar',value:aggregate(records,w)??0,
+    }));
     points.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
-    points=points.slice(0,20);
   }
-  return {value:aggregate(relevant,w),points,previous,complete:data.complete,total:data.total};
+  return {value:aggregate(relevant,w),points,previous,complete:data.complete,total:data.total,overlappingGroups};
 }
 export function formatMetric(value:number|null,aggregation:DashboardWidget['aggregation']):string{
   if(value===null||!Number.isFinite(value))return '—';

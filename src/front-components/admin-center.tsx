@@ -230,7 +230,7 @@ export function AdminWorkspace() {
       {section === 'policies' && <ChannelPolicies />}
       {section === 'shortcuts' && <>
         <div className="omni-admin__shortcut-heading">
-          <h2 className="omni-admin__subtitle">Accesos de dashboards</h2>
+          <h2 className="omni-admin__subtitle">Accesos del menú</h2>
           <button className="omni-admin__button" type="button" disabled={pending !== null}
             onClick={() => void openPage(IDS.LAYOUT_SUPPORT_HOME, 'Dashboards')}>
             {pending === IDS.LAYOUT_SUPPORT_HOME ? 'Abriendo…' : 'Abrir dashboards'}

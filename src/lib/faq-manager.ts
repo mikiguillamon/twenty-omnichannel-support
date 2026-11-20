@@ -1,3 +1,4 @@
+import { hasTag, stringTags } from './tag-values.ts';
 
 export type FaqStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type FaqLanguage = 'ES' | 'CA' | 'EN';
@@ -54,7 +55,7 @@ export function normalizeFaqText(text: string): string {
 
 export function filterFaqs(
   faqs: SupportFaq[],
-  options: { query: string; status: string; language: string; scope: string },
+  options: { query: string; status: string; language: string; scope: string; tag?: string; customTag?: string },
 ): SupportFaq[] {
   const query = normalizeFaqText(options.query);
   return faqs.filter(faq => {
@@ -64,10 +65,12 @@ export function filterFaqs(
     if (options.scope === 'none' && (faq.scopeTags?.length ?? 0) !== 0) return false;
     if (options.scope !== 'all' && options.scope !== 'none' &&
       !faq.scopeTags?.some(value => normalizeFaqText(value) === normalizeFaqText(options.scope))) return false;
+    if (options.tag && !hasTag(faq.tags, options.tag)) return false;
+    if (options.customTag && !hasTag(faq.customTags, options.customTag)) return false;
     if (!query) return true;
     return normalizeFaqText([
       faq.question ?? '', faq.answer ?? '', faq.variants ?? '',
-      ...(faq.scopeTags ?? []), ...(faq.customTags ?? []),
+      ...stringTags(faq.scopeTags), ...stringTags(faq.tags), ...stringTags(faq.customTags),
     ].join(' ')).includes(query);
   });
 }

@@ -1,8 +1,8 @@
 /**
  * Workspace dashboard definitions. Persisted as versioned JSON in the existing
  * supportDashboards object with legacy supportSettings read during migration.
- * The catalogs are intentionally allow-listed: widget config cannot select
- * arbitrary REST endpoints or metadata fields.
+ * Widget configuration persists field and object names. Data requests resolve
+ * them against the current workspace catalog before reading values.
  */
 export const DASHBOARD_PREFIX = 'omnichannel.dashboard.v2.';
 export const MAX_WIDGETS = 36;
@@ -12,9 +12,9 @@ export const SOURCES = {
   supportCases: {
     label: 'Conversaciones', singular: 'Conversación',
     dates: ['createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
-    dimensions: ['channel','status','resolution','automation','technicalStatus','followUp','language','categoryId','caseTypeId','assignedTo'],
+    dimensions: ['channel','status','resolution','automation','technicalStatus','followUp','language','categoryId','caseTypeId','assignedTo','tags','customTags'],
     numeric: ['responseCount'],
-    fields: ['id','subject','channel','status','resolution','automation','technicalStatus','followUp','language','category','caseType','assignedTo','responseCount','createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
+    fields: ['id','subject','channel','status','resolution','automation','technicalStatus','followUp','language','category','caseType','assignedTo','responseCount','tags','customTags','createdAt','firstMessageAt','lastMessageAt','resolvedAt','escalatedAt','followUpAt'],
   },
   supportMessages: {
     label: 'Mensajes', singular: 'Mensaje',
@@ -40,13 +40,14 @@ export const SOURCES = {
   supportFaqs: {
     label: 'FAQs', singular: 'FAQ',
     dates: ['createdAt','publishedAt','lastSyncedAt'],
-    dimensions: ['status','language','categoryId'],
+    dimensions: ['status','language','categoryId','tags','customTags','scopeTags'],
     numeric: ['revision'],
-    fields: ['id','question','status','language','category','revision','createdAt','publishedAt','lastSyncedAt'],
+    fields: ['id','question','status','language','category','revision','tags','customTags','scopeTags','createdAt','publishedAt','lastSyncedAt'],
   },
 } as const;
 
-export type Source = keyof typeof SOURCES;
+type BuiltinSource = keyof typeof SOURCES;
+export type Source = string;
 export type WidgetKind = 'kpi'|'bar'|'donut'|'line'|'area'|'table'|'hour'|'shortcut'|'text';
 export type Aggregation = 'count'|'sum'|'avg'|'min'|'max'|'distinct'|'ratio';
 export type PeriodKey = 'today'|'yesterday'|'7d'|'30d'|'90d'|'thisMonth'|'previousMonth'|'all'|'custom';
@@ -81,9 +82,13 @@ const oneOf = <T extends string>(value:unknown, allowed: readonly T[], fallback:
 export const newId = ():string =>
   'd'+Date.now().toString(36)+Math.random().toString(36).slice(2,12);
 export const isSource = (value:unknown):value is Source =>
-  typeof value === 'string' && Object.prototype.hasOwnProperty.call(SOURCES,value);
+  typeof value === 'string' && /^[a-z][a-zA-Z0-9]{0,63}$/.test(value) && !Object.hasOwn(Object.prototype, value);
+export const isBuiltinSource = (value:unknown):value is BuiltinSource =>
+  typeof value === 'string' && Object.hasOwn(SOURCES,value);
+export const isDashboardField = (value:unknown):value is string =>
+  typeof value === 'string' && value.split('.').length <= 2 && value.split('.').every(isSource);
 export const fieldsFor = (source:Source, category:'dates'|'dimensions'|'numeric'|'fields'):readonly string[] =>
-  SOURCES[source][category] as readonly string[];
+  isBuiltinSource(source) ? SOURCES[source][category] : [];
 export const dateFor = (source:Source) => fieldsFor(source,'dates')[0] || 'createdAt';
 export function periodFrom(value:unknown):Period {
   const raw=object(value);
@@ -100,25 +105,23 @@ export function makeWidget(kind:WidgetKind='kpi',source:Source='supportCases',ti
 }
 export function normalizeWidget(value:unknown):DashboardWidget {
   const raw=object(value);
-  const source:Source=isSource(raw.source)?raw.source:'supportCases';
+  const validSource=isSource(raw.source);
+  const source:Source=validSource?raw.source as Source:'supportCases';
   const kind=oneOf(raw.kind,KINDS,'kpi');
   const aggregate=oneOf(raw.aggregation,AGGREGATIONS,'count');
-  const numeric=fieldsFor(source,'numeric'),dimensions=fieldsFor(source,'dimensions');
-  const valueField=safeText(raw.valueField,60);
-  const groupBy=safeText(raw.groupBy,60);
-  const ratioField=safeText(raw.ratioField,60);
-  const dateField=safeText(raw.dateField,60);
-  const filters=Array.isArray(raw.filters)?raw.filters.slice(0,5).map(object).filter(f=>dimensions.includes(String(f.field)) && (f.operator==='eq'||f.operator==='neq') && typeof f.value==='string' && f.value.length<=120)
+  const dimensions=fieldsFor(source,'dimensions');
+  const field=(value:unknown,fallback='')=>validSource&&(value===''||isDashboardField(value))?value:fallback;
+  const filters=Array.isArray(raw.filters)&&validSource?raw.filters.slice(0,5).map(object).filter(f=>isDashboardField(f.field) && (f.operator==='eq'||f.operator==='neq') && typeof f.value==='string' && f.value.length<=120)
     .map(f=>({field:String(f.field),operator:f.operator as 'eq'|'neq',value:String(f.value)})):[];
   const url=safeText(raw.url,500);
   const safeUrl=/^(https:\/\/[^\s]+|\/(?!\/)[\w/#?=&%+.-]+)$/.test(url) ? url : '';
   return {
     id:typeof raw.id==='string' && /^[a-zA-Z0-9-]{4,70}$/.test(raw.id)?raw.id:newId(),
     title:safeText(raw.title,90)||'Sin título',kind,source,aggregation:aggregate,
-    valueField:numeric.includes(valueField) || dimensions.includes(valueField)?valueField:'',
-    groupBy:dimensions.includes(groupBy)?groupBy:(dimensions[0]||''),
-    dateField:fieldsFor(source,'dates').includes(dateField)?dateField:dateFor(source),
-    filters,ratioField:dimensions.includes(ratioField)?ratioField:'',
+    valueField:field(raw.valueField),
+    groupBy:field(raw.groupBy,dimensions[0]??''),
+    dateField:field(raw.dateField,isBuiltinSource(source)?dateFor(source):''),
+    filters,ratioField:field(raw.ratioField),
     ratioValue:safeText(raw.ratioValue,120),
     width:WIDTHS.includes(raw.width as DashboardWidget['width'])?raw.width as DashboardWidget['width']:kind==='kpi'?3:6,
     height:safeHeight(raw.height,kind),compare:raw.compare===true,periodOverride:raw.periodOverride?periodFrom(raw.periodOverride):null,

@@ -71,15 +71,15 @@ export async function listPublishedDashboardLinks(client=new MetadataApiClient()
     .map(row=>({id:row.id,name:row.name||'Dashboard',link:row.link!,position:row.position,icon:row.icon??null}));
 }
 
-function checkedName(name:string):string {
+export function validateNavigationName(name:string):string {
   const result=name.trim();
-  if(result.length<2||result.length>80)throw Error('INVALID_NAME');
+  if(result.length<1||result.length>80||/[\u0000-\u001f\u007f]/.test(result))throw Error('INVALID_NAME');
   return result;
 }
 
 /** Workspace-owned LINK at the root, not tied to the application lifecycle. */
 export async function publishDashboardLink(input:{name:string;link:string;icon?:string},client=new MetadataApiClient()):Promise<PublishedDashboardLink> {
-  const name=checkedName(input.name);
+  const name=validateNavigationName(input.name);
   const normalized=normalizeDashboardNavigationLink(input.link);
   const link=normalized.includes('&'+OWNERSHIP_KEY+'=')?normalized:normalized+'&'+OWNERSHIP_KEY+'='+OWNERSHIP_VALUE;
   const { rows, workspaceCustomApplicationId } = await readNavigation(client);
@@ -105,7 +105,7 @@ export async function renameDashboardLink(id:string,name:string,client=new Metad
   const { rows, workspaceCustomApplicationId } = await readNavigation(client);
   const item=rows.find(row=>row.id===id);
   if (!item || !isPublishedDashboardLink(item, workspaceCustomApplicationId)) throw Error('LINK_NOT_MANAGED');
-  const {updateNavigationMenuItem}=await client.mutation({updateNavigationMenuItem:{__args:{input:{id,update:{name:checkedName(name)}}},id:true,name:true}});
+  const {updateNavigationMenuItem}=await client.mutation({updateNavigationMenuItem:{__args:{input:{id,update:{name:validateNavigationName(name)}}},id:true,name:true}});
   if(updateNavigationMenuItem?.id!==id)throw Error('UPDATE_NOT_CONFIRMED');
 }
 

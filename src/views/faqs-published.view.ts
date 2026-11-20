@@ -7,6 +7,8 @@ export default defineView({ universalIdentifier: IDS.VIEW_FAQS_PUBLISHED, name: 
     { universalIdentifier: IDS.VIEWCOL_FAQS_PUBLISHED_FAQ_LANGUAGE, fieldMetadataUniversalIdentifier: IDS.FAQ_LANGUAGE, position: 2, isVisible: true, size: 110 },
     { universalIdentifier: IDS.VIEWCOL_FAQS_PUBLISHED_FAQ_STATUS, fieldMetadataUniversalIdentifier: IDS.FAQ_STATUS, position: 3, isVisible: true, size: 130 },
     { universalIdentifier: IDS.VIEWCOL_FAQS_PUBLISHED_FAQ_SCOPES, fieldMetadataUniversalIdentifier: IDS.FAQ_SCOPES, position: 4, isVisible: true, size: 200 },
+    { universalIdentifier: IDS.VIEWCOL_FAQS_PUBLISHED_TAGS, fieldMetadataUniversalIdentifier: IDS.FAQ_TAGS, position: 5, isVisible: true, size: 180 },
+    { universalIdentifier: IDS.VIEWCOL_FAQS_PUBLISHED_CUSTOM_TAGS, fieldMetadataUniversalIdentifier: IDS.FAQ_CUSTOM_TAGS, position: 6, isVisible: true, size: 180 },
   ],
   filters: [
     { universalIdentifier: IDS.FILTER_FAQ_PUBLISHED_STATUS, fieldMetadataUniversalIdentifier: IDS.FAQ_STATUS, operand: ViewFilterOperand.IS, value: ["PUBLISHED"] },

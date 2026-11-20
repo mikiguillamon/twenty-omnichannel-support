@@ -1,8 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { filterFaqs } from '../src/lib/faq-manager.ts';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+
+test('FAQ filters combine scope, standard tag and a literal custom tag', () => {
+  const base = { scopeTags: ['GENERAL'], tags: ['URGENTE'], question: 'Ayuda', answer: 'Respuesta' };
+  const rows = [
+    { ...base, id: 'matching', customTags: ['VERANO', 'Campus A'] },
+    { ...base, id: 'prefix', customTags: ['Verano Plus'] },
+    { ...base, id: 'different-tag', tags: ['REVISAR'], customTags: ['Verano'] },
+  ];
+  assert.deepEqual(filterFaqs(rows, {
+    query: '', scope: 'GENERAL', status: 'all', language: 'all', tag: 'URGENTE', customTag: 'verano',
+  }).map(faq => faq.id), ['matching']);
+});
 
 test('FAQ manager remains an installed standalone page without app-owned sidebar entries', () => {
   const layout = read('src/page-layouts/faq-manager.page.ts');

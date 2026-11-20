@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { RestApiClient } from 'twenty-client-sdk/rest';
-import { AppPath, navigate } from 'twenty-sdk/front-component';
 import { ConversationThread } from '../front-components/case-timeline.tsx';
 import {
-  conversationChannels, conversationFollowUps, conversationStatuses, loadConversationDetails, updateConversationStatus,
+  conversationChannels, conversationFollowUps, conversationRecordHref, conversationStatuses,
+  conversationTagLabels, loadConversationDetails, updateConversationStatus,
   type ConversationCatalogItem, type ConversationChannel, type ConversationDetails, type ConversationRow, type ConversationStatus,
 } from '../lib/conversation-inbox.ts';
+import { stringTags } from '../lib/tag-values.ts';
 
 const iconPaths = {
   search: 'M19 19l-4-4 M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z',
@@ -92,12 +93,29 @@ export type InboxCatalogs = {
   types: ConversationCatalogItem[];
 };
 
-export function ConversationTable({ rows, catalogs, selectedId, loading, onSelect }: {
+function ConversationTags({ row, onFilter }: { row: ConversationRow; onFilter?: (field: 'tag' | 'customTag', tag: string) => void }) {
+  const tags = [
+    ...stringTags(row.tags).map(value => ({ field: 'tag' as const, value,
+      label: Object.hasOwn(conversationTagLabels, value) ? conversationTagLabels[value] : value })),
+    ...stringTags(row.customTags).map(value => ({ field: 'customTag' as const, value, label: value })),
+  ];
+  if (!tags.length) return null;
+  return <div className="omni-inbox__tags" aria-label="Etiquetas de la conversación">
+    {(onFilter ? tags.slice(0, 4) : tags).map(({ field, value, label }) => onFilter
+      ? <button className="omni-inbox__pill omni-inbox__tag-action" key={field + value} type="button"
+          onClick={() => onFilter(field, value)} aria-label={'Filtrar por ' + label}>{label}</button>
+      : <span className="omni-inbox__pill" key={field + value}>{label}</span>)}
+    {onFilter && tags.length > 4 && <span className="omni-inbox__note">+{tags.length - 4}</span>}
+  </div>;
+}
+
+export function ConversationTable({ rows, catalogs, selectedId, loading, onSelect, onFilterTag }: {
   rows: ConversationRow[];
   catalogs: InboxCatalogs;
   selectedId: string | null;
   loading: boolean;
   onSelect: (row: ConversationRow) => void;
+  onFilterTag: (field: 'tag' | 'customTag', tag: string) => void;
 }) {
   return <div className="omni-inbox__table-scroll">
     <table className="omni-inbox__table" aria-label="Conversaciones" aria-busy={loading}>
@@ -119,12 +137,15 @@ export function ConversationTable({ rows, catalogs, selectedId, loading, onSelec
           const accountName = catalogName(catalogs.channels, row.channelInstanceId);
           const activity = activityOf(row);
           const classification = [catalogName(catalogs.types, row.caseTypeId), catalogName(catalogs.categories, row.categoryId)].filter(Boolean).join(' · ');
+          const href = conversationRecordHref(row.id);
           return <tr key={row.id} data-open={row.id === selectedId}>
             <td className="omni-inbox__primary-cell">
-              <button className="omni-inbox__subject" type="button" onClick={() => onSelect(row)} aria-pressed={row.id === selectedId}>
-                <strong>{subjectOf(row)}</strong>
-                {origin && <span className="omni-inbox__note" style={{ overflowWrap: 'anywhere' }}>{origin}</span>}
-              </button>
+              {href ? <a className="omni-inbox__subject" href={href}><strong>{subjectOf(row)}</strong></a>
+                : <strong>{subjectOf(row)}</strong>}
+              {origin && <span className="omni-inbox__note" style={{ overflowWrap: 'anywhere' }}>{origin}</span>}
+              <ConversationTags row={row} onFilter={onFilterTag} />
+              <button className="omni-inbox__preview" type="button" onClick={() => onSelect(row)} aria-expanded={row.id === selectedId}
+                aria-label={'Vista previa de ' + subjectOf(row)}><InboxIcon name="chat" />Vista previa</button>
             </td>
             <td><ChannelLabel channel={row.channel} />{accountName && <div className="omni-inbox__note">{accountName}</div>}</td>
             <td><StatusLabel status={row.status} /></td>
@@ -188,18 +209,11 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
     }
   }
 
-  async function openRecord() {
-    try {
-      await navigate(AppPath.RecordShowPage, { objectNameSingular: 'supportCase', objectRecordId: row.id });
-    } catch {
-      setError('No se pudo abrir la ficha en Twenty.');
-    }
-  }
-
   const recording = secureRecording(details?.recording?.primaryLinkUrl);
   const account = catalogName(catalogs.channels, row.channelInstanceId);
   const origin = originOf(row);
   const title = subjectOf(row);
+  const href = conversationRecordHref(row.id);
   const classification = [catalogName(catalogs.types, row.caseTypeId), catalogName(catalogs.categories, row.categoryId)].filter(Boolean).join(' · ');
 
   return <aside className="omni-inbox__detail" aria-label={`Detalle de ${title}`}>
@@ -216,10 +230,11 @@ export function ConversationPanel({ row, catalogs, onClose, onStatusChange }: {
       {(classification || row.assignedTo) && <p className="omni-inbox__note" style={{ marginBottom: 10 }}>
         {[classification, row.assignedTo && `Responsable: ${row.assignedTo}`].filter(Boolean).join(' · ')}
       </p>}
+      <ConversationTags row={row} />
       <div className="omni-inbox__controls">
         <InboxSelect label="Estado" value={row.status ?? ''} allLabel={row.status ? undefined : 'Seleccionar estado'}
           options={Object.entries(conversationStatuses)} onChange={value => void changeStatus(value)} disabled={saving} />
-        <button className="omni-inbox__control" type="button" onClick={() => void openRecord()}><InboxIcon name="open" />Abrir ficha</button>
+        {href && <a className="omni-inbox__control" href={href}><InboxIcon name="open" />Abrir ficha</a>}
       </div>
       {error && <p role="alert" className="omni-inbox__alert" style={{ marginTop: 10 }}>{error}</p>}
       {notice && <p role="status" className="omni-inbox__notice">{notice}</p>}

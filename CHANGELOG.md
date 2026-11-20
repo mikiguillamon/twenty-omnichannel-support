@@ -1,3 +1,10 @@
+## 1.2.0 — Conversaciones, etiquetas y datos del workspace
+
+- Abre la ficha de Twenty desde el título de la conversación y ofrece una vista previa en la bandeja.
+- Añade etiquetas y etiquetas propias a los filtros, las vistas guardadas y las columnas de conversaciones y FAQs.
+- Permite usar objetos del workspace en los dashboards según los permisos del usuario y filtrar o agrupar sus campos compatibles, incluidos arrays.
+- Permite renombrar páginas y enlaces de Omnichannel en el menú y crear accesos con nombre propio para las vistas nativas.
+
 ## 1.1.0 — Bandeja de conversaciones y propuestas de correo
 
 - Administración a ancho completo, con accesos y dashboards adaptables a escritorio, tableta y móvil.

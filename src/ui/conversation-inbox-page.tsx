@@ -3,7 +3,7 @@ import { RestApiClient } from 'twenty-client-sdk/rest';
 import { AppPath, copyToClipboard, navigate, useColorScheme, useLocation } from 'twenty-sdk/front-component';
 import {
   CONVERSATION_PAGE_SIZE, CONVERSATION_SEARCH_LIMIT, CONVERSATION_VIEW_NAME_LIMIT,
-  conversationChannels, conversationFollowUps, conversationStatuses, isRecordUuid,
+  conversationChannels, conversationFollowUps, conversationStatuses, conversationTagLabels, isRecordUuid,
   loadConversationCatalog, loadConversationPage, loadConversationViews, normalizeConversationFilters, saveConversationView,
   type ConversationCatalogItem, type ConversationFilters, type ConversationPage, type ConversationRow, type ConversationView,
 } from '../lib/conversation-inbox.ts';
@@ -14,6 +14,7 @@ import {
   ConversationPanel, ConversationTable, InboxIcon, InboxSelect, InboxState, conversationCatalogLabel, type InboxCatalogs,
 } from './conversation-inbox-list.tsx';
 import { ConversationInboxStyles } from './conversation-inbox-styles.tsx';
+import { stringTags } from '../lib/tag-values.ts';
 
 type LoadResult = { data: ConversationPage; key: string } | { error: string; key: string };
 type ViewEditor = { id?: string; name: string };
@@ -45,6 +46,7 @@ export function ConversationInbox() {
   const linkedViewId = readConversationViewId(location?.search ?? '');
   const [filters, setFilters] = useState<ConversationFilters>(blankFilters);
   const [search, setSearch] = useState('');
+  const [customTagText, setCustomTagText] = useState('');
   const [viewId, setViewId] = useState<string | null>(null);
   const [appliedLink, setAppliedLink] = useState<string | null>(null);
   const [linkNotice, setLinkNotice] = useState('');
@@ -58,6 +60,7 @@ export function ConversationInbox() {
   const [result, setResult] = useState<LoadResult | null>(null);
   const [selected, setSelected] = useState<ConversationRow | null>(null);
   const [editor, setEditor] = useState<ViewEditor | null>(null);
+  const [menuName, setMenuName] = useState<string | null>(null);
   const [action, setAction] = useState<ActionMessage | null>(null);
   const [working, setWorking] = useState<'save' | 'menu' | null>(null);
   const [sharedLink, setSharedLink] = useState('');
@@ -71,17 +74,18 @@ export function ConversationInbox() {
   const page = !loading && result && 'data' in result ? result.data : null;
   const error = !loading && result && 'error' in result ? result.error : '';
   const currentView = views?.find(item => item.id === viewId);
-  const hasFilters = Boolean(search.trim() || filters.channel || filters.status || filters.followUp || filters.caseTypeId || filters.categoryId || filters.channelInstanceId);
+  const hasTagFilters = Boolean(filters.tag || filters.customTag);
+  const hasFilters = Boolean(search.trim() || customTagText.trim() || hasTagFilters || filters.channel || filters.status || filters.followUp || filters.caseTypeId || filters.categoryId || filters.channelInstanceId);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      const nextSearch = normalizeConversationFilters({ search }).search;
-      if (filters.search === nextSearch) return;
-      setFilters(previous => ({ ...previous, search: nextSearch }));
+      const next = normalizeConversationFilters({ search, customTag: customTagText });
+      if (filters.search === next.search && filters.customTag === next.customTag) return;
+      setFilters(previous => ({ ...previous, search: next.search, customTag: next.customTag }));
       setPagination({ key: '', cursors: [] });
     }, 250);
     return () => clearTimeout(timeout);
-  }, [search, filters.search]);
+  }, [search, customTagText, filters.search, filters.customTag]);
 
   useEffect(() => {
     let current = true;
@@ -140,22 +144,26 @@ export function ConversationInbox() {
   function changeView(item?: ConversationView) {
     setFilters(item?.filters ?? blankFilters);
     setSearch(item?.filters.search ?? '');
+    setCustomTagText(item?.filters.customTag ?? '');
     setViewId(item?.id ?? null);
     setPagination({ key: '', cursors: [] });
     setSelected(null);
     setEditor(null);
+    setMenuName(null);
     setAction(null);
     setSharedLink('');
   }
 
   function clearFilters() {
     setSearch('');
+    setCustomTagText('');
     setFilters(blankFilters);
     setPagination({ key: '', cursors: [] });
     setSelected(null);
   }
 
   function changeFilter<K extends keyof ConversationFilters>(key: K, value: ConversationFilters[K]) {
+    if (key === 'customTag') setCustomTagText(String(value ?? ''));
     setFilters(previous => normalizeConversationFilters({ ...previous, [key]: value,
       ...(key === 'channel' ? { channelInstanceId: undefined } : {}),
     }));
@@ -183,7 +191,7 @@ export function ConversationInbox() {
     setWorking('save');
     setAction(null);
     try {
-      const item = await saveConversationView(new RestApiClient(), editor.name, { ...filters, search }, editor.id);
+      const item = await saveConversationView(new RestApiClient(), editor.name, { ...filters, search, customTag: customTagText }, editor.id);
       setViews(current => [...(current ?? []).filter(view => view.id !== item.id), item]
         .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })));
       setViewId(item.id);
@@ -211,13 +219,15 @@ export function ConversationInbox() {
     }
   }
 
-  async function addViewToMenu() {
-    if (!currentView || working) return;
+  async function addViewToMenu(event: FormEvent) {
+    event.preventDefault();
+    if (!currentView || working || !menuName?.trim()) return;
     setWorking('menu');
     setAction(null);
     try {
-      const publication = await publishConversationViewLink(pathname, currentView);
-      setAction({ level: 'success', text: publication === 'created' ? 'Vista añadida al menú del workspace.' : 'La vista ya tiene un acceso en el menú.' });
+      const publication = await publishConversationViewLink(pathname, currentView, undefined, menuName);
+      setMenuName(null);
+      setAction({ level: 'success', text: publication === 'created' ? 'Vista añadida al menú del workspace.' : 'La vista ya tiene un acceso. Puedes renombrarlo desde Administración → Accesos.' });
     } catch {
       setAction({ level: 'error', text: 'No se pudo añadir al menú. Comprueba si tienes permiso de Diseños o copia el enlace para añadirlo desde el menú de Twenty.' });
     } finally {
@@ -235,7 +245,11 @@ export function ConversationInbox() {
   const searchHint = filters.channel === 'EMAIL' ? 'Buscar por asunto o correo' : filters.channel === 'PHONE'
     ? 'Buscar por teléfono o resumen' : 'Buscar por asunto, correo o teléfono';
   const shareAvailable = currentView ? Boolean(conversationViewLink(pathname, currentView.id)) : false;
-  const hasUnsavedFilters = currentView && JSON.stringify(normalizeConversationFilters({ ...filters, search })) !== JSON.stringify(currentView.filters);
+  const hasUnsavedFilters = currentView && JSON.stringify(normalizeConversationFilters({ ...filters, search, customTag: customTagText })) !== JSON.stringify(currentView.filters);
+  const tagOptions = new Map(Object.entries(conversationTagLabels));
+  for (const tag of stringTags([...(page?.rows.flatMap(row => row.tags ?? []) ?? []), filters.tag])) {
+    if (!tagOptions.has(tag)) tagOptions.set(tag, tag);
+  }
   const pageStart = cursors.length * CONVERSATION_PAGE_SIZE + 1;
   const pageEnd = pageStart + (page?.rows.length ?? 0) - 1;
 
@@ -254,11 +268,12 @@ export function ConversationInbox() {
           disabled={views === null || working !== null} onChange={selectView} />
         <div className="omni-inbox__actions">
           {hasUnsavedFilters && <span className="omni-inbox__note">Filtros sin guardar</span>}
-          {currentView && <button type="button" className="omni-inbox__control" disabled={working !== null} onClick={() => setEditor({ id: currentView.id, name: currentView.name })}>Editar vista</button>}
+          {currentView && <button type="button" className="omni-inbox__control" disabled={working !== null} onClick={() => { setMenuName(null); setEditor({ id: currentView.id, name: currentView.name }); }}>Editar vista</button>}
           {currentView && <button type="button" className="omni-inbox__control" disabled={!shareAvailable || working !== null} onClick={() => void copyView()}>Copiar enlace</button>}
-          {currentView && <button type="button" className="omni-inbox__control" disabled={!shareAvailable || working !== null} onClick={() => void addViewToMenu()}>{working === 'menu' ? 'Añadiendo…' : 'Añadir al menú'}</button>}
+          {currentView && <button type="button" className="omni-inbox__control" disabled={!shareAvailable || working !== null}
+            onClick={() => { setEditor(null); setAction(null); setMenuName(currentView.name); }}>Añadir al menú</button>}
           <button type="button" className="omni-inbox__control" data-primary="true" disabled={views === null || viewsError || working !== null}
-            onClick={() => { setAction(null); setEditor({ name: '' }); }}>Guardar vista</button>
+            onClick={() => { setAction(null); setMenuName(null); setEditor({ name: '' }); }}>Guardar vista</button>
         </div>
       </div>
 
@@ -269,6 +284,15 @@ export function ConversationInbox() {
         </label>
         <button type="submit" className="omni-inbox__control" data-primary="true" disabled={!editor.name.trim() || working !== null}>{working === 'save' ? 'Guardando…' : 'Guardar filtros'}</button>
         <button type="button" className="omni-inbox__control" disabled={working === 'save'} onClick={() => setEditor(null)}>Cancelar</button>
+      </form>}
+      {menuName !== null && <form className="omni-inbox__view-editor" onSubmit={event => void addViewToMenu(event)}>
+        <label className="omni-inbox__field"><span>Nombre en el menú</span>
+          <input className="omni-inbox__input" value={menuName} maxLength={CONVERSATION_VIEW_NAME_LIMIT}
+            onChange={event => setMenuName(event.target.value)} required disabled={working === 'menu'} />
+        </label>
+        <button type="submit" className="omni-inbox__control" data-primary="true"
+          disabled={menuName.trim().length < 2 || working !== null}>{working === 'menu' ? 'Añadiendo…' : 'Crear acceso'}</button>
+        <button type="button" className="omni-inbox__control" disabled={working === 'menu'} onClick={() => setMenuName(null)}>Cancelar</button>
       </form>}
       {action && <p className={action.level === 'error' ? 'omni-inbox__alert' : 'omni-inbox__notice'} role={action.level === 'error' ? 'alert' : 'status'}>{action.text}</p>}
       {sharedLink && <label className="omni-inbox__field" style={{ marginBottom: 12 }}><span>Enlace de la vista</span><input className="omni-inbox__input" readOnly value={sharedLink} /></label>}
@@ -294,23 +318,35 @@ export function ConversationInbox() {
           <InboxSelect label="Estado" value={filters.status ?? ''} allLabel="Todos" options={statusOptions} onChange={value => changeFilter('status', value as ConversationFilters['status'])} />
           <InboxSelect label="Categoría" value={filters.categoryId ?? ''} allLabel="Todas" options={catalogOptions(catalogs.categories, filters.categoryId)} onChange={value => changeFilter('categoryId', value)} />
           <InboxSelect label="Seguimiento" value={filters.followUp ?? ''} allLabel="Todos" options={followUpOptions} onChange={value => changeFilter('followUp', value as ConversationFilters['followUp'])} />
+          <InboxSelect label="Etiqueta" value={filters.tag ?? ''} allLabel="Todas" options={[...tagOptions]} onChange={value => changeFilter('tag', value)} />
+          <label className="omni-inbox__field"><span>Etiqueta propia</span>
+            <input className="omni-inbox__input" value={customTagText} maxLength={120} placeholder="Nombre exacto"
+              onChange={event => { setCustomTagText(event.target.value); setSelected(null); }} />
+          </label>
         </div>
         {catalogProblem && <p role="status" className="omni-inbox__note" style={{ marginTop: 8 }}>Algunos filtros de catálogo no están disponibles para tu rol.</p>}
       </section>
     </div>
 
     <div className="omni-inbox__workspace" data-has-detail={Boolean(selected)}>
+      {selected && <ConversationPanel key={selected.id} row={selected} catalogs={catalogs} onClose={() => setSelected(null)}
+        onStatusChange={status => {
+          setSelected(current => current?.id === selected.id ? { ...current, status } : current);
+          setListVersion(n => n + 1);
+        }} />}
       <section className="omni-inbox__list" aria-label="Resultados de conversaciones">
         {(loading || Boolean(page?.rows.length)) && <ConversationTable rows={page?.rows ?? []} loading={loading} catalogs={catalogs}
-          onSelect={row => setSelected(current => current?.id === row.id ? null : row)} selectedId={selected?.id ?? null} />}
+          onSelect={setSelected} onFilterTag={changeFilter} selectedId={selected?.id ?? null} />}
         {error && <InboxState title="No se pudieron cargar las conversaciones">
           <p className="omni-inbox__note">{error}</p><button type="button" className="omni-inbox__control" onClick={() => setListVersion(n => n + 1)}>Reintentar</button>
         </InboxState>}
-        {page && page.rows.length === 0 && <InboxState title={hasFilters ? 'Ninguna conversación coincide' : 'Todavía no hay conversaciones'}>
+        {page && page.rows.length === 0 && <InboxState title={page.nextCursor ? 'Sin coincidencias en este tramo' : hasFilters ? 'Ninguna conversación coincide' : 'Todavía no hay conversaciones'}>
+          {page.nextCursor && <p className="omni-inbox__note">Usa Siguiente para seguir buscando en las conversaciones restantes.</p>}
           {hasFilters && <button type="button" className="omni-inbox__control" onClick={clearFilters}>Limpiar filtros</button>}
         </InboxState>}
-        {page && (page.rows.length > 0 || cursors.length > 0) && <footer className="omni-inbox__pager">
-          <span role="status">{page.rows.length > 0 ? `${pageStart}–${pageEnd}${page.totalCount === null ? '' : ` de ${page.totalCount}`}` : `Página ${cursors.length + 1}`}</span>
+        {page && (page.rows.length > 0 || cursors.length > 0 || page.nextCursor) && <footer className="omni-inbox__pager">
+          <span role="status">{hasTagFilters ? `${page.rows.length} ${page.rows.length === 1 ? 'coincidencia' : 'coincidencias'} en esta página` :
+            page.rows.length > 0 ? `${pageStart}–${pageEnd}${page.totalCount === null ? '' : ` de ${page.totalCount}`}` : `Página ${cursors.length + 1}`}</span>
           <div className="omni-inbox__actions">
             <button type="button" className="omni-inbox__control" disabled={!cursors.length} onClick={() => setPagination({ key: filterKey, cursors: cursors.slice(0, -1) })}><InboxIcon name="left" />Anterior</button>
             <button type="button" className="omni-inbox__control" disabled={!page.nextCursor || cursors.includes(page.nextCursor)} onClick={() => {
@@ -319,11 +355,6 @@ export function ConversationInbox() {
           </div>
         </footer>}
       </section>
-      {selected && <ConversationPanel key={selected.id} row={selected} catalogs={catalogs} onClose={() => setSelected(null)}
-        onStatusChange={status => {
-          setSelected(current => current?.id === selected.id ? { ...current, status } : current);
-          setListVersion(n => n + 1);
-        }} />}
     </div>
   </section>;
 }

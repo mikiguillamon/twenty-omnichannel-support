@@ -3,20 +3,58 @@ import { RestApiClient } from 'twenty-client-sdk/rest';
 import { copyToClipboard, openCommandConfirmationModal, useColorScheme, useLocation } from 'twenty-sdk/front-component';
 import { IDS } from '../constants/ids.ts';
 import {
-  SOURCES, WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS,
-  createDashboard, defaultDashboard, fieldsFor, makeWidget, moveDashboardWidget, resizeDashboardWidgetTo, newId, normalizeWidget, periodFrom,
-  type Source, type WidgetKind, type Dashboard, type DashboardWidget, type Period, type StoredDashboard,
+  WIDGET_LABELS, PERIOD_LABELS, MAX_DASHBOARDS, MAX_WIDGETS,
+  createDashboard, defaultDashboard, makeWidget, moveDashboardWidget, resizeDashboardWidgetTo, newId, normalizeWidget, periodFrom,
+  type Source, type WidgetKind, type Dashboard, type DashboardWidget, type DashboardFilter, type Period, type StoredDashboard,
 } from '../lib/dashboard-model.ts';
 import { loadDashboards, persistDashboard, removeDashboard, migrateLegacyDashboards, importDashboard, exportDashboard } from '../lib/dashboard-store.ts';
-import { fetchDataset, type Dataset } from '../lib/dashboard-analytics.ts';
+import { dashboardValues, fetchWorkspaceDataset, workspaceWidgetFields, type Dataset } from '../lib/dashboard-analytics.ts';
+import {
+  builtinDashboardCatalog, displayDashboardValue, fieldLabel, fieldOptions, loadDashboardCatalog,
+  type DashboardCatalog, type DashboardField, type DashboardSource,
+} from '../lib/dashboard-metadata.ts';
 import { readDashboardFromSearch, getDashboardLink } from '../lib/dashboard-links.ts';
 import { DashboardVisualization } from '../front-components/dashboard-visualization.tsx';
 
-const SOURCE_KEYS=Object.keys(SOURCES) as Source[];
 const KINDS=Object.keys(WIDGET_LABELS) as WidgetKind[];
 const PERIOD_KEYS=Object.keys(PERIOD_LABELS) as Period['key'][];
 const NUMERIC=['sum','avg','min','max','distinct'];
+const CALCULATIONS: Record<DashboardWidget['aggregation'], string> = {
+  count: 'Contar registros', ratio: 'Porcentaje de registros', distinct: 'Valores únicos',
+  sum: 'Suma', avg: 'Promedio', min: 'Mínimo', max: 'Máximo',
+};
 const WIDTHS=[3,4,6,8,12] as const;
+type SourceResult = { signature: string; data?: Dataset; error?: string };
+
+function referenceDates(fields: DashboardField[], kind: WidgetKind): DashboardField[] {
+  return fields.filter(field => field.kind === 'dateTime' || (kind !== 'hour' && field.kind === 'date'));
+}
+
+function usingSource(widget: DashboardWidget, source: DashboardSource): DashboardWidget {
+  const fields = [...source.fields.values()];
+  const dates = referenceDates(fields, widget.kind);
+  const dateField = dates.find(field => field.key === widget.dateField)?.key ?? dates[0]?.key ?? '';
+  const groupBy = source.fields.has(widget.groupBy) ? widget.groupBy : fields[0]?.key ?? '';
+  return { ...widget, dateField, groupBy };
+}
+
+function widgetDataMessage(widget: DashboardWidget, source: DashboardSource | undefined): string | undefined {
+  if (widget.kind === 'text' || widget.kind === 'shortcut') return undefined;
+  if (!source || workspaceWidgetFields(widget).some(key => !source.fields.has(key))) {
+    return 'El objeto o alguno de sus campos ya no está disponible para tu usuario.';
+  }
+  if (widget.kind === 'line' || widget.kind === 'area' || widget.kind === 'hour' || widget.dateField) {
+    if (!referenceDates([...source.fields.values()], widget.kind).some(field => field.key === widget.dateField)) {
+      return widget.kind === 'hour' ? 'Selecciona un campo de fecha y hora.' : 'Selecciona un campo de fecha de referencia.';
+    }
+  }
+  if (widget.aggregation === 'ratio' && (!widget.ratioField || !widget.ratioValue)) return 'Selecciona el campo y el valor del porcentaje.';
+  if (widget.aggregation === 'distinct' && !widget.valueField) return 'Selecciona un campo para contar sus valores únicos.';
+  if (NUMERIC.includes(widget.aggregation) && widget.aggregation !== 'distinct' && source.fields.get(widget.valueField)?.kind !== 'number') {
+    return 'Selecciona un campo numérico para este cálculo.';
+  }
+  return undefined;
+}
 
 const responsiveDashboardStyles = `
 .omni-dashboard { container-name: omni-dashboard; container-type: inline-size; }
@@ -52,8 +90,8 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
   const [error,setError]=useState('');
   const [feedback,setFeedback]=useState('');
   const [reload,setReload]=useState(0);
-  const [datasets,setDatasets]=useState<Partial<Record<Source,Dataset>>>({});
-  const [sourceErrors,setSourceErrors]=useState<Partial<Record<Source,string>>>({});
+  const [catalogState,setCatalogState]=useState<{ catalog: DashboardCatalog; fallback?: boolean } | null>(null);
+  const [sourceResults,setSourceResults]=useState<Partial<Record<Source,SourceResult>>>({});
   const [importOpen,setImportOpen]=useState(false);
   const [importJson,setImportJson]=useState('');
   const [draggingId,setDraggingId]=useState<string|null>(null);
@@ -64,6 +102,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
   const [addSource,setAddSource]=useState<Source>('supportCases');
   const [filterField,setFilterField]=useState('');
   const [filterValue,setFilterValue]=useState('');
+  const [filterOperator,setFilterOperator]=useState<DashboardFilter['operator']>('eq');
 
   const bg=dark?'#1D232C':'#F8FAFC';
   const surface=dark?'#252D38':'#FFFFFF';
@@ -79,7 +118,25 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
   const selected=stored.find(d=>d.dashboard.id===active)??null;
   const dashboard=draft??selected?.dashboard??null;
   const widget=draft?.widgets.find(w=>w.id===editingWidget)??null;
-  const sourceSignature=[...new Set((dashboard?.widgets??[]).filter(w=>w.kind!=='text'&&w.kind!=='shortcut').map(w=>w.source))].sort().join('|');
+  const catalog = catalogState?.catalog ?? builtinDashboardCatalog;
+  const availableSources = [...catalog.values()].sort((a,b) => a.label.localeCompare(b.label, 'es'));
+  const addSourceKey = catalog.has(addSource) ? addSource : availableSources[0]?.key ?? '';
+  const fieldsBySource = new Map<Source, Set<string>>();
+  for (const item of dashboard?.widgets ?? []) {
+    if (item.kind === 'text' || item.kind === 'shortcut') continue;
+    const source = catalog.get(item.source);
+    const keys = workspaceWidgetFields(item);
+    if (!source || keys.some(key => !source.fields.has(key))) continue;
+    const fields = fieldsBySource.get(item.source) ?? new Set<string>();
+    keys.forEach(key => fields.add(key));
+    if (item.id === editingWidget && source.fields.has(filterField)) fields.add(filterField);
+    fieldsBySource.set(item.source, fields);
+  }
+  const queries = [...fieldsBySource].map(([source,keys]) => {
+    const fields = [...keys].sort();
+    return { source, fields, signature: JSON.stringify(fields) };
+  });
+  const sourceSignature = JSON.stringify(queries.map(({source,signature}) => [source,signature]).sort());
 
   useEffect(()=>{
     let live=true;
@@ -93,6 +150,16 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
     return()=>{live=false;};
   },[reload]);
 
+  useEffect(() => {
+    let live = true;
+    void loadDashboardCatalog().then(next => {
+      if (live) setCatalogState({ catalog: next });
+    }).catch(() => {
+      if (live) setCatalogState({ catalog: builtinDashboardCatalog, fallback: true });
+    });
+    return () => { live = false; };
+  }, [reload]);
+
   // Resolve direct navigation from a custom link in Twenty's left sidebar.
   useEffect(()=>{
     if(!requestedDashboard||handledLink.current===requestedDashboard)return;
@@ -102,20 +169,20 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
   },[requestedDashboard,stored]);
 
   useEffect(()=>{
-    const sources=[...new Set((dashboard?.widgets??[]).filter(w=>w.kind!=='text'&&w.kind!=='shortcut').map(w=>w.source))];
-    const missing=sources.filter(source=>!datasets[source]&&!sourceErrors[source]);
-    if(!missing.length)return;
+    if (!catalogState) return;
     const signal={cancelled:false};
     const api=new RestApiClient();
-    for(const source of missing){
-      void fetchDataset(source,api,signal).then(data=>{
-        if(!signal.cancelled)setDatasets(prev=>({...prev,[source]:data}));
+    for(const {source,fields,signature} of queries){
+      const definition = catalogState.catalog.get(source);
+      if (!definition || sourceResults[source]?.signature === signature) continue;
+      void fetchWorkspaceDataset(definition,fields,api,signal).then(data=>{
+        if(!signal.cancelled)setSourceResults(prev=>({...prev,[source]:{ signature,data }}));
       }).catch(()=>{
-        if(!signal.cancelled)setSourceErrors(prev=>({...prev,[source]:'Error al consultar '+SOURCES[source].label+'.'}));
+        if(!signal.cancelled)setSourceResults(prev=>({...prev,[source]:{ signature,error:'No se pudo consultar '+definition.label+'. Prueba a actualizar los datos.' }}));
       });
     }
     return()=>{signal.cancelled=true;};
-  },[sourceSignature,reload]);
+  },[sourceSignature,catalogState]);
 
   function startEdit(){
     if(!dashboard)return;
@@ -252,25 +319,64 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
       .catch(()=>setError('No se pudo copiar el JSON. Comprueba los permisos.'));
   }
   function resetData(){
-    setDatasets({});setSourceErrors({});setReload(n=>n+1);
+    setSourceResults({});setCatalogState(null);setReload(n=>n+1);
   }
   function addWidget(){
     if(!draft)return;
     if(draft.widgets.length>=MAX_WIDGETS)return setError('Máximo de 36 widgets por dashboard.');
-    const next=makeWidget(addKind,addSource);
+    const source = catalog.get(addSourceKey);
+    const base = makeWidget(addKind,addSourceKey || 'supportCases');
+    const next = source ? usingSource(base,source) : base;
+    setFilterField('');setFilterValue('');setFilterOperator('eq');
     mutate(d=>({...d,widgets:[...d.widgets,next]}));setEditingWidget(next.id);
   }
   function renderChart(w:DashboardWidget){
+    const source = catalogState?.catalog.get(w.source);
+    const query = queries.find(item => item.source === w.source);
+    const result = sourceResults[w.source];
+    const current = query && result?.signature === query.signature ? result : undefined;
+    const message = catalogState ? widgetDataMessage(w, source) : undefined;
     return <DashboardVisualization widget={w} period={dashboard?.period??{key:'30d'}}
-      data={datasets[w.source]} sourceError={sourceErrors[w.source]} dark={dark}/>;
+      data={current?.data} sourceError={message??current?.error} dark={dark}/>;
   }
 
   function widgetEditor(w:DashboardWidget){
     function change<K extends keyof DashboardWidget>(name:K,value:DashboardWidget[K]) { modifyWidget(w.id,{[name]:value}); }
-    const dims=fieldsFor(w.source,'dimensions');
-    const numeric=fieldsFor(w.source,'numeric');
-    const aggregationOptions=['count','ratio','distinct',...(numeric.length?['sum','avg','min','max']:[])];
-    const option=(values:readonly string[])=>values.map(s=><option key={s} value={s}>{s}</option>);
+    const source = catalog.get(w.source);
+    const fields = [...(source?.fields.values() ?? [])];
+    const numeric = fields.filter(field => field.kind === 'number');
+    const dates = referenceDates(fields, w.kind);
+    const aggregationOptions: DashboardWidget['aggregation'][] = ['count', 'ratio', 'distinct'];
+    if (numeric.length) aggregationOptions.push('sum', 'avg', 'min', 'max');
+    if (!aggregationOptions.includes(w.aggregation)) aggregationOptions.push(w.aggregation);
+    const optionsFor = (values: DashboardField[], selected: string) => <>
+      {selected && !values.some(value => value.key === selected) && <option value={selected} disabled>{fieldLabel(source, selected)} · No disponible</option>}
+      {values.map(value => <option key={value.key} value={value.key}>{value.label}</option>)}
+    </>;
+    function valueInput(key: string, value: string, onChange: (value: string) => void, placeholder: string) {
+      const selectedField = source?.fields.get(key);
+      const choices = fieldOptions(selectedField);
+      if (choices.length) return <select style={field} value={value} onChange={e=>onChange(e.target.value)} aria-label={placeholder}>
+        <option value="">{placeholder}</option>
+        {value && !choices.some(choice => choice.value === value) && <option value={value}>{value}</option>}
+        {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
+      </select>;
+      const inputType = selectedField?.kind === 'number' ? 'number' : selectedField?.kind === 'date' ? 'date' : 'text';
+      const dataset = sourceResults[w.source]?.data;
+      const sample = dataset?.complete && selectedField && inputType === 'text'
+        ? [...new Set(dataset.rows.flatMap(row => dashboardValues(row[key])))].filter(value => value.length <= 120)
+          .slice(0, 60).sort((a,b) => a.localeCompare(b, 'es'))
+        : [];
+      return <>
+        <input style={field} type={inputType} step={inputType === 'number' ? 'any' : undefined} value={value}
+          maxLength={120} placeholder={placeholder} aria-label={placeholder} onChange={e=>onChange(e.target.value)}/>
+        {sample.length>0&&<select style={{...field,marginTop:6}} aria-label={'Valores encontrados para '+selectedField?.label}
+          value={sample.includes(value)?value:''} onChange={e=>onChange(e.target.value)}>
+          <option value="">Elegir un valor encontrado</option>
+          {sample.map(item => <option key={item} value={item}>{item}</option>)}
+        </select>}
+      </>;
+    }
     return <section style={{...card,background:bg,display:'flex',flexDirection:'column',gap:13}} aria-label="Configurar widget">
       <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
         <strong style={{fontSize:14}}>Configurar widget</strong>
@@ -282,22 +388,29 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
         onChange={e=>change('kind',e.target.value as WidgetKind)}>{KINDS.map(k=><option key={k} value={k}>{WIDGET_LABELS[k]}</option>)}</select></label>
       {w.kind==='text'?<label style={{fontSize:12}}>Contenido<textarea style={{...field,minHeight:120}} value={w.text} maxLength={4000} onChange={e=>change('text',e.target.value)}/></label>:
       w.kind==='shortcut'?<label style={{fontSize:12}}>URL HTTPS o ruta interna<input style={field} value={w.url} placeholder="/objects/supportCases" onChange={e=>change('url',e.target.value)}/></label>:<>
-        <label style={{fontSize:12}}>Fuente de datos<select style={field} value={w.source} onChange={e=>{
-          const source=e.target.value as Source;
-          changeWidget(w.id,previous=>({...makeWidget(previous.kind,source,previous.title),id:previous.id,width:previous.width,height:previous.height,compare:previous.compare}));
-        }}>{SOURCE_KEYS.map(s=><option key={s} value={s}>{SOURCES[s].label}</option>)}</select></label>
+        <label style={{fontSize:12}}>Objeto de Twenty<select style={field} value={w.source} disabled={!catalogState} onChange={e=>{
+          const next = catalog.get(e.target.value);
+          if (!next) return;
+          setFilterField('');setFilterValue('');setFilterOperator('eq');
+          changeWidget(w.id,previous=>usingSource({...makeWidget(previous.kind,next.key,previous.title),id:previous.id,width:previous.width,height:previous.height,compare:previous.compare}, next));
+        }}>
+          {!source && <option value={w.source} disabled>{w.source} · No disponible</option>}
+          {availableSources.map(item=><option key={item.key} value={item.key}>{item.label}</option>)}
+        </select></label>
         <label style={{fontSize:12}}>Cálculo<select style={field} value={w.aggregation} onChange={e=>change('aggregation',e.target.value as DashboardWidget['aggregation'])}>
-          {option(aggregationOptions)}</select></label>
+          {aggregationOptions.map(value => <option key={value} value={value}>{CALCULATIONS[value]}</option>)}</select></label>
         {NUMERIC.includes(w.aggregation)&&<label style={{fontSize:12}}>Campo del cálculo<select style={field} value={w.valueField}
-          onChange={e=>change('valueField',e.target.value)}><option value="">Selecciona un campo</option>{option(w.aggregation==='distinct'?dims:numeric)}</select></label>}
+          onChange={e=>change('valueField',e.target.value)}><option value="">Selecciona un campo</option>{optionsFor(w.aggregation==='distinct'?fields:numeric,w.valueField)}</select></label>}
         {w.aggregation==='ratio'&&<>
-          <label style={{fontSize:12}}>Campo numerador<select style={field} value={w.ratioField} onChange={e=>change('ratioField',e.target.value)}>
-            <option value="">Selecciona</option>{option(dims)}</select></label>
-          <label style={{fontSize:12}}>Valor del numerador<input style={field} value={w.ratioValue} onChange={e=>change('ratioValue',e.target.value)}/></label>
+          <label style={{fontSize:12}}>Campo del porcentaje<select style={field} value={w.ratioField}
+            onChange={e=>modifyWidget(w.id,{ratioField:e.target.value,ratioValue:''})}>
+            <option value="">Selecciona un campo</option>{optionsFor(fields,w.ratioField)}</select></label>
+          <label style={{fontSize:12}}>Valor que debe coincidir{valueInput(w.ratioField,w.ratioValue,value=>change('ratioValue',value),'Valor del porcentaje')}</label>
         </>}
-        {['bar','donut','table'].includes(w.kind)&&<label style={{fontSize:12}}>Agrupar por<select style={field} value={w.groupBy} onChange={e=>change('groupBy',e.target.value)}>{option(dims)}</select></label>}
+        {['bar','donut','table'].includes(w.kind)&&<label style={{fontSize:12}}>Agrupar por<select style={field} value={w.groupBy} onChange={e=>change('groupBy',e.target.value)}>
+          <option value="">Sin grupos</option>{optionsFor(fields,w.groupBy)}</select></label>}
         <label style={{fontSize:12}}>Fecha de referencia<select style={field} value={w.dateField}
-          onChange={e=>change('dateField',e.target.value)}>{option(fieldsFor(w.source,'dates'))}</select></label>
+          onChange={e=>change('dateField',e.target.value)}><option value="">Sin fecha</option>{optionsFor(dates,w.dateField)}</select></label>
         <label style={{fontSize:12}}>Filtro temporal<select style={field} value={w.periodOverride?.key??'inherit'} onChange={e=>change('periodOverride',e.target.value==='inherit'?null:{key:e.target.value as Period['key']})}>
           <option value="inherit">Heredar del dashboard</option>{PERIOD_KEYS.filter(k=>k!=='custom').map(k=><option key={k} value={k}>{PERIOD_LABELS[k]}</option>)}</select></label>
         <label style={{display:'flex',alignItems:'center',gap:7,fontSize:12}}>
@@ -305,16 +418,22 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
         <div style={{borderTop:'1px solid '+border,paddingTop:10,display:'flex',flexDirection:'column',gap:8}}>
           <strong style={{fontSize:12}}>Filtros del widget</strong>
           {w.filters.map((f,i)=><div key={i} style={{display:'flex',gap:5,alignItems:'center',fontSize:12}}>
-            <span style={{flex:1,overflow:'hidden'}}>{f.field} {f.operator==='eq'?'=':'≠'} {f.value}</span>
-            <button style={btn} type="button" onClick={()=>change('filters',w.filters.filter((_,j)=>j!==i))}>×</button>
+            <span style={{flex:1,overflowWrap:'anywhere'}}>{fieldLabel(source,f.field)} {f.operator==='eq'?'=':'≠'} {displayDashboardValue(source?.fields.get(f.field),f.value)}</span>
+            <button style={btn} type="button" aria-label={'Quitar filtro de '+fieldLabel(source,f.field)} onClick={()=>change('filters',w.filters.filter((_,j)=>j!==i))}>×</button>
           </div>)}
           {w.filters.length<5&&<div style={{display:'flex',flexDirection:'column',gap:6}}>
-            <select style={field} value={filterField} onChange={e=>setFilterField(e.target.value)}>
-              <option value="">Selecciona campo</option>{option(dims)}</select>
-            <input style={field} value={filterValue} placeholder="Valor exacto" onChange={e=>setFilterValue(e.target.value)}/>
-            <button style={btn} disabled={!dims.includes(filterField)||!filterValue.trim()} onClick={()=>{
-              change('filters',[...w.filters,{field:filterField,operator:'eq',value:filterValue.trim()}]);
-              setFilterField('');setFilterValue('');
+            <select style={field} value={filterField} aria-label="Campo del filtro" onChange={e=>{setFilterField(e.target.value);setFilterValue('');}}>
+              <option value="">Selecciona un campo</option>{optionsFor(fields,filterField)}</select>
+            {filterField && <>
+              <select style={field} aria-label="Condición del filtro" value={filterOperator} onChange={e=>setFilterOperator(e.target.value==='neq'?'neq':'eq')}>
+                <option value="eq">{source?.fields.get(filterField)?.kind==='array'?'Incluye':'Es igual a'}</option>
+                <option value="neq">{source?.fields.get(filterField)?.kind==='array'?'No incluye':'Es distinto de'}</option>
+              </select>
+              {valueInput(filterField,filterValue,setFilterValue,'Valor exacto')}
+            </>}
+            <button style={btn} disabled={!source?.fields.has(filterField)||!filterValue.trim()} onClick={()=>{
+              change('filters',[...w.filters,{field:filterField,operator:filterOperator,value:filterValue.trim()}]);
+              setFilterField('');setFilterValue('');setFilterOperator('eq');
             }}>Añadir filtro</button>
           </div>}
         </div>
@@ -326,7 +445,6 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
     </section>;
   }
 
-  const hasDataError=Object.values(sourceErrors).length>0;
   return <div className="omni-dashboard" style={{ ...basic, background: bg, padding: embedded ? 0 : 'clamp(12px, 2vw, 26px)', minHeight: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
     <style>{responsiveDashboardStyles}</style>
     <header style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
@@ -342,6 +460,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
       </div>
     </header>
     {error&&<div role="alert" style={{padding:11,borderRadius:8,border:'1px solid #DC6969',color:'#D94848',fontSize:12}}>{error}</div>}
+    {editing&&catalogState?.fallback&&<p role="status" style={{fontSize:12,color:muted}}>Twenty no pudo cargar el catálogo del workspace. Puedes configurar las fuentes habituales de Omnichannel.</p>}
     {feedback&&<div role="status" style={{fontSize:12,color:muted}}>{feedback}</div>}
     <div style={{display:'flex',alignItems:'center',gap:9,flexWrap:'wrap'}}>
       <label style={{fontSize:12}}>Dashboard
@@ -435,7 +554,7 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
               {editing&&<div style={{display:'flex',gap:3,alignItems:'center',flexShrink:0}}>
                 <button style={{...btn,padding:'3px 7px'}} title="Configurar" aria-label={'Configurar '+w.title}
                   onPointerDown={e=>e.stopPropagation()}
-                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');}}>
+                  onClick={()=>{setEditingWidget(w.id);setFilterField('');setFilterValue('');setFilterOperator('eq');}}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4V21H9v-1.6a1.7 1.7 0 0 0-1.88-.34l-.06.06L4.2 16.26l.06-.06A1.7 1.7 0 0 0 4.6 14.3H3v-4.6h1.6a1.7 1.7 0 0 0-.34-1.88L4.2 7.76 7.06 4.9l.06.06A1.7 1.7 0 0 0 9 4.6V3h6v1.6a1.7 1.7 0 0 0 1.88.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 9.7H21v4.6h-1.6z"/></svg>
                 </button>
@@ -468,17 +587,18 @@ export function Dashboards({ embedded = false, enableLinks = true, enableMigrati
             </div>}
           </section>)}
           {editing&&<section style={{...card,gridColumn:'1 / -1',background:'transparent',borderStyle:'dashed',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <select style={{...field,width:'auto'}} value={addKind} onChange={e=>setAddKind(e.target.value as WidgetKind)}>
+            <select style={{...field,width:'auto'}} value={addKind} aria-label="Tipo de widget" onChange={e=>setAddKind(e.target.value as WidgetKind)}>
               {KINDS.map(kind=><option key={kind} value={kind}>{WIDGET_LABELS[kind]}</option>)}</select>
-            <select style={{...field,width:'auto'}} value={addSource} onChange={e=>setAddSource(e.target.value as Source)}>
-              {SOURCE_KEYS.map(source=><option key={source} value={source}>{SOURCES[source].label}</option>)}</select>
-            <button style={primary} onClick={addWidget}>+ Añadir widget</button>
+            {addKind!=='text'&&addKind!=='shortcut'&&<select style={{...field,width:'auto',maxWidth:'100%'}} aria-label="Objeto de Twenty"
+              value={addSourceKey} disabled={!catalogState||!availableSources.length} onChange={e=>setAddSource(e.target.value)}>
+              {!catalogState||!availableSources.length?<option value={addSourceKey}>{catalogState?'Sin objetos disponibles':'Cargando objetos…'}</option>:
+                availableSources.map(source=><option key={source.key} value={source.key}>{source.label}</option>)}</select>}
+            <button style={primary} disabled={addKind!=='text'&&addKind!=='shortcut'&&(!catalogState||!addSourceKey)} onClick={addWidget}>+ Añadir widget</button>
           </section>}
         </div>
       </div>
       {editing&&widget&&<aside style={{flex:'0 1 295px',minWidth:255}}>{widgetEditor(widget)}</aside>}
     </div>}
-    {hasDataError&&<p role="alert" style={{fontSize:12,color:muted}}>Algunas fuentes no pudieron consultarse. Los widgets afectados muestran el error, no un cero.</p>}
     {dashboard&&<p style={{fontSize:11,color:muted}}>Períodos calculados en la zona horaria del navegador. Los datos pertenecen al workspace actual. Hasta 3.000 registros por fuente; si se supera el límite, las métricas no se muestran como definitivas.</p>}
   </div>;
 }

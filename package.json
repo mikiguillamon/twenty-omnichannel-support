@@ -1,7 +1,6 @@
 {
   "name": "twenty-omnichannel-support",
-  "version": "1.1.0",
-  "private": false,
+  "version": "1.2.0",
   "description": "Customer support cases, conversations and channel policies for Twenty CRM",
   "license": "MIT",
   "type": "module",

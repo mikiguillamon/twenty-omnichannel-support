@@ -41,7 +41,7 @@ function BarChart({points,kind,dark}:{points:Point[];kind:'bar'|'hour';dark:bool
     <div style={{fontSize:11,color:muted,marginTop:12}}>Pico: {shown.reduce((best,p)=>p.value>best.value?p:best,shown[0]).name} · {compact(max)} registros</div>
   </div>;
   return <div style={{display:'flex',flexDirection:'column',gap:12}}>
-    {shown.map((point,i)=><div key={point.name} style={{display:'grid',gridTemplateColumns:'minmax(76px,1.45fr) minmax(85px,3fr) 55px',alignItems:'center',gap:12}}>
+    {shown.map((point,i)=><div key={i} style={{display:'grid',gridTemplateColumns:'minmax(76px,1.45fr) minmax(85px,3fr) 55px',alignItems:'center',gap:12}}>
       <span title={point.name} style={{fontSize:12,color:muted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{point.name}</span>
       <div role="meter" aria-label={point.name} aria-valuemin={0} aria-valuenow={point.value} aria-valuemax={max}
         style={{height:10,background:dark?'#344152':'#EDF1F7',borderRadius:4,overflow:'hidden'}}>
@@ -53,7 +53,7 @@ function BarChart({points,kind,dark}:{points:Point[];kind:'bar'|'hour';dark:bool
     {points.length>shown.length&&<div style={{fontSize:11,color:muted}}>Mostrando los {shown.length} grupos principales de {points.length}</div>}
   </div>;
 }
-function Donut({points,dark}:{points:Point[];dark:boolean}) {
+function Donut({points,dark,recordCount,overlapping}:{points:Point[];dark:boolean;recordCount:number|null;overlapping:boolean}) {
   const total=points.reduce((acc,p)=>acc+p.value,0);
   if(total<=0)return <Empty label="No hay distribución para este período" dark={dark}/>;
   const main=points.slice(0,5);
@@ -65,23 +65,26 @@ function Donut({points,dark}:{points:Point[];dark:boolean}) {
     return PALETTE[i%PALETTE.length]+' '+from.toFixed(2)+'% '+progressed.toFixed(2)+'%';
   }).join(',');
   return <div style={{display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}}>
-    <div role="img" aria-label={'Total de '+number(total)+' registros repartidos en '+parts.length+' grupos'}
+    <div role="img" aria-label={recordCount===null?'Distribución en '+parts.length+' grupos':number(recordCount)+' registros en '+parts.length+' grupos'}
       style={{width:150,height:150,flexShrink:0,borderRadius:'50%',background:'conic-gradient('+gradient+')',
         display:'grid',placeItems:'center'}}>
       <div style={{width:105,height:105,borderRadius:'50%',background:dark?'#252D38':'white',
         display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column'}}>
-        <strong style={{fontSize:25,fontWeight:650,lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{compact(total)}</strong>
-        <span style={{fontSize:10,color:dark?'#AEBAD1':'#66758A'}}>Total</span>
+        <strong style={{fontSize:25,fontWeight:650,lineHeight:1.2,fontVariantNumeric:'tabular-nums'}}>{compact(recordCount??total)}</strong>
+        <span style={{fontSize:10,color:dark?'#AEBAD1':'#66758A'}}>{recordCount===null?'Suma de grupos':'Registros'}</span>
       </div>
     </div>
     <div style={{display:'flex',flexDirection:'column',gap:11,flex:'1 1 170px',minWidth:130}}>
-      {parts.map((point,i)=><div key={point.name} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
+      {parts.map((point,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
         <span aria-hidden="true" style={{width:8,height:8,flexShrink:0,borderRadius:3,background:PALETTE[i%PALETTE.length]}}/>
         <span title={point.name} style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{point.name}</span>
         <strong style={{fontWeight:600,fontVariantNumeric:'tabular-nums'}}>{Math.round(point.value/total*100)}%</strong>
         <span style={{fontSize:11,color:dark?'#AEBAD1':'#66758A',minWidth:20,textAlign:'right'}}>{number(point.value)}</span>
       </div>)}
     </div>
+    {overlapping&&<div style={{width:'100%',fontSize:11,color:dark?'#AEBAD1':'#66758A'}}>
+      Un registro puede aparecer en varios grupos. Los porcentajes se calculan sobre la suma de los grupos.
+    </div>}
   </div>;
 }
 function Timeline({points,kind,dark,title}:{points:Point[];kind:'line'|'area';dark:boolean;title:string}) {
@@ -129,14 +132,14 @@ export function DashboardVisualization({widget,period,data,sourceError,dark}:Pro
     ?<a href={widget.url} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:600,color:PALETTE[0],textDecoration:'underline',textUnderlineOffset:3}}>
       Abrir enlace configurado
     </a>:<Empty label="Configura una URL para este acceso directo" dark={dark}/>;
-  if(sourceError)return <div role="alert" style={{color:dark?'#F7A0A0':'#BA3E44',fontSize:12,lineHeight:1.6}}>{sourceError} · Prueba a actualizar los datos.</div>;
+  if(sourceError)return <div role="alert" style={{color:dark?'#F7A0A0':'#BA3E44',fontSize:12,lineHeight:1.6}}>{sourceError}</div>;
   if(!data)return <div aria-label="Cargando datos" style={{display:'flex',flexDirection:'column',gap:12,paddingTop:9}}>
     {[76,94,59].map((pct,i)=><div key={i} style={{width:pct+'%',height:i===0?23:11,borderRadius:5,background:dark?'#354151':'#EBEFF5'}}/>)}
   </div>;
-  const summary=summarize(data,widget,period);
-  if(!summary.complete)return <div role="alert" style={{padding:'12px 0',fontSize:12,color:dark?'#E7BC74':'#97671C'}}>
-    Más de 3.000 registros en esta fuente. Las métricas se han ocultado para evitar resultados incompletos.
+  if(!data.complete)return <div role="alert" style={{padding:'12px 0',fontSize:12,color:dark?'#E7BC74':'#97671C'}}>
+    {data.total>3000?'La fuente supera el límite de 3.000 registros.':'La consulta no devolvió todos los registros. Prueba a actualizar los datos.'}
   </div>;
+  const summary=summarize(data,widget,period);
   if(widget.kind==='kpi')return <div style={{display:'flex',flexDirection:'column',gap:7,minHeight:67}}>
     <strong style={{fontSize:32,lineHeight:1.15,fontWeight:650,letterSpacing:'-0.02em',
       fontVariantNumeric:'tabular-nums'}}>{formatMetric(summary.value,widget.aggregation)}</strong>
@@ -145,17 +148,19 @@ export function DashboardVisualization({widget,period,data,sourceError,dark}:Pro
     </span>}
   </div>;
   if(!summary.points.length)return <Empty label="No hay registros para este período" dark={dark}/>;
-  if(widget.kind==='table')return <div style={{maxHeight:280,overflow:'auto'}}>
+  const groupingNote=summary.overlappingGroups&&<p style={{fontSize:11,color:muted,margin:'10px 0 0'}}>Un registro puede aparecer en varios grupos.</p>;
+  if(widget.kind==='table')return <><div style={{maxHeight:280,overflow:'auto'}}>
     <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
       <thead><tr><th scope="col" style={{textAlign:'left',padding:'8px 5px',color:muted,borderBottom:'1px solid '+(dark?'#394659':'#E7EBF2')}}>Grupo</th>
         <th scope="col" style={{textAlign:'right',padding:'8px 5px',color:muted,borderBottom:'1px solid '+(dark?'#394659':'#E7EBF2')}}>Valor</th></tr></thead>
-      <tbody>{summary.points.map(point=><tr key={point.name}>
+      <tbody>{summary.points.map((point,i)=><tr key={i}>
         <td style={{padding:'9px 5px',borderBottom:'1px solid '+(dark?'#344052':'#F0F2F6'),overflowWrap:'anywhere'}}>{point.name}</td>
         <td style={{padding:'9px 5px',textAlign:'right',fontVariantNumeric:'tabular-nums',fontWeight:600,borderBottom:'1px solid '+(dark?'#344052':'#F0F2F6')}}>{formatMetric(point.value,widget.aggregation)}</td>
       </tr>)}</tbody>
     </table>
-  </div>;
-  if(widget.kind==='donut')return <Donut points={summary.points} dark={dark}/>;
+  </div>{groupingNote}</>;
+  if(widget.kind==='donut')return <Donut points={summary.points} dark={dark}
+    recordCount={widget.aggregation==='count'?summary.value:null} overlapping={summary.overlappingGroups}/>;
   if(widget.kind==='line'||widget.kind==='area')return <Timeline points={summary.points} kind={widget.kind} dark={dark} title={widget.title}/>;
-  return <BarChart points={summary.points} kind={widget.kind==='hour'?'hour':'bar'} dark={dark}/>;
+  return <><BarChart points={summary.points} kind={widget.kind==='hour'?'hour':'bar'} dark={dark}/>{groupingNote}</>;
 }

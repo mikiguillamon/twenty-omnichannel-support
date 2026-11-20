@@ -1,5 +1,6 @@
 import type { RestApiClient } from 'twenty-client-sdk/rest';
 import { fetchAllRestRecords } from './rest-collections.ts';
+import { hasTag, readTag } from './tag-values.ts';
 
 export const conversationChannels = {
   EMAIL: 'Correo',
@@ -31,6 +32,10 @@ export const conversationFollowUps = {
   CANCELLED: 'Cancelado',
 } as const;
 
+export const conversationTagLabels: Readonly<Record<string, string>> = {
+  URGENT: 'Urgente', REPEAT: 'Repetida', VIP: 'VIP', ESCALATED: 'Escalada', FOLLOWUP: 'Seguimiento',
+};
+
 export type ConversationChannel = keyof typeof conversationChannels;
 export type ConversationStatus = keyof typeof conversationStatuses;
 export type ConversationFollowUp = keyof typeof conversationFollowUps;
@@ -42,6 +47,8 @@ export type ConversationFilters = {
   channelInstanceId?: string;
   caseTypeId?: string;
   categoryId?: string;
+  tag?: string;
+  customTag?: string;
   sort?: 'recent' | 'oldest';
 };
 
@@ -59,6 +66,8 @@ export type ConversationRow = {
   createdAt?: string | null;
   originEmail?: string | null;
   originPhone?: string | null;
+  tags?: string[] | null;
+  customTags?: string[] | null;
 };
 
 export type ConversationDetails = {
@@ -82,9 +91,14 @@ type RestEnvelope = { data?: Record<string, unknown>; pageInfo?: unknown; totalC
 export const CONVERSATION_PAGE_SIZE = 20;
 export const CONVERSATION_SEARCH_LIMIT = 120;
 export const CONVERSATION_VIEW_NAME_LIMIT = 80;
+const MAX_TAG_SCAN_PAGES = 12;
 
 export function isRecordUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value);
+}
+
+export function conversationRecordHref(id: unknown): string | null {
+  return isRecordUuid(id) ? '/object/supportCase/' + id : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -105,6 +119,10 @@ export function normalizeConversationFilters(value: unknown): ConversationFilter
     if (isRecordUuid(candidate[field])) filters[field] = candidate[field];
   }
   filters.sort = candidate.sort === 'oldest' ? 'oldest' : 'recent';
+  for (const field of ['tag', 'customTag'] as const) {
+    const tag = readTag(candidate[field]);
+    if (tag) filters[field] = tag;
+  }
   const search = typeof candidate.search === 'string'
     ? candidate.search.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, CONVERSATION_SEARCH_LIMIT)
     : '';
@@ -134,13 +152,13 @@ export function buildConversationFilter(value: unknown): string | undefined {
   return predicates[0];
 }
 
-export async function loadConversationPage(client: RestApiClient, filters: ConversationFilters, cursor?: string): Promise<ConversationPage> {
-  const { sort } = normalizeConversationFilters(filters);
+async function loadRawConversationPage(client: RestApiClient, filters: ConversationFilters, cursor?: string): Promise<ConversationPage> {
+  const { sort } = filters;
   const filter = buildConversationFilter(filters);
   const direction = sort === 'oldest' ? 'AscNullsLast' : 'DescNullsLast';
   const result = await client.get<RestEnvelope>('/rest/supportCases', {
     query: {
-      fields: 'id,subject,channel,status,followUp,channelInstance,caseType,category,assignedTo,lastMessageAt,createdAt,originEmail,originPhone',
+      fields: 'id,subject,channel,status,followUp,channelInstance,caseType,category,assignedTo,lastMessageAt,createdAt,originEmail,originPhone,tags,customTags',
       depth: 0,
       order_by: `lastMessageAt[${direction}],id[AscNullsLast]`,
       limit: CONVERSATION_PAGE_SIZE,
@@ -158,6 +176,47 @@ export async function loadConversationPage(client: RestApiClient, filters: Conve
       (pagination?.hasNextPage === true && (typeof nextCursor !== 'string' || !nextCursor || nextCursor === cursor)) ||
       (!pagination && rows.length >= CONVERSATION_PAGE_SIZE)) throw new Error('CONVERSATION_CURSOR_INVALID');
   return { rows: rows as ConversationRow[], totalCount, nextCursor: typeof nextCursor === 'string' ? nextCursor : null };
+}
+
+function tagCursor(source: string | undefined, offset: number): string {
+  return JSON.stringify([source ?? null, offset]);
+}
+
+function readTagCursor(cursor: string | undefined): [string | undefined, number] {
+  if (!cursor) return [undefined, 0];
+  const value: unknown = JSON.parse(cursor);
+  if (!Array.isArray(value) || value.length !== 2 || (value[0] !== null && typeof value[0] !== 'string') ||
+    !Number.isInteger(value[1]) || value[1] < 0 || value[1] >= CONVERSATION_PAGE_SIZE) {
+    throw new Error('CONVERSATION_CURSOR_INVALID');
+  }
+  return [value[0] ?? undefined, value[1]];
+}
+
+export async function loadConversationPage(client: RestApiClient, filters: ConversationFilters, cursor?: string): Promise<ConversationPage> {
+  const normalized = normalizeConversationFilters(filters);
+  const { tag, customTag } = normalized;
+  if (!tag && !customTag) return loadRawConversationPage(client, normalized, cursor);
+
+  // Twenty 2.50 REST does not expose the same membership operators for all
+  // array types. Apply them to each page after the scalar filters on the server.
+  let [sourceCursor, offset] = readTagCursor(cursor);
+  const seen = new Set<string>();
+  const rows: ConversationRow[] = [];
+  for (let scanned = 0; scanned < MAX_TAG_SCAN_PAGES; scanned++) {
+    if (sourceCursor && seen.has(sourceCursor)) throw new Error('CONVERSATION_CURSOR_INVALID');
+    if (sourceCursor) seen.add(sourceCursor);
+    const page = await loadRawConversationPage(client, normalized, sourceCursor);
+    for (let index = offset; index < page.rows.length; index++) {
+      const row = page.rows[index];
+      if ((tag && !hasTag(row.tags, tag)) || (customTag && !hasTag(row.customTags, customTag))) continue;
+      if (rows.length === CONVERSATION_PAGE_SIZE) return { rows, totalCount: null, nextCursor: tagCursor(sourceCursor, index) };
+      rows.push(row);
+    }
+    if (!page.nextCursor) return { rows, totalCount: cursor ? null : rows.length, nextCursor: null };
+    sourceCursor = page.nextCursor;
+    offset = 0;
+  }
+  return { rows, totalCount: null, nextCursor: tagCursor(sourceCursor, 0) };
 }
 
 export function loadConversationCatalog(client: RestApiClient, resource: 'supportChannels' | 'supportTypes' | 'supportCategories') {

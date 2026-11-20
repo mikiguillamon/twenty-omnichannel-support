@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buildConversationFilter, loadConversationPage, normalizeConversationFilters,
+  buildConversationFilter, conversationRecordHref, loadConversationPage, normalizeConversationFilters,
   parseConversationView, saveConversationView,
 } from '../src/lib/conversation-inbox.ts';
 import {
@@ -51,6 +51,75 @@ test('pagina resultados con cursor de Twenty, selección de campos y orden estab
 test('rechaza una página incompleta que anuncia más registros sin cursor', async () => {
   const client = { get: async () => ({ data: { supportCases: [] }, pageInfo: { hasNextPage: true } }) };
   await assert.rejects(loadConversationPage(client, {}), /CURSOR/);
+});
+
+test('filtra etiquetas de array en páginas de origen distintas, con coincidencia de elemento', async () => {
+  const filters = { channel: 'EMAIL', tag: 'VIP', customTag: ' verano ' };
+  const pages = {
+    start: [{ id: 'wrong-prefix', tags: ['VIP'], customTags: ['Verano Plus'] }],
+    next: [{ id: 'match', tags: ['VIP', 'URGENT'], customTags: ['VERANO', 'Campus'] }],
+  };
+  const calls = [];
+  const api = { async get(path, { query }) {
+    assert.equal(path, '/rest/supportCases');
+    assert.equal(query.filter, 'channel[eq]:"EMAIL"');
+    assert.match(query.fields, /tags,customTags/);
+    const cursor = query.starting_after ?? 'start';
+    calls.push(cursor);
+    return { data: { supportCases: pages[cursor] }, pageInfo: { hasNextPage: cursor === 'start', endCursor: 'next' } };
+  } };
+  const page = await loadConversationPage(api, filters);
+  assert.deepEqual(page.rows.map(row => row.id), ['match']);
+  assert.equal(page.nextCursor, null);
+  assert.deepEqual(calls, ['start', 'next']);
+  assert.deepEqual(normalizeConversationFilters(filters), { channel: 'EMAIL', sort: 'recent', tag: 'VIP', customTag: 'verano' });
+});
+
+test('continúa una página filtrada antes del primer registro de la página siguiente', async () => {
+  const sourcePages = [Array.from({ length: 20 }, (_, index) => ({ id: String(index), customTags: ['Verano'] })),
+    [{ id: 'next', customTags: ['Verano'] }]];
+  const api = { async get(_, { query }) {
+    const second = query.starting_after === 'source-page-2';
+    return { data: { supportCases: sourcePages[second ? 1 : 0] }, pageInfo: { hasNextPage: !second, endCursor: 'source-page-2' } };
+  } };
+  const filters = { customTag: 'Verano' };
+  const first = await loadConversationPage(api, filters);
+  assert.equal(first.rows.length, 20);
+  assert.ok(first.nextCursor);
+  const second = await loadConversationPage(api, filters, first.nextCursor);
+  assert.deepEqual(second.rows.map(row => row.id), ['next']);
+  assert.equal(second.nextCursor, null);
+});
+
+test('enlaza la ficha nativa de una conversación por UUID sin depender del panel', () => {
+  assert.equal(conversationRecordHref(viewId), '/object/supportCase/' + viewId);
+  assert.equal(conversationRecordHref('../settings'), null);
+});
+
+test('un filtro poco frecuente ofrece continuar aunque las primeras páginas no coincidan', async () => {
+  const api = { async get(_, { query }) {
+    const index = Number(query.starting_after ?? 0);
+    return { data: { supportCases: [{ id: String(index), customTags: index === 12 ? ['Encontrada'] : [] }] },
+      pageInfo: { hasNextPage: index < 12, endCursor: String(index + 1) } };
+  } };
+  const filter = { customTag: 'Encontrada' };
+  const first = await loadConversationPage(api, filter);
+  assert.deepEqual(first.rows, []);
+  assert.equal(first.totalCount, null);
+  assert.ok(first.nextCursor);
+  const next = await loadConversationPage(api, filter, first.nextCursor);
+  assert.deepEqual(next.rows.map(row => row.id), ['12']);
+  assert.equal(next.nextCursor, null);
+});
+
+test('la ficha nativa abre el hilo y sus vistas incluyen las etiquetas propias', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+  assert.match(source('src/page-layouts/support-case-record.page.ts'), /LAYOUT_SUPPORT_CASE_TAB_THREAD[^\n]*position:0/);
+  assert.match(source('src/page-layouts/support-case-record.page.ts'), /fieldMetadataId:IDS.CASE_CUSTOM_TAGS/);
+  for (const name of ['case-all', 'case-email', 'case-whatsapp', 'case-human', 'cases-technical-errors']) {
+    assert.match(source('src/views/' + name + '.view.ts'), /fieldMetadataUniversalIdentifier: IDS\.CASE_CUSTOM_TAGS/);
+  }
 });
 
 test('las vistas versionadas eliminan configuraciones inválidas y mantienen su identificador al editar', async () => {

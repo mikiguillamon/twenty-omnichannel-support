@@ -8,9 +8,11 @@ Selecciona **Personalizar indicadores** para elegir qué tarjetas mostrar en el 
 
 ## Gestionar conversaciones
 
-Abre **Conversaciones** desde la administración de Omnichannel o desde un acceso del menú de Twenty. Busca por asunto o contacto y combina filtros de canal, cuenta, estado, tipo, categoría y seguimiento. Abre una fila para consultar el historial, cargar mensajes anteriores y ver las grabaciones o transcripciones disponibles.
+Abre **Conversaciones** desde la administración de Omnichannel o desde un acceso del menú de Twenty. Pulsa el título para abrir el historial en la ficha de Twenty o usa **Vista previa** para consultarlo sin salir de la bandeja. Puedes cargar mensajes anteriores y consultar las grabaciones o transcripciones disponibles.
 
-Guarda la búsqueda, los filtros y el orden como una vista con nombre. Usa **Añadir al menú** para compartir un acceso directo a esa vista o copia su enlace para añadirlo desde el editor de menú de Twenty. La creación del acceso compartido requiere permiso de diseños (`LAYOUTS`). El acceso a la vista guardada y a las conversaciones se rige por los permisos de sus objetos de Twenty.
+Combina la búsqueda por asunto o contacto con los filtros de canal, cuenta, estado, tipo, categoría, seguimiento y etiquetas. Pulsa una etiqueta de la tabla o escribe el nombre completo en **Etiqueta propia**. Si el tramo actual no tiene coincidencias y hay más registros, usa **Siguiente** para continuar la búsqueda.
+
+Guarda la búsqueda, los filtros y el orden como una vista con nombre. **Añadir al menú** te permite elegir el nombre visible del acceso. Para cambiarlo después, entra en **Administración Omnichannel → Accesos**. Gestionar accesos compartidos requiere el permiso de diseños (`LAYOUTS`). El acceso a las conversaciones y a las vistas guardadas se rige por los permisos de sus objetos de Twenty.
 
 Si n8n registra una propuesta de correo, encontrarás la respuesta editable en el historial. **Confirmar en n8n** reanuda la ejecución con el texto revisado. **Descartar** envía únicamente la decisión. El historial distingue la propuesta aprobada del correo enviado por el proveedor. [Configuración de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-de-correo-en-twenty).
 
@@ -48,7 +50,7 @@ La app no realiza llamadas, no graba audio y no transcribe automáticamente. Esa
 
 En Canales puedes consultar el estado operativo y gestionar las políticas de agrupación. `ACTIVE` permite trabajar según la política externa, pero no garantiza conectividad del proveedor. Para frenar envíos, pausa el canal y asegúrate de que n8n consulta ese estado.
 
-Mantén las FAQs con contenido revisado y categoría asignada cuando proceda. Una FAQ `PUBLISHED` puede ser utilizada por las automatizaciones; una `DRAFT` sigue pendiente de revisión. Registra las Evaluaciones de conversaciones o mensajes como trabajo de calidad, con su propio resultado y correcciones.
+Mantén las FAQs con contenido revisado y categoría asignada cuando proceda. En el gestor puedes combinar los filtros de alcance, etiqueta y etiqueta propia. Una FAQ `PUBLISHED` puede ser utilizada por las automatizaciones; una `DRAFT` sigue pendiente de revisión. Registra las Evaluaciones de conversaciones o mensajes como trabajo de calidad, con su propio resultado y correcciones.
 
 ## API y resolución de problemas
 

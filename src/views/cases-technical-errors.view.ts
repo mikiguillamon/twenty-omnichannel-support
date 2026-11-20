@@ -8,6 +8,8 @@ export default defineView({
     {universalIdentifier:IDS.VIEWCOL_CASE_ERROR_STATUS,fieldMetadataUniversalIdentifier:IDS.CASE_STATUS,position:1,isVisible:true,size:140},
     {universalIdentifier:IDS.VIEWCOL_CASE_ERROR_TECHSTATUS,fieldMetadataUniversalIdentifier:IDS.CASE_TECHNICAL_STATUS,position:2,isVisible:true,size:170},
     {universalIdentifier:IDS.VIEWCOL_CASE_ERROR_LASTMESSAGE,fieldMetadataUniversalIdentifier:IDS.CASE_LASTMESSAGEAT,position:3,isVisible:true,size:180},
+    { universalIdentifier: IDS.VIEWCOL_CASE_ERRORS_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_TAGS, position: 4, isVisible: true, size: 180 },
+    { universalIdentifier: IDS.VIEWCOL_CASE_ERRORS_CUSTOM_TAGS, fieldMetadataUniversalIdentifier: IDS.CASE_CUSTOM_TAGS, position: 5, isVisible: true, size: 180 },
   ],
   filters:[{universalIdentifier:IDS.FILTER_CASE_TECH_ERROR,fieldMetadataUniversalIdentifier:IDS.CASE_TECHNICAL_STATUS,operand:ViewFilterOperand.IS,value:['ERROR']}],
 });

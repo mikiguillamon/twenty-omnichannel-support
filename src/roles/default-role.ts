@@ -3,8 +3,8 @@ import { IDS } from '../constants/ids.ts';
 export default defineApplicationRole({
   universalIdentifier: IDS.ROLE,
   label: 'Omnichannel Support application',
-  description: 'Permisos mínimos para gestionar Consultas, Mensajes, identidades, alias y Personas de Twenty.',
-  canReadAllObjectRecords: false,
+  description: 'Lectura para dashboards según los permisos del usuario y escritura en los objetos de Omnichannel y Personas.',
+  canReadAllObjectRecords: true,
   canUpdateAllObjectRecords: false,
   canSoftDeleteAllObjectRecords: false,
   canDestroyAllObjectRecords: false,
