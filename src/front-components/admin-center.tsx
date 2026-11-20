@@ -70,9 +70,9 @@ export function OmnichannelAdminCenter() {
         </p>
       </div>
     </header>
-    <div style={{display:'grid',gridTemplateColumns:'minmax(170px,210px) minmax(0,1fr)',gap:16,alignItems:'start'}}>
+    <div style={{display:'flex',flexWrap:'wrap',gap:16,alignItems:'flex-start'}}>
       <nav aria-label="Secciones de administración Omnichannel"
-        style={{display:'flex',flexDirection:'column',gap:4,padding:7,border:'1px solid '+border,borderRadius:10,background:surface}}>
+        style={{flex:'0 1 200px',minWidth:180,display:'flex',flexDirection:'column',gap:4,padding:7,border:'1px solid '+border,borderRadius:10,background:surface}}>
         {sections.map(item=><button key={item.key} type="button" aria-current={section===item.key?'page':undefined}
           onClick={()=>{setSection(item.key);setNavigationError('');}}
           style={{border:0,borderRadius:7,cursor:'pointer',background:section===item.key?(dark?'#334155':'#EDF0FF'):'transparent',
@@ -80,7 +80,7 @@ export function OmnichannelAdminCenter() {
           {item.label}
         </button>)}
       </nav>
-      <main style={{minWidth:0,display:'flex',flexDirection:'column',gap:12}}>
+      <main style={{flex:'1 1 600px',minWidth:0,display:'flex',flexDirection:'column',gap:12}}>
         <div style={{padding:'2px 1px 5px'}}>
           <h2 style={{fontSize:17,fontWeight:650,margin:0}}>{sections.find(item=>item.key===section)?.label}</h2>
           <p style={{fontSize:12,margin:'5px 0 0',color:muted}}>{sections.find(item=>item.key===section)?.description}</p>
