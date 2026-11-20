@@ -248,7 +248,6 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   // Ref blocks repeated clicks before React commits the pending state.
   const statusRequests = useRef(new Set<string>());
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
 
   const fg = dark ? '#F1F5F9' : '#20252D';
   const muted = dark ? '#A8B4C4' : '#667382';
@@ -296,7 +295,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
   const totalDrafts = faqs.filter(faq => faq.status === 'DRAFT').length;
 
   async function openEditor(recordId?: string) {
-    setError(''); setFeedback('');
+    setError('');
     try {
       await openSidePanelPage({
         page: SidePanelPages.ViewFrontComponent,
@@ -324,7 +323,7 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
     }
     statusRequests.current.add(faq.id);
     setBusyIds(current => new Set([...current, faq.id]));
-    setError(''); setFeedback('');
+    setError('');
     const publishedAt = next === 'PUBLISHED' && !faq.publishedAt
       ? new Date().toISOString() : faq.publishedAt;
     // Update only the affected FAQ; keep scroll, filters and expanded answers.
@@ -335,7 +334,11 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
         status: next,
         ...(next === 'PUBLISHED' && !faq.publishedAt ? {publishedAt} : {}),
       });
-      setFeedback('Estado de la FAQ actualizado.');
+      // The native toast does not move the list or steal focus.
+      void enqueueSnackbar({
+        message: next === 'PUBLISHED' ? 'FAQ activada' : next === 'DRAFT' ? 'FAQ desactivada' : 'FAQ archivada',
+        variant: 'success', duration: 2000, dedupeKey: 'faq-status-' + faq.id,
+      }).catch(() => {});
     } catch (reason) {
       setFaqs(current => current.map(row => row.id === faq.id ? faq : row));
       setError('No se pudo cambiar el estado de la FAQ. ' + errorMessage(reason));
@@ -393,7 +396,6 @@ function FaqManager({ frontComponentId }: { frontComponentId: string }) {
     </section>
 
     {error && <p role="alert" style={{ color: dark ? '#FFB0B0' : '#B42318', margin: 0 }}>{error}</p>}
-    {feedback && <p role="status" style={{ color: dark ? '#8DE0AD' : '#257549', margin: 0 }}>{feedback}</p>}
     {loading && <p style={{ color: muted }}>Cargando preguntas y categorías del workspace…</p>}
 
     {!loading && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: muted, flexWrap: 'wrap' }}>
