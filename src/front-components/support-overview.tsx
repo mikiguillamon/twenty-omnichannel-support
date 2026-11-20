@@ -52,6 +52,7 @@ function Dashboards() {
   const selected=stored.find(d=>d.dashboard.id===active)??null;
   const dashboard=draft??selected?.dashboard??null;
   const widget=draft?.widgets.find(w=>w.id===editingWidget)??null;
+  const sourceSignature=[...new Set((dashboard?.widgets??[]).filter(w=>w.kind!=='text'&&w.kind!=='shortcut').map(w=>w.source))].sort().join('|');
 
   useEffect(()=>{
     let live=true;
@@ -79,7 +80,7 @@ function Dashboards() {
       });
     }
     return()=>{signal.cancelled=true;};
-  },[dashboard?.id,reload,editing]);
+  },[sourceSignature,reload]);
 
   function startEdit(){
     if(!dashboard)return;
@@ -112,8 +113,15 @@ function Dashboards() {
     try{
       const entry=stored.find(d=>d.dashboard.id===draft.id);
       const updated={...draft,updatedAt:new Date().toISOString()};
-      const id=await persistDashboard(new RestApiClient(),updated,entry?.settingId??null);
-      setStored(current=>[...current.filter(row=>row.dashboard.id!==updated.id),{settingId:id,dashboard:updated}]);
+      const api=new RestApiClient();
+      const id=await persistDashboard(api,updated,entry?.settingId??null);
+      if(updated.isDefault){
+        for(const row of stored.filter(row=>row.dashboard.isDefault&&row.dashboard.id!==updated.id&&row.settingId)){
+          await persistDashboard(api,{...row.dashboard,isDefault:false},row.settingId);
+        }
+      }
+      setStored(current=>[...current.filter(row=>row.dashboard.id!==updated.id)
+        .map(row=>updated.isDefault?{...row,dashboard:{...row.dashboard,isDefault:false}}:row),{settingId:id,dashboard:updated}]);
       setActive(updated.id);setDraft(null);setEditing(false);setEditingWidget(null);
       setFeedback('Dashboard guardado en este workspace.');
     }catch{setError('No se pudo guardar el dashboard. Revisa los permisos y el tamaño de la configuración.');}
