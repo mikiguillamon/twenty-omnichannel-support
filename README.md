@@ -25,9 +25,19 @@ Omnichannel Support does not include a messaging gateway or an AI service. If yo
 ## Get started
 
 1. Install Omnichannel Support from the Twenty Marketplace in your workspace.
-2. Open **Channels** in the support section of Twenty and add the inbox or account you want to connect.
-3. In **Conversation management**, choose how messages should be grouped into cases.
+2. As an administrator with permission to manage workspace applications, open **Settings > Applications > Omnichannel Support > Administración Omnichannel** to add your channels.
+3. In **Políticas por canal**, choose how messages should be grouped into cases.
 4. Connect your provider to n8n and call the app's authenticated ingestion API. Test an incoming message, a retry and a reply before enabling the channel.
+
+## Workspace navigation and permissions
+
+Omnichannel keeps its administrative tools in **Settings > Applications > Omnichannel Support > Administración Omnichannel**, rather than forcing a technical folder onto every member's main sidebar. This center includes dashboards, FAQs, channels and policies, plus shortcuts to Twenty's native case/message/category/type/identity/evaluation/settings objects.
+
+Users see only the workspace shortcuts that an administrator chooses to create outside the application, such as a published FAQ view, a dashboard deep link or the conversations table. The app does not manage these workspace-owned shortcuts, and upgrades must not delete or reorder them.
+
+Workspace roles determine actual record and API permissions. Removing the technical sidebar is an information-architecture change, not a substitute for permissions. Grant workspace application administration only to trusted admins, and grant normal members the specific object access needed for their job.
+
+**Upgrading from a beta:** before applying the migration, back up the workspace menu and verify that every shortcut you want to retain is workspace-owned. App-owned Omnichannel entries are retired on upgrade, even if someone previously dragged one outside its original folder. Create independent Twenty menu links for those entries before upgrading. Never uninstall the app to perform this navigation migration.
 
 ## Automatic chat grouping
 
