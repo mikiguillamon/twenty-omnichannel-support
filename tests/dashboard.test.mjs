@@ -47,7 +47,7 @@ test('metrics apply date, structured filters, ratios and comparisons correctly',
     {id:'3',firstMessageAt:'2026-11-19T11:00:00',channel:'WHATSAPP',status:'NEW'},
     {id:'4',firstMessageAt:'2026-11-20T13:00:00',channel:'EMAIL',status:'AUTOMATED'},
   ]};
-  const value=summarize(dataset,widget,{key:'today'});
+  const value=summarize(dataset,widget,{key:'today'},new Date(2026,10,20,15));
   assert.equal(value.value,50);
   assert.equal(value.previous,0);
   assert.equal(metricDelta(50,0),'Sin base');
@@ -59,4 +59,20 @@ test('dashboard JSON roundtrip creates independent ID on import',()=>{
   assert.equal(parsed.widgets.length,dashboard.widgets.length);
   assert.equal(parsed.isDefault,false);
   assert.throws(()=>importDashboard('{"schemaVersion":1,"dashboard":{}}'),/IMPORT_VERSION/);
+});
+
+test('timeline preserves missing dates and hourly chart has 24 buckets',()=>{
+  const w=makeWidget('line','supportCases');
+  w.dateField='firstMessageAt';
+  const data={complete:true,total:2,rows:[
+    {id:'a',firstMessageAt:'2026-11-18T13:00:00'},
+    {id:'b',firstMessageAt:'2026-11-20T13:00:00'},
+  ]};
+  const time=new Date(2026,10,20,15);
+  const series=summarize(data,w,{key:'7d'},time);
+  assert.equal(series.points.length,7);
+  assert(series.points.some(p=>p.name==='2026-11-19'&&p.value===0));
+  w.kind='hour';
+  const hours=summarize(data,w,{key:'7d'},time);
+  assert.equal(hours.points.length,24);
 });
