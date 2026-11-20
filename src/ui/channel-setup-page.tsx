@@ -28,10 +28,14 @@ export function ChannelSetup() {
       .catch(()=>{if(live)setReadError(true);}).finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
   },[revision]);
-  const border=dark?'#475569':'#CBD5E1';
-  const muted=dark?'#CBD5E1':'#64748B';
-  const field={padding:'9px',border:'1px solid '+border,borderRadius:'7px',width:'100%',background:dark?'#1E293B':'#FFFFFF',color:dark?'#F8FAFC':'#0F172A'};
-  const button={padding:'8px 12px',border:'1px solid '+border,borderRadius:'7px',cursor:'pointer',background:dark?'#334155':'#F8FAFC',color:dark?'#F8FAFC':'#0F172A'};
+  const border=dark?'#455164':'#E1E6ED';
+  const muted=dark?'#AAB6C6':'#657385';
+  const surface=dark?'#252D38':'#FFFFFF';
+  const canvas=dark?'#1D232C':'#F8FAFC';
+  const fg=dark?'#F4F6FA':'#20252D';
+  const field={padding:'9px 10px',border:'1px solid '+border,borderRadius:7,width:'100%',boxSizing:'border-box' as const,
+    background:surface,color:fg,fontSize:13,fontFamily:'inherit'};
+  const button={padding:'8px 12px',border:'1px solid '+border,borderRadius:7,cursor:'pointer',background:surface,color:fg,fontSize:13,fontFamily:'inherit'};
   async function create() {
     setError('');setFeedback('');
     const key=code.trim().toLowerCase();
@@ -51,10 +55,10 @@ export function ChannelSetup() {
     setError('');setFeedback('');setBusy(true);
     try {
       await updateChannelStatus(row.id,status);
+      setRows(current=>current.map(item=>item.id===row.id?{...item,status}:item));
       setVerified(false);
       setRemovingId(null);setRemovalCode('');setExternalStopped(false);
       setFeedback('Estado actualizado en Twenty. Los workflows externos no se activan ni detienen automáticamente.');
-      setRevision(n=>n+1);
     }catch{setError('No se pudo actualizar el estado del canal. Comprueba los permisos.');}
     finally{setBusy(false);}
   }
@@ -92,10 +96,10 @@ export function ChannelSetup() {
     }
   }
   const active=rows.filter(row=>row.status==='ACTIVE').length;
-  return <div style={{padding:14,display:'flex',flexDirection:'column',gap:18}}>
-    <header><strong style={{fontSize:18}}>Configuración de canales</strong>
+  return <div style={{padding:'20px 22px 24px',background:canvas,color:fg,fontFamily:'inherit',minHeight:'100%',display:'flex',flexDirection:'column',gap:18}}>
+    <header><h1 style={{fontSize:22,fontWeight:650,margin:0,letterSpacing:'-0.02em'}}>Configuración de canales</h1>
       <p style={{fontSize:13,color:muted}}>Cada cliente crea solo los buzones y números que utiliza. No hay canales predeterminados.</p></header>
-    <section style={{border:'1px solid '+border,borderRadius:10,padding:14,display:'flex',flexDirection:'column',gap:12}}>
+    <section style={{background:surface,border:'1px solid '+border,borderRadius:10,padding:16,display:'flex',flexDirection:'column',gap:12}}>
       <strong>Añadir canal</strong>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(195px, 1fr))',gap:12}}>
         <label>Nombre<input style={field} value={name} placeholder="Email - Información" onChange={e=>{
@@ -123,7 +127,7 @@ export function ChannelSetup() {
       {loading&&<p>Cargando canales…</p>}
       {readError&&<p role="alert">No se pudieron leer los canales. Comprueba el permiso de lectura y la API REST.</p>}
       {!loading&&!readError&&rows.length===0&&<p style={{color:muted}}>Todavía no hay canales. Puedes crear el primero arriba.</p>}
-      {!loading&&!readError&&rows.map(row=><article key={row.id} style={{border:'1px solid '+border,padding:12,borderRadius:10,display:'flex',flexDirection:'column',gap:10}}>
+      {!loading&&!readError&&rows.map(row=><article key={row.id} style={{background:surface,border:'1px solid '+border,padding:16,borderRadius:10,display:'flex',flexDirection:'column',gap:10}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
           <div><strong>{row.name||row.code||'Sin nombre'}</strong>
             <p style={{fontSize:12,color:muted,margin:'5px 0'}}>
@@ -169,7 +173,7 @@ export function ChannelSetup() {
     </section>
     {error&&<p role="alert" style={{color:'#DC2626'}}>{error}</p>}
     {feedback&&<p role="status" style={{color:dark?'#86EFAC':'#166534'}}>{feedback}</p>}
-    <section style={{padding:14,border:'1px solid '+border,borderRadius:10}}>
+    <section style={{background:surface,padding:16,border:'1px solid '+border,borderRadius:10}}>
       <strong>Cómo conectar cada canal</strong>
       <ol style={{paddingLeft:22,display:'flex',flexDirection:'column',gap:6,fontSize:13}}>
         <li>Crea solo los buzones o números que utiliza este cliente. El estado inicial es Desactivado.</li>
