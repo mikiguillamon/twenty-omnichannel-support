@@ -72,7 +72,7 @@ jobs:
             CURRENT="$(node -p "require('./package.json').version")"
             if [[ "${{ github.event.head_commit.message }}" == *"[publish stable]"* ]]; then
               # Stable publication requires the reviewed release commit on main.
-              test "$CURRENT" = "1.0.0" || { echo "This one-time stable workflow requires 1.0.0"; exit 1; }
+              if [[ "$CURRENT" == *-* ]]; then echo "Stable release cannot be a prerelease"; exit 1; fi
             else
               case "$CURRENT" in *-beta.[0-9]*) ;; *) echo "Expected a beta version"; exit 1;; esac
               if npm view "twenty-omnichannel-support@$CURRENT" version --json >/dev/null 2>&1; then
@@ -143,7 +143,7 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "GitHub release v$VERSION already exists"
           else
-            gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Omnichannel Support v$VERSION" --notes-file docs/RELEASE_NOTES_1_0_0.md --latest
+            gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Omnichannel Support v$VERSION" --notes-file "docs/RELEASE_NOTES_${VERSION//./_}.md" --latest
           fi
 
       - name: Promote released beta to npm latest

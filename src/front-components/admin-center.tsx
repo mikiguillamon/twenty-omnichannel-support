@@ -9,6 +9,7 @@ import { FaqManagerEntry } from '../ui/faq-manager-page.tsx';
 import { ChannelSetup } from '../ui/channel-setup-page.tsx';
 import { ChannelPolicies } from '../ui/channel-policies-page.tsx';
 import { NavigationPreflight } from '../ui/navigation-preflight.tsx';
+import { DashboardNavigationManager } from '../ui/dashboard-navigation-manager.tsx';
 
 /**
  * The app settings area is the permission-controlled administrative entry
@@ -43,6 +44,7 @@ export function OmnichannelAdminCenter() {
   const selectedObject=useSelectedObjectMetadata();
   const [section,setSection]=useState<Section>('dashboards');
   const [navigationError,setNavigationError]=useState('');
+  const [showNavigationGuide,setShowNavigationGuide]=useState(false);
   const surface=dark?'#252D38':'#FFFFFF';
   const bg=dark?'#1D232C':'#F8FAFC';
   const border=dark?'#455164':'#E1E6ED';
@@ -63,32 +65,32 @@ export function OmnichannelAdminCenter() {
     }
   }
 
-  return <div style={{background:bg,color:text,minHeight:'100%',fontFamily:'inherit',padding:'22px 24px',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:16}}>
+  return <div style={{background:bg,color:text,minHeight:'100%',width:'100%',fontFamily:'inherit',padding:'clamp(12px, 2vw, 28px)',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:16}}>
     <header style={{display:'flex',justifyContent:'space-between',alignItems:'start',gap:12,flexWrap:'wrap'}}>
       <div>
-        <h1 style={{margin:0,fontSize:22,fontWeight:650,letterSpacing:'-0.02em'}}>Administración Omnichannel</h1>
+        <h1 style={{margin:0,fontSize:24,fontWeight:650,letterSpacing:'-0.02em'}}>Administración Omnichannel</h1>
         <p style={{fontSize:13,color:muted,margin:'7px 0 0',lineHeight:1.55}}>
           Herramientas del workspace para gestionar soporte, canales y conocimiento.
         </p>
       </div>
     </header>
-    <div style={{display:'flex',flexWrap:'wrap',gap:16,alignItems:'flex-start'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:18,width:'100%',minWidth:0}}>
       <nav aria-label="Secciones de administración Omnichannel"
-        style={{flex:'0 1 200px',minWidth:180,display:'flex',flexDirection:'column',gap:4,padding:7,border:'1px solid '+border,borderRadius:10,background:surface}}>
+        style={{width:'100%',boxSizing:'border-box',display:'flex',flexDirection:'row',flexWrap:'wrap',gap:7,padding:7,border:'1px solid '+border,borderRadius:10,background:surface}}>
         {sections.map(item=><button key={item.key} type="button" aria-current={section===item.key?'page':undefined}
           onClick={()=>{setSection(item.key);setNavigationError('');}}
           style={{border:0,borderRadius:7,cursor:'pointer',background:section===item.key?(dark?'#334155':'#EDF0FF'):'transparent',
-            color:section===item.key?accent:text,padding:'11px 12px',fontSize:13,textAlign:'left',fontWeight:section===item.key?650:500}}>
+            color:section===item.key?accent:text,padding:'12px 16px',fontSize:13,textAlign:'center',whiteSpace:'nowrap',flex:'1 1 auto',fontWeight:section===item.key?650:500}}>
           {item.label}
         </button>)}
       </nav>
-      <main style={{flex:'1 1 600px',minWidth:0,display:'flex',flexDirection:'column',gap:12}}>
+      <main style={{width:'100%',minWidth:0,display:'flex',flexDirection:'column',gap:16}}>
         <div style={{padding:'2px 1px 5px'}}>
           <h2 style={{fontSize:17,fontWeight:650,margin:0}}>{sections.find(item=>item.key===section)?.label}</h2>
           <p style={{fontSize:12,margin:'5px 0 0',color:muted}}>{sections.find(item=>item.key===section)?.description}</p>
         </div>
         {navigationError&&<p role="alert" style={{color:dark?'#F7A0A0':'#BA3E44',fontSize:12}}>{navigationError}</p>}
-        {section==='dashboards'&&<><p style={{fontSize:12,color:muted,margin:0}}>Para publicar dashboards en el menú principal: en Twenty utiliza Editar menú → Añadir → Página y elige «Dashboards Omnichannel». Abre ese acceso operativo y copia desde allí el enlace individual del dashboard. Los enlaces de Ajustes no son accesibles para usuarios sin permisos administrativos.</p><Dashboards enableLinks={false} enableMigration/></>}
+        {section==='dashboards'&&<><section style={{background:surface,border:'1px solid '+border,borderRadius:12,padding:16}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}><div><strong style={{fontSize:14}}>Publicar en el menú principal</strong><p style={{fontSize:12,color:muted,lineHeight:1.6,margin:'5px 0 0'}}>Puedes crear, renombrar y retirar accesos compartidos desde este panel. Twenty sigue controlando los permisos.</p></div><button type="button" aria-expanded={showNavigationGuide} onClick={()=>setShowNavigationGuide(v=>!v)} style={{background:accent,color:'#fff',border:0,borderRadius:8,padding:'10px 14px',cursor:'pointer',fontSize:12,fontWeight:600}}>{showNavigationGuide?'Ocultar instrucciones':'Ver instrucciones'}</button></div>{showNavigationGuide&&<div style={{background:bg,borderRadius:8,padding:12,marginTop:12,fontSize:13,lineHeight:1.7}}><ol style={{margin:0,paddingLeft:22}}><li>Desde el editor de menú de Twenty, añade la página operativa Dashboards Omnichannel al workspace.</li><li>Abre esa página fuera de Ajustes, selecciona el dashboard y pulsa Copiar enlace.</li><li>Pega el enlace en el gestor de accesos y pulsa Publicar acceso. También puedes usar el editor nativo de Twenty.</li><li>Comprueba el acceso con un usuario Member y los permisos de lectura sobre los datos del dashboard.</li></ol><p style={{color:muted,margin:'10px 0 0'}}>El gestor de abajo crea enlaces en el workspace mediante la API de metadatos de Twenty. Los permisos de lectura siguen configurándose en Twenty.</p></div>}</section><DashboardNavigationManager/><div style={{width:'100%',minWidth:0}}><Dashboards enableLinks={false} enableMigration/></div></>}
         {section==='faqs'&&<FaqManagerEntry/>}
         {section==='channels'&&<ChannelSetup/>}
         {section==='policies'&&<ChannelPolicies/>}
