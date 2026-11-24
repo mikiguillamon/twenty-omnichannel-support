@@ -1,0 +1,60 @@
+{
+	"name": "n8n-nodes-omnichannel-support",
+	"version": "0.1.0",
+	"description": "n8n community node for Omnichannel Support in Twenty CRM",
+	"license": "MIT",
+	"author": {
+		"name": "Miki Guillamon",
+		"email": "miguelangel@justforfun.es"
+	},
+	"homepage": "https://github.com/mikiguillamon/twenty-omnichannel-support/tree/main/integrations/n8n-nodes-omnichannel-support#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mikiguillamon/twenty-omnichannel-support.git",
+		"directory": "integrations/n8n-nodes-omnichannel-support"
+	},
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"omnichannel",
+		"twenty",
+		"customer-support"
+	],
+	"engines": {
+		"node": "^22.22.0 || >=24.0.0"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"test": "npm run build && node --test tests/*.test.cjs",
+		"prepublishOnly": "npm run lint && npm test"
+	},
+	"files": [
+		"dist"
+	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/OmnichannelSupportApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/OmnichannelSupport/OmnichannelSupport.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "0.55.4",
+		"eslint": "9.39.4",
+		"n8n-workflow": "2.16.0",
+		"prettier": "3.8.3",
+		"typescript": "5.9.3"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

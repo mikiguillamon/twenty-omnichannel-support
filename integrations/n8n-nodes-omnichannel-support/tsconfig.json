@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"target": "es2022",
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"declaration": true,
+		"sourceMap": true,
+		"skipLibCheck": true,
+		"outDir": "./dist"
+	},
+	"include": ["credentials/**/*.ts", "nodes/**/*.ts", "nodes/**/*.json"]
+}

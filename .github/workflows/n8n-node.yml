@@ -1,0 +1,40 @@
+name: Verify Omnichannel n8n node
+on:
+  push:
+    branches: [main]
+    paths:
+      - integrations/n8n-nodes-omnichannel-support/**
+      - .github/workflows/n8n-node.yml
+  pull_request:
+    paths:
+      - integrations/n8n-nodes-omnichannel-support/**
+      - .github/workflows/n8n-node.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: integrations/n8n-nodes-omnichannel-support
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22.22.0', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: integrations/n8n-nodes-omnichannel-support/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm pack --pack-destination "$RUNNER_TEMP"
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == '24'
+        with:
+          name: n8n-nodes-omnichannel-support
+          path: ${{ runner.temp }}/n8n-nodes-omnichannel-support-*.tgz
+          if-no-files-found: error

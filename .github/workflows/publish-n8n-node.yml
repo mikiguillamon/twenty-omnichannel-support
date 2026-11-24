@@ -1,0 +1,56 @@
+name: Publish Omnichannel n8n node to npm
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish from the node's package.json
+        type: string
+        required: true
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: integrations/n8n-nodes-omnichannel-support
+concurrency:
+  group: publish-omnichannel-n8n-node
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Validate the package and version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          node <<'JS'
+          const pkg = require('./package.json');
+          const expectedRepository = 'git+https://github.com/' + process.env.GITHUB_REPOSITORY + '.git';
+          if (pkg.name !== 'n8n-nodes-omnichannel-support' || pkg.repository?.url !== expectedRepository) {
+            throw new Error('Unexpected package name or GitHub repository');
+          }
+          if (!/^\d+\.\d+\.\d+$/.test(pkg.version) || pkg.version !== process.env.RELEASE_VERSION) {
+            throw new Error('Enter the stable version in the node package.json');
+          }
+          JS
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Pack and publish
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm publish "$RUNNER_TEMP/n8n-nodes-omnichannel-support-$RELEASE_VERSION.tgz" --access public --tag latest --provenance
