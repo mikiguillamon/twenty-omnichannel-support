@@ -77,11 +77,22 @@ export class TwentyRestIngestionStore implements IngestionStore {
     if (!/^[a-zA-Z0-9-]+$/.test(id)) throw Error('Invalid record ID');
     return responseObject(await this.api.patch<ApiResponse>('/rest/' + resource + '/' + id, data), resource, 'update');
   }
-  async advanceCaseActivity(caseId: string, occurredAt: string): Promise<void> {
+  async advanceCaseActivity(caseId: string, occurredAt: string, recoveredChanges?: Record<string, unknown>): Promise<void> {
     if (!isRecordId(caseId) || !Number.isFinite(Date.parse(occurredAt))) throw Error('Invalid case activity');
     const id = serializeFilter({ id: caseId });
     const older = 'lastMessageAt[lt]:' + JSON.stringify(occurredAt);
-    const filter = `and(${id},or(${older},lastMessageAt[is]:NULL))`;
-    await this.api.patch('/rest/supportCases', { lastMessageAt: occurredAt }, { query: { filter } });
+    const same = recoveredChanges ? ',lastMessageAt[eq]:' + JSON.stringify(occurredAt) : '';
+    const filter = `and(${id},or(${older}${same},lastMessageAt[is]:NULL))`;
+    await this.api.patch('/rest/supportCases', { ...recoveredChanges, lastMessageAt: occurredAt }, { query: { filter } });
+  }
+  async linkPersonIfMissing(resource: 'supportExternalIdentities' | 'supportCases', id: string, personId: string): Promise<void> {
+    if (!isRecordId(id) || !isRecordId(personId)) throw Error('Invalid Person link');
+    const filter = 'and(' + serializeFilter({ id }) + ',personId[is]:NULL)';
+    await this.api.patch('/rest/' + resource, { personId }, { query: { filter } });
+  }
+  async linkMessageIfMissing(messageId: string, caseId: string): Promise<void> {
+    if (!isRecordId(messageId) || !isRecordId(caseId)) throw Error('Invalid message link');
+    const filter = 'and(' + serializeFilter({ id: messageId }) + ',supportCaseId[is]:NULL)';
+    await this.api.patch('/rest/supportMessages', { supportCaseId: caseId }, { query: { filter } });
   }
 }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { type IngestEvent, IngestError, isRecordId, keys, normalizeEvent, type GroupingMode, type ConversationPatch } from './contract.ts';
 import { createProposal, type PrivateProposalStorage, type ProposalReceipt } from '../proposals/create.ts';
 import { n8nWaitUrl } from '../proposals/n8n-wait.ts';
@@ -10,7 +11,9 @@ export interface IngestionStore {
   get(resource: string, id: string): Promise<DbRecord | null>;
   create(resource: string, data: Record<string, unknown>): Promise<DbRecord>;
   update(resource: string, id: string, data: Record<string, unknown>): Promise<DbRecord>;
-  advanceCaseActivity(caseId: string, occurredAt: string): Promise<void>;
+  advanceCaseActivity(caseId: string, occurredAt: string, recoveredChanges?: Record<string, unknown>): Promise<void>;
+  linkPersonIfMissing(resource: 'supportExternalIdentities' | 'supportCases', id: string, personId: string): Promise<void>;
+  linkMessageIfMissing(messageId: string, caseId: string): Promise<void>;
 }
 export type IngestResult = Partial<ProposalReceipt> & {
   ok: true;
@@ -73,6 +76,8 @@ const verifyCase = (
 };
 
 type PersonResolution = { personId: string | null; review: boolean };
+const namedChatRequested = (event: IngestEvent) => event.createPersonFromChat === true &&
+  Boolean(event.contactFirstName || event.contactLastName);
 /**
  * Enrich a Person only when their identity was verified or the message's email matches.
  * Both native name parts must be present in the REST representation before a partial
@@ -117,6 +122,8 @@ async function personFor(event: IngestEvent, store: IngestionStore, channelType:
     await fillMissingPersonName(event, store, existing[0], channelType);
     return { personId: existing[0].id, review: false };
   }
+  // The CHAT path creates its deterministic Person only after ownership and routing are settled.
+  if (namedChatRequested(event)) return { personId: null, review: false };
   // Full display names are ambiguous (compound given names and surnames).
   // Use explicit firstName/lastName when possible; otherwise preserve name as display-first-name.
   const firstName = event.contactFirstName || (event.contactLastName ? '' : event.contactName);
@@ -139,18 +146,38 @@ async function personFor(event: IngestEvent, store: IngestionStore, channelType:
   }
 }
 
+async function lookupIdentity(event: IngestEvent, store: IngestionStore, scope: ReturnType<typeof keys>) {
+  const userKeys = new Set(scope.identityKey ? [scope.identityKey] : []);
+  // Older clients could create a USER key without creating the corresponding PN/LID alias.
+  if (event.routingMode === 'CHAT') {
+    for (const alias of scope.aliases) userKeys.add(scope.ns + ':USER:' + alias.aliasValue);
+  }
+  const [aliasMatches, userMatches] = await Promise.all([
+    Promise.all(scope.aliases.map(a => first(store, 'supportIdentityAliases', { externalKey: a.externalKey }))),
+    Promise.all([...userKeys].map(externalKey => first(store, 'supportExternalIdentities', { externalKey }))),
+  ]);
+  const matches = [...new Set([...aliasMatches.map(a => recordId(a?.externalIdentityId)),
+    ...userMatches.map(row => recordId(row?.id))].filter(Boolean))];
+  const conflictingJids = event.routingMode === 'CHAT' && new Set(scope.aliases.map(a => a.aliasType)).size !== scope.aliases.length;
+  return { aliasMatches, keyed: userMatches.find(Boolean), matches, ambiguous: matches.length > 1 || conflictingJids };
+}
+
 async function identityFor(
   event: IngestEvent, store: IngestionStore, scope: ReturnType<typeof keys>, channelId: string,
 ) {
-  const aliasMatches = await Promise.all(scope.aliases.map(a => first(store, 'supportIdentityAliases', { externalKey: a.externalKey })));
-  const keyed = scope.identityKey ? await first(store, 'supportExternalIdentities', { externalKey: scope.identityKey }) : null;
-  const matches = [...new Set([...aliasMatches.map(a => recordId(a?.externalIdentityId)), recordId(keyed?.id)].filter(Boolean))];
-  if (matches.length > 1) return { identityId: null, review: true };
+  const { matches, aliasMatches, keyed, ambiguous } = await lookupIdentity(event, store, scope);
+  const chat = event.routingMode === 'CHAT';
+  if (ambiguous) return { identityId: null, review: true };
   let identityId = matches[0] || null;
   if (!identityId && scope.identityKey) {
-    const { record: created } = await insertUnique(store, 'supportExternalIdentities', scope.identityKey, {
-      externalKey: scope.identityKey, provider: scope.provider,
-      externalUserId: event.externalUserId, externalAccountId: scope.accountId,
+    // Use the same PN key for simultaneous first events that list PN/LID in opposite orders.
+    const keyedByJid = scope.aliases.some(a => scope.identityKey === scope.ns + ':USER:' + a.aliasValue);
+    const preferred = chat && keyedByJid ? scope.aliases.find(a => a.aliasType === 'WHATSAPP_PN') ?? scope.aliases[0] : undefined;
+    const userId = preferred?.aliasValue || event.externalUserId;
+    const externalKey = preferred ? scope.ns + ':USER:' + userId : scope.identityKey;
+    const { record: created } = await insertUnique(store, 'supportExternalIdentities', externalKey, {
+      externalKey, provider: scope.provider,
+      externalUserId: userId, externalAccountId: scope.accountId,
       displayName: event.contactName || event.contactEmail || event.externalUserId,
       verified: false, lastSeenAt: event.message.occurredAt, channelInstanceId: channelId,
     });
@@ -159,7 +186,12 @@ async function identityFor(
   if (identityId) {
     const identity = keyed?.id === identityId ? keyed : await store.get('supportExternalIdentities', identityId);
     if (!identity) throw new IngestError('IDENTITY_MISSING', 'The linked identity no longer exists', 409);
-    if (recordId(identity.channelInstanceId) && recordId(identity.channelInstanceId) !== channelId) {
+    if ((chat || recordId(identity.channelInstanceId)) && recordId(identity.channelInstanceId) !== channelId) {
+      return { identityId: null, review: true };
+    }
+    if (chat && (!text(identity.externalKey).startsWith(scope.ns + ':USER:') ||
+        (identity.provider && identity.provider !== scope.provider) ||
+        (identity.externalAccountId && identity.externalAccountId !== scope.accountId))) {
       return { identityId: null, review: true };
     }
     for (let i = 0; i < scope.aliases.length; i++) {
@@ -177,7 +209,7 @@ async function identityFor(
 }
 
 async function connectIdentity(
-  store: IngestionStore, identityId: string | null, personId: string | null,
+  store: IngestionStore, identityId: string | null, personId: string | null, chat = false,
 ): Promise<{ personId: string | null; review: boolean }> {
   if (!identityId) return { personId, review: false };
   const identity = await store.get('supportExternalIdentities', identityId);
@@ -185,8 +217,59 @@ async function connectIdentity(
   const linked = recordId(identity.personId);
   if (linked && personId && linked !== personId) return { personId: null, review: true };
   const selected = linked || personId;
-  if (selected && !linked) await store.update('supportExternalIdentities', identityId, { personId: selected });
+  if (selected && !linked) {
+    if (chat) {
+      await store.linkPersonIfMissing('supportExternalIdentities', identityId, selected);
+      if ((await store.get('supportExternalIdentities', identityId))?.personId !== selected) return { personId: null, review: true };
+    } else await store.update('supportExternalIdentities', identityId, { personId: selected });
+  }
   return { personId: selected || null, review: false };
+}
+
+/** UUIDv5 with an application-specific namespace; Twenty 2.50 accepts UUID versions 1–5. */
+function scopedUuid(name: string) {
+  const namespace = Buffer.from('a08c01af21f64e23a324f2f23378ad83', 'hex');
+  const hash = createHash('sha1').update(namespace).update(name).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
+}
+
+async function namedChatPerson(
+  event: IngestEvent, store: IngestionStore, identityId: string, caseId: string,
+): Promise<PersonResolution> {
+  const [identity, conversation] = await Promise.all([
+    store.get('supportExternalIdentities', identityId), store.get('supportCases', caseId),
+  ]);
+  if (!identity || !conversation || conversation.externalIdentityId !== identityId ||
+      (identity.personId && conversation.personId && identity.personId !== conversation.personId)) {
+    return { personId: null, review: true };
+  }
+  let personId = recordId(identity.personId) || recordId(conversation.personId);
+  if (!personId) {
+    personId = scopedUuid('person:' + identityId);
+    if (!await store.get('people', personId)) {
+      try {
+        await store.create('people', { id: personId,
+          name: { firstName: event.contactFirstName, lastName: event.contactLastName },
+          ...(event.personVerified && event.contactEmail ? { emails: { primaryEmail: event.contactEmail } } : {}),
+        });
+      } catch (error) {
+        // A concurrent insert, or an insert whose response was lost, is already durable.
+        if (!await store.get('people', personId)) throw error;
+      }
+    }
+  }
+  if (!identity.personId) {
+    await store.linkPersonIfMissing('supportExternalIdentities', identityId, personId);
+    // A manual link made during creation takes precedence.
+    personId = recordId((await store.get('supportExternalIdentities', identityId))?.personId);
+    if (!personId) throw new IngestError('CHAT_PERSON_LINK_PENDING', 'Retry the message to finish linking its Person', 409);
+  }
+  if (!conversation.personId) await store.linkPersonIfMissing('supportCases', caseId, personId);
+  const saved = await store.get('supportCases', caseId);
+  return saved?.personId === personId ? { personId, review: false } : { personId: null, review: true };
 }
 
 /**
@@ -197,7 +280,7 @@ async function connectIdentity(
 async function catalogByIdOrCode(
   store: IngestionStore, resource: 'supportCategories' | 'supportTypes',
   id: string | null | undefined, code: string | null | undefined,
-  kind: 'CATEGORY' | 'TYPE',
+  kind: 'CATEGORY' | 'TYPE', validateOnly = false,
 ): Promise<DbRecord | null> {
   if (id === null || code === null) return null;
   let record = id
@@ -206,6 +289,7 @@ async function catalogByIdOrCode(
 
   // Only a valid *code* may create new records; an unknown UUID never does.
   if (!record && code) {
+    if (validateOnly) return null;
     try {
       // `name` is a built-in base field automatically provided by Twenty.
       record = await store.create(resource, { name: code, code, enabled: true });
@@ -225,6 +309,18 @@ async function catalogByIdOrCode(
       kind === 'CATEGORY' ? 'Category is not available in this workspace' : 'Type is not available in this workspace', 422);
   }
   return record;
+}
+
+async function validateChatReferences(event: IngestEvent, store: IngestionStore) {
+  const { categoryId, categoryCode, typeId, typeCode } = event.conversation;
+  const verifiedPerson = event.personVerified && event.personId;
+  if (verifiedPerson && !isRecordId(verifiedPerson)) throw new IngestError('INVALID_PERSON', 'Verified personId must be a UUID');
+  const [person] = await Promise.all([
+    verifiedPerson ? store.get('people', verifiedPerson) : null,
+    categoryId || categoryCode ? catalogByIdOrCode(store, 'supportCategories', categoryId, categoryCode, 'CATEGORY', true) : null,
+    typeId || typeCode ? catalogByIdOrCode(store, 'supportTypes', typeId, typeCode, 'TYPE', true) : null,
+  ]);
+  if (verifiedPerson && !person) throw new IngestError('UNKNOWN_PERSON', 'The supplied verified personId was not found', 409);
 }
 
 /** Resolve caller-supplied metadata only after the channel and record ownership were verified. */
@@ -318,16 +414,52 @@ async function continuableCaseFor(
   return { record: null, ambiguous: false };
 }
 
+async function directChatCase(
+  store: IngestionStore, scope: ReturnType<typeof keys>, chatKey: string, channelId: string, identityId: string,
+): Promise<{ record: DbRecord | null; ambiguous: boolean }> {
+  const canonical = await first(store, 'supportCases', { externalKey: chatKey });
+  if (canonical) return { record: canonical, ambiguous: false };
+  const history = await store.list('supportCases', { channelInstanceId: channelId, externalIdentityId: identityId }, 60);
+  if (history.length >= 60) return { record: null, ambiguous: true };
+  // Only adopt case keys that earlier integrations used for direct messages.
+  // Keep their original keys so existing workflows can still reference them.
+  const candidates = history.filter(row => {
+    const key = text(row.externalKey);
+    return key.startsWith(scope.ns + ':CASE-MESSAGE:') || key.startsWith(scope.ns + ':ISSUE:standalone-auto:');
+  });
+  const waPrefix = scope.ns + ':ISSUE:wa-chat:';
+  const namedChats = scope.channelType === 'WHATSAPP'
+    ? history.filter(row => text(row.externalKey).startsWith(waPrefix)) : [];
+  if (namedChats.length) {
+    const [aliases, identity] = await Promise.all([
+      store.list('supportIdentityAliases', { externalIdentityId: identityId }, 60),
+      store.get('supportExternalIdentities', identityId),
+    ]);
+    if (aliases.length >= 60) return { record: null, ambiguous: true };
+    const jids = new Set([text(identity?.externalUserId),
+      ...aliases.filter(row => row.externalKey === scope.ns + ':' + row.aliasValue).map(row => text(row.aliasValue))]);
+    candidates.push(...namedChats.filter(row => {
+      const jid = text(row.externalKey).slice(waPrefix.length);
+      return /^\d+@(s\.whatsapp\.net|lid)$/.test(jid) && jids.has(jid);
+    }));
+  }
+  return { record: candidates.length === 1 ? candidates[0] : null, ambiguous: candidates.length > 1 };
+}
+
 async function caseFor(
   event: IngestEvent, store: IngestionStore, scope: ReturnType<typeof keys>,
-  channel: DbRecord, identityId: string | null, personId: string | null, review: boolean,
+  channel: DbRecord, identityId: string | null, personId: string | null, review: boolean, recovering = false,
 ) {
   const mode = (text(channel.groupingMode) || (scope.channelType === 'EMAIL' ? 'THREAD' : 'HYBRID')) as GroupingMode;
   const safeIdentity = review ? null : identityId;
-  const safePerson = review ? null : personId;
+  let safePerson = review ? null : personId;
   const ref = event.message;
+  const chat = event.routingMode === 'CHAT';
+  const byThread = mode === 'THREAD' || chat;
   const threadKey = ref.threadId ? scope.ns + ':THREAD:' + ref.threadId : '';
   const issueKey = ref.issueKey ? scope.ns + ':ISSUE:' + ref.issueKey : '';
+  const chatKey = chat && safeIdentity && !ref.caseId && !ref.replyToExternalId && !issueKey && !threadKey
+    ? scope.ns + ':CHAT:' + safeIdentity : '';
   let candidate: DbRecord | null = null;
   if (!review && ref.caseId) candidate = await store.get('supportCases', ref.caseId);
   if (!review && !candidate && ref.replyToExternalId) {
@@ -335,11 +467,18 @@ async function caseFor(
     if (original?.supportCaseId) candidate = await store.get('supportCases', recordId(original.supportCaseId));
   }
   if (!review && !candidate && issueKey) candidate = await first(store, 'supportCases', { externalKey: issueKey });
-  if (!review && !candidate && mode === 'THREAD' && threadKey) {
+  if (!review && !candidate && byThread && threadKey) {
     candidate = await first(store, 'supportCases', { externalKey: threadKey });
   }
+  if (chat && !safeIdentity) review = true;
+  if (chat && !candidate && (ref.caseId || ref.replyToExternalId)) review = true;
+  if (!review && chatKey && safeIdentity) {
+    const found = await directChatCase(store, scope, chatKey, channel.id, safeIdentity);
+    candidate = found.record;
+    review = found.ambiguous;
+  }
   const standaloneNotice = ref.issueKey.startsWith('standalone-auto:');
-  const automatic = (mode === 'HYBRID' || mode === 'SESSION') &&
+  const automatic = !chat && (mode === 'HYBRID' || mode === 'SESSION') &&
     (!ref.issueKey || standaloneNotice) && !ref.caseId && !ref.replyToExternalId;
   if (!review && !candidate && automatic) {
     const found = await continuableCaseFor(event, store, channel, safeIdentity, safePerson);
@@ -350,14 +489,21 @@ async function caseFor(
     }
   }
   const allowEmailMatch = scope.channelType === 'EMAIL' || event.personVerified;
-  if (candidate && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
+  if (chat && candidate?.personId && !safePerson && safeIdentity && candidate.externalIdentityId === safeIdentity) {
+    // The other first event may have just finished its Person link.
+    safePerson = recordId((await store.get('supportExternalIdentities', safeIdentity))?.personId) || null;
+  }
+  const belongsToContact = (row: DbRecord) =>
+    (!chat || (Boolean(safeIdentity) && row.externalIdentityId === safeIdentity && caseInScope(row, scope))) &&
+    verifyCase(row, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch);
+  if (candidate && !belongsToContact(candidate)) {
     review = true;
     candidate = null;
   }
   // A new, unreferenced chat with an identified interlocutor is a legitimate
   // first case. Unidentified or ambiguous chats follow the channel's policy.
   const identifiable = Boolean(safeIdentity || safePerson);
-  if (!candidate && !review && (
+  if (!candidate && !review && !chat && (
     mode === 'MANUAL' ||
     (mode === 'THREAD' && !ref.threadId && !issueKey) ||
     (automatic && !identifiable && !standaloneNotice && string(channel.ambiguousAction) !== 'NEW')
@@ -377,8 +523,9 @@ async function caseFor(
   const reviewKey = scope.ns + ':REVIEW-MESSAGE:' + event.messageKey;
   const caseKey = candidate?.externalKey ? text(candidate.externalKey)
     : (review ? reviewKey
-      : issueKey || (mode === 'THREAD' ? threadKey : '') || scope.ns + ':CASE-MESSAGE:' + event.messageKey);
+      : issueKey || (byThread ? threadKey : '') || chatKey || scope.ns + ':CASE-MESSAGE:' + event.messageKey);
 
+  let reused = Boolean(candidate);
   if (!candidate) {
     const savedCase = await insertUnique(store, 'supportCases', caseKey, {
       externalKey: caseKey,
@@ -398,25 +545,40 @@ async function caseFor(
     });
     candidate = savedCase.record;
     if (!savedCase.created) {
-      // A review case is deliberately unlinked. Its per-message key and channel
-      // identify it when the original attempt saved the case but not the message.
+      // A review case can lack an identity. Verify the per-message key, channel and
+      // saved contact data when the original attempt saved only the case.
       const sameReviewMessage = review && candidate.externalKey === reviewKey &&
-        candidate.channelInstanceId === channel.id && !candidate.personId && !candidate.externalIdentityId &&
+        candidate.channelInstanceId === channel.id && !candidate.externalIdentityId &&
+        (chat ? recordId(candidate.personId) === (safePerson || '') : !candidate.personId) &&
         text(candidate.originEmail).toLowerCase() === event.contactEmail &&
         text(candidate.originPhone) === event.contactPhone;
-      if (!sameReviewMessage && !verifyCase(candidate, channel.id, safeIdentity, safePerson, event.contactEmail, allowEmailMatch)) {
+      if (!sameReviewMessage && !belongsToContact(candidate)) {
         throw new IngestError('CASE_CONFLICT', 'The selected case belongs to a different identity', 409);
       }
+      reused = chat && !review;
     }
-  } else {
+  }
+  if (reused) {
     const updates: Record<string, unknown> = { ...metadata };
-    if (safePerson && !candidate.personId) updates.personId = safePerson;
+    if (safePerson && !candidate.personId) {
+      if (chat) {
+        await store.linkPersonIfMissing('supportCases', candidate.id, safePerson);
+        if ((await store.get('supportCases', candidate.id))?.personId !== safePerson) {
+          throw new IngestError('CASE_CONFLICT', 'The conversation is linked to a different Person', 409);
+        }
+      } else updates.personId = safePerson;
+    }
     if (safeIdentity && !candidate.externalIdentityId) updates.externalIdentityId = safeIdentity;
     if (review) delete updates.status;
-    if (Object.keys(updates).length) await store.update('supportCases', candidate.id, updates);
-    const lastActivity = text(candidate.lastMessageAt);
-    if (!lastActivity || Date.parse(ref.occurredAt) > Date.parse(lastActivity)) {
-      await store.advanceCaseActivity(candidate.id, ref.occurredAt);
+    if (recovering) {
+      // A failed final link may leave a fully updated case behind. A later message wins atomically.
+      await store.advanceCaseActivity(candidate.id, ref.occurredAt, updates);
+    } else {
+      if (Object.keys(updates).length) await store.update('supportCases', candidate.id, updates);
+      const lastActivity = text(candidate.lastMessageAt);
+      if (!lastActivity || Date.parse(ref.occurredAt) > Date.parse(lastActivity)) {
+        await store.advanceCaseActivity(candidate.id, ref.occurredAt);
+      }
     }
   }
   return { caseId: candidate.id, review };
@@ -444,11 +606,11 @@ function configuredScope(event: IngestEvent, channel: DbRecord) {
   });
 }
 
-function messageData(event: IngestEvent, scope: ReturnType<typeof keys>, caseId: string) {
+function messageData(event: IngestEvent, scope: ReturnType<typeof keys>, caseId?: string) {
   const ref = event.message;
   return {
     externalKey: scope.messageKey,
-    supportCaseId: caseId,
+    ...(caseId ? { supportCaseId: caseId } : {}),
     direction: ref.direction,
     senderType: ref.senderType,
     body: ref.body,
@@ -472,7 +634,12 @@ const appendFields = new Set([
   'externalId', 'idempotencyKey', 'direction', 'senderType', 'body', 'text', 'subject',
   'occurredAt', 'fromAddress', 'toAddress', 'replyToExternalId', 'callTranscription', 'callRecordingUrl',
 ]);
-const caseKeySeparators = [':THREAD:', ':ISSUE:', ':CASE-MESSAGE:', ':REVIEW-MESSAGE:'];
+const caseKeySeparators = [':THREAD:', ':ISSUE:', ':CASE-MESSAGE:', ':REVIEW-MESSAGE:', ':CHAT:'];
+function caseInScope(row: DbRecord, scope: ReturnType<typeof keys>) {
+  const key = text(row.externalKey);
+  return !key.startsWith(scope.channelType + ':') || !caseKeySeparators.some(separator => key.includes(separator)) ||
+    caseKeySeparators.some(separator => key.startsWith(scope.ns + separator));
+}
 
 /** Attach directly to a conversation, using its configured delivery scope. */
 export async function appendMessage(value: unknown, store: IngestionStore): Promise<IngestResult> {
@@ -499,10 +666,7 @@ export async function appendMessage(value: unknown, store: IngestionStore): Prom
   });
   if (!event.stableId) throw new IngestError('MISSING_MESSAGE_ID', 'Provide a stable externalId or idempotencyKey');
   const scope = configuredScope(event, channel);
-  const caseKey = text(conversation.externalKey);
-  if ((event.provider || event.accountId) && caseKey.startsWith(scope.channelType + ':') &&
-      caseKeySeparators.some(separator => caseKey.includes(separator)) &&
-      !caseKeySeparators.some(separator => caseKey.startsWith(scope.ns + separator))) {
+  if ((event.provider || event.accountId) && !caseInScope(conversation, scope)) {
     throw new IngestError('CASE_SCOPE_MISMATCH', 'The provider and account must match the conversation', 409);
   }
   const existing = await first(store, 'supportMessages', { externalKey: scope.messageKey });
@@ -543,7 +707,7 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
     }
     return createProposal(store, proposals.storage, inbound, proposedReply);
   }
-  const existing = await first(store, 'supportMessages', { externalKey: scope.messageKey });
+  let existing = await first(store, 'supportMessages', { externalKey: scope.messageKey });
   if (event.kind === 'status') {
     if (!existing) throw new IngestError('UNKNOWN_MESSAGE', 'Status references an unknown message', 404);
     const changed = await statusChange(store, existing, event.message.deliveryStatus);
@@ -554,7 +718,40 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
       reviewRequired: false, stableId: true,
     };
   }
-  if (existing) {
+  // When channelType is omitted, the configured channel supplies the type for phone-derived IDs.
+  const phone = event.contactPhone;
+  const whatsappUser = scope.channelType === 'WHATSAPP' && /^\+[1-9]\d{7,14}$/.test(phone) &&
+    (!event.routingMode || event.personVerified) ? phone.slice(1) + '@s.whatsapp.net' : '';
+  const withIdentity = {
+    ...event, externalUserId: event.externalUserId ||
+      (scope.channelType === 'EMAIL' ? event.contactEmail : whatsappUser),
+  };
+  const scoped = keys(withIdentity, {
+    channelType: scope.channelType, provider: scope.provider, externalIdentifier: scope.accountId,
+  });
+  const wantsNamedPerson = namedChatRequested(event);
+  let identity: Awaited<ReturnType<typeof identityFor>> | undefined;
+  let claim: { record: DbRecord; created: boolean } | undefined;
+  if (event.routingMode === 'CHAT' && !existing?.supportCaseId) {
+    if (!existing) await validateChatReferences(event, store);
+    identity = await identityFor(withIdentity, store, scoped, channel.id);
+    // The unique provider message key must be won before applying any Person or case effects.
+    // Its UUID binds an interrupted request to its sender and normalized instructions.
+    // A missing timestamp defaults to now, so recovery uses the originally stored timestamp.
+    const { occurredAt: _occurredAt, ...message } = event.message;
+    const claimId = scopedUuid('message:' + JSON.stringify([scope.messageKey, channel.id,
+      identity.identityId || [withIdentity.externalUserId, scoped.aliases.map(a => a.aliasValue).sort()],
+      event.contactEmail, event.contactPhone, event.personVerified, event.personId, event.contactFirstName,
+      event.contactLastName, event.createPersonFromChat, message, event.conversation]));
+    claim = existing ? { record: existing, created: false } : await insertUnique(store, 'supportMessages', scope.messageKey,
+      { ...messageData(event, scope), id: claimId });
+    if (claim.record.id !== claimId) {
+      throw new IngestError('MESSAGE_CONFLICT', 'The provider message ID is already in use with different routing or content', 409);
+    }
+    if (claim.record.supportCaseId) existing = claim.record;
+    withIdentity.message = { ...event.message, occurredAt: text(claim.record.occurredAt) };
+  }
+  if (existing && (event.routingMode !== 'CHAT' || existing.supportCaseId)) {
     // A retry may repair an older case that was stored before a Person was resolved.
     // Never replace a Person or identity that is already linked.
     const caseId = recordId(existing.supportCaseId) || null;
@@ -564,14 +761,34 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
     }
     let identityId = recordId(previous?.externalIdentityId) || null;
     let personId = recordId(previous?.personId) || null;
-    let reviewRequired = false;
-    if (personId && previous && recordId(previous.channelInstanceId) === channel.id) {
+    let reviewRequired = event.routingMode === 'CHAT' && previous?.externalKey === scope.ns + ':REVIEW-MESSAGE:' + event.messageKey;
+    if (event.routingMode === 'CHAT') {
+      if (!previous || previous.channelInstanceId !== channel.id || !caseInScope(previous, scope)) {
+        throw new IngestError('MESSAGE_CONFLICT', 'The message ID belongs to a different conversation', 409);
+      }
+      if (reviewRequired && !identityId) {
+        return { ok: true, status: 'duplicate', channelId: channel.id, caseId,
+          identityId: null, personId: null, messageId: existing.id, reviewRequired, stableId: event.stableId };
+      }
+      const { matches, ambiguous } = await lookupIdentity(withIdentity, store, scoped);
+      if (ambiguous || matches[0] !== identityId) {
+        throw new IngestError('MESSAGE_CONFLICT', 'The message ID belongs to a different contact', 409);
+      }
+      if (event.personVerified && event.personId && identityId) {
+        const linked = recordId((await store.get('supportExternalIdentities', identityId))?.personId);
+        if ((personId && personId !== event.personId) || (linked && linked !== event.personId)) {
+          return { ok: true, status: 'duplicate', channelId: channel.id, caseId, identityId, personId: null,
+            messageId: existing.id, reviewRequired: true, stableId: event.stableId };
+        }
+      }
+    }
+    if (!reviewRequired && personId && previous && recordId(previous.channelInstanceId) === channel.id) {
       const linkedPerson = await store.get('people', personId);
       if (linkedPerson && (event.personVerified || scope.channelType === 'EMAIL')) {
         await fillMissingPersonName(event, store, linkedPerson, scope.channelType);
       }
     }
-    if (previous && recordId(previous.channelInstanceId) === channel.id && !personId) {
+    if (!reviewRequired && previous && recordId(previous.channelInstanceId) === channel.id && !personId) {
       const previousEmail = text(previous.originEmail).toLowerCase();
       if (previousEmail && previousEmail !== event.contactEmail) {
         return { ok: true, status: 'duplicate', channelId: channel.id,
@@ -580,7 +797,7 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
       }
       const identity = identityId ? await store.get('supportExternalIdentities', identityId) : null;
       const knownExternalId = text(identity?.externalUserId);
-      if (knownExternalId && event.externalUserId && knownExternalId !== event.externalUserId) {
+      if (event.routingMode !== 'CHAT' && knownExternalId && event.externalUserId && knownExternalId !== event.externalUserId) {
         reviewRequired = true;
       } else {
         const linkedId = recordId(identity?.personId);
@@ -592,38 +809,38 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
         }
         if (resolved.review) reviewRequired = true;
         else if (resolved.personId) {
-          const attached = await connectIdentity(store, identityId, resolved.personId);
+          const attached = await connectIdentity(store, identityId, resolved.personId, event.routingMode === 'CHAT');
           if (attached.review) reviewRequired = true;
           else if (attached.personId) {
             personId = attached.personId;
-            await store.update('supportCases', caseId!, { personId });
+            if (event.routingMode === 'CHAT') {
+              await store.linkPersonIfMissing('supportCases', caseId!, personId);
+              if ((await store.get('supportCases', caseId!))?.personId !== personId) {
+                personId = null;
+                reviewRequired = true;
+              }
+            } else await store.update('supportCases', caseId!, { personId });
           }
         }
       }
+    }
+    if (wantsNamedPerson && !reviewRequired && !personId && identityId && caseId) {
+      const named = await namedChatPerson(event, store, identityId, caseId);
+      personId = named.personId;
+      reviewRequired = named.review;
     }
     return { ok: true, status: 'duplicate', channelId: channel.id,
       caseId, identityId, personId: personId || null,
       messageId: existing.id, reviewRequired, stableId: event.stableId,
       ...await attachProposal(existing) };
   }
-  // The caller may omit channelType. Use the resolved channel to derive the
-  // same PN identity for outbound WhatsApp events with a validated E.164 phone.
-  const phone = event.contactPhone;
-  const whatsappUser = scope.channelType === 'WHATSAPP' && /^\+[1-9]\d{7,14}$/.test(phone)
-    ? phone.slice(1) + '@s.whatsapp.net' : '';
-  const withIdentity = {
-    ...event, externalUserId: event.externalUserId ||
-      (scope.channelType === 'EMAIL' ? event.contactEmail : whatsappUser),
-  };
-  const scoped = keys(withIdentity, {
-    channelType: scope.channelType, provider: scope.provider, externalIdentifier: scope.accountId,
-  });
-  const identity = await identityFor(withIdentity, store, scoped, channel.id);
-  const resolvedPerson = identity.review ? { personId: null, review: true }
+  identity ??= await identityFor(withIdentity, store, scoped, channel.id);
+  const resolvedPerson = identity.review || (event.routingMode === 'CHAT' && !identity.identityId)
+    ? { personId: null, review: true }
     : await personFor(withIdentity, store, scope.channelType);
   const link = identity.review || resolvedPerson.review
     ? { personId: null, review: true }
-    : await connectIdentity(store, identity.identityId, resolvedPerson.personId);
+    : await connectIdentity(store, identity.identityId, resolvedPerson.personId, event.routingMode === 'CHAT');
   if (!identity.review && !link.review && link.personId && link.personId !== resolvedPerson.personId &&
       (event.personVerified || scope.channelType === 'EMAIL')) {
     const linkedPerson = await store.get('people', link.personId);
@@ -631,18 +848,28 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
   }
   const review = identity.review || resolvedPerson.review || link.review;
   const selectedCase = await caseFor(withIdentity, store, scoped, channel,
-    identity.identityId, link.personId, review);
+    identity.identityId, link.personId, review, claim?.created === false);
 
-  const { record: created, created: didCreate } = await insertUnique(
-    store, 'supportMessages', scope.messageKey, messageData(event, scope, selectedCase.caseId),
-  );
+  let saved = claim;
+  if (claim) {
+    await store.linkMessageIfMissing(claim.record.id, selectedCase.caseId);
+    const linked = await store.get('supportMessages', claim.record.id);
+    if (!linked || linked.supportCaseId !== selectedCase.caseId) {
+      throw new IngestError('MESSAGE_CONFLICT', 'The message could not be attached to the selected conversation', 409);
+    }
+    saved = { ...claim, record: linked };
+  }
+  const { record: created, created: didCreate } = saved ?? await insertUnique(
+    store, 'supportMessages', scope.messageKey, messageData(event, scope, selectedCase.caseId));
+  const person = wantsNamedPerson && !selectedCase.review && !link.personId && identity.identityId
+    ? await namedChatPerson(event, store, identity.identityId, selectedCase.caseId) : link;
   return {
     ok: true,
     status: didCreate ? 'created' : 'duplicate',
     channelId: channel.id, caseId: recordId(created.supportCaseId) || selectedCase.caseId,
     identityId: review ? null : identity.identityId,
-    personId: review ? null : link.personId,
-    messageId: created.id, reviewRequired: selectedCase.review,
+    personId: review ? null : person.personId,
+    messageId: created.id, reviewRequired: selectedCase.review || person.review,
     stableId: event.stableId,
     ...await attachProposal(created),
   };

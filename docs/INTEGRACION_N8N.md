@@ -4,11 +4,53 @@ Omnichannel Support recibe eventos normalizados de email, WhatsApp, Instagram, T
 
 La [referencia de API](API_REFERENCE.md) contiene los parámetros y códigos de error.
 
+## Empezar con el nodo comunitario
+
+Actualiza **Omnichannel Support** a **1.4.0** en Twenty. En n8n, abre **Settings → Community Nodes** y actualiza `n8n-nodes-omnichannel-support` a **0.2.0**. Añade un nodo **Omnichannel Support** nuevo y selecciona la misma credencial **Twenty API** que utilizas en **Twenty CRM**. Este tipo de credencial lo registra `@blackswampai/n8n-nodes-twentycrm`. El nodo descubre la URL de las funciones desde el workspace de la credencial. Los nodos v1 guardados siguen utilizando su configuración anterior. [Instalación y actualización de nodos](https://docs.n8n.io/integrations/community-nodes/installation-and-management/gui-installation/)
+
+### Registrar un WhatsApp en su conversación
+
+Elige **Message → Register Incoming Message**. Configura el canal una vez y mapea tres datos del evento. Para un webhook de WhatsApp Cloud, si el paso anterior ya devuelve el objeto `messages[0]` como ítem de n8n, este es el mapeo de un mensaje de texto.
+
+| Campo del nodo | Valor para ese evento |
+| --- | --- |
+| **Channel Name or ID** | Selecciona la línea de WhatsApp en la lista del workspace |
+| **Contact or Chat ID** | `{{ $json.from }}` |
+| **Message Identifier** | `{{ $json.id }}` |
+| **Message Text** | `{{ $json.text.body }}` |
+
+Con Baileys, mapea el `key.remoteJid` del chat y el `key.id` del mensaje. Si el proveedor entrega `key.remoteJidAlt`, añádelo en **Contact Fields → WhatsApp Alternate JID**. Los grupos de WhatsApp están fuera del modelo de conversación por persona.
+
+El siguiente mensaje del mismo contacto en esa línea vuelve al chat, incluso después de semanas. Una entrada nueva pone la conversación **En curso** y la fecha de actividad avanza con **Message Fields → Occurred At** si has mapeado la fecha original. De lo contrario se usa la hora de registro. Un reintento con el mismo identificador devuelve `duplicate`. Si hay varios historiales previos compatibles, el resultado indica `reviewRequired: true` para que puedas derivarlo a una persona.
+
+Para elegir otro estado, abre **Conversation Fields → Status Name or ID**. En ese mismo menú puedes añadir etiquetas, categoría, tipo y seguimiento. Las etiquetas seleccionadas sustituyen las anteriores del campo correspondiente. Para aplicar las ventanas de actividad del canal, elige **Routing Fields → Routing Mode → Channel Policy**.
+
+### Crear la Persona
+
+En **Contact Fields**, añade **First Name** y **Last Name** cuando el proveedor los facilite. En un chat directo con una identidad reconocida, el nodo puede crear la Persona con esos datos aunque solo conozcas su WhatsApp. Si la identidad ya está vinculada, se recupera esa Persona. Puedes desactivar **Create Person From Chat Name** si tu flujo solo registra mensajes. Para correo, el remitente identifica a la Persona. Para vincular un chat a una Persona concreta, utiliza **Person ID** y **Verified Contact** cuando hayas comprobado ese vínculo.
+
+### Elegir la operación
+
+| Si tu workflow… | Operación y datos |
+| --- | --- |
+| Recibe correo | **Message → Register Incoming Message**. Usa la dirección del remitente, el ID del mensaje y el texto. Añade **Routing Fields → Thread ID** con `threadId` de Gmail o `conversationId` de Outlook para agrupar todo el hilo. También puedes mapear **Reply to Provider Message ID** cuando referencia un mensaje registrado. |
+| Recibe Instagram o Telegram | **Register Incoming Message** con el canal, el ID del chat directo y el ID del mensaje. En Telegram Bot API, mapea `{{ $json.message.chat.id }}` y `{{ $json.message.message_id }}`. El nodo combina los dos automáticamente para que mensajes de chats distintos puedan tener el mismo número. |
+| Registra una llamada | **Register Incoming Message** o **Register Outgoing Message** con la línea, el interlocutor y el ID de la llamada. Añade **Call Transcription** y **Call Recording URL** en **Message Fields**. |
+| Ya ha enviado la respuesta por el proveedor | **Message → Register Outgoing Message** con el mismo chat y el ID nuevo del proveedor. Si tienes el `caseId` de una propuesta, **Append Message** permite indicar esa conversación directamente. |
+| Recibe un acuse | **Message → Update Delivery Status** con el canal, el ID y el estado. Puedes reutilizar `providerMessageIdentifier` del registro inicial. Para un ID numérico de Telegram, también puedes indicar **Provider Settings → Telegram Chat ID** en el acuse o al añadir por `caseId`. |
+| Necesita una respuesta de la base de conocimiento | **FAQ → Search Published FAQs** con la pregunta en **Query**. **Search Options** permite elegir los alcances e idioma. La búsqueda devuelve un ítem con `results` y `count`; la coincidencia mejor puntuada está en `results[0]`. |
+| Necesita consultar o editar fichas | Elige el recurso, por ejemplo **FAQ** o **Case**, y la operación de lectura o escritura. **Get Many → Filter by Field** permite elegir estados y etiquetas del workspace y combinar filtros. Puedes limitar el resultado o recuperar todas las páginas. Para escribir, selecciona los campos del workspace y mapea sus valores. |
+| Necesita registrar una propuesta | **Message → Propose Reply** con el `messageId` que devolvió el registro inicial. Si ya tienes el borrador al registrar la entrada, activa **Include Proposed Reply**. |
+
+### Autorizar las operaciones de revisión
+
+Para **Propose Reply**, **Include Proposed Reply** y **Append Message**, autoriza una vez la credencial elegida en el workspace. En n8n, ejecuta **Connection → Get Credential Fingerprint** y copia `fingerprint` en la variable **Huella de la credencial Twenty de n8n** (`OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT`) de la app en Twenty. El valor que muestra n8n sirve para reconocer la credencial autorizada. La prueba privada se calcula en el nodo. Si rotas la API key, vuelve a emparejarla. El registro ordinario y la búsqueda de FAQs funcionan con la credencial Twenty sin ese paso.
+
 <a id="revisar-una-respuesta-de-correo-en-twenty"></a>
 
 ## Revisar una respuesta en Twenty
 
-1. Configura `OMNICHANNEL_N8N_ORIGIN` con la URL HTTPS pública que sirve Wait. Usa el mismo secreto aleatorio en `OMNICHANNEL_N8N_PROPOSAL_SECRET` de Twenty y en **Integration Key** de la credencial del nodo. Configura **Header Auth** en Wait con la cabecera `X-Omnichannel-Webhook-Secret` y guarda el valor de esa cabecera en `OMNICHANNEL_N8N_WAIT_SECRET` de Twenty.
+1. Configura `OMNICHANNEL_N8N_ORIGIN` con la URL HTTPS pública que sirve Wait. Autoriza la credencial del nodo con su huella como se indica arriba. Configura **Header Auth** en Wait con la cabecera `X-Omnichannel-Webhook-Secret` y guarda el valor de esa cabecera en `OMNICHANNEL_N8N_WAIT_SECRET` de Twenty.
 2. Guarda el mensaje con **Register Incoming Message** y conserva el `messageId` que devuelve. Cuando el agente genere un borrador que requiere revisión, pásalo a **Propose Reply** junto con ese `messageId`. El campo **Wait URL** toma por defecto `{{ $execution.resumeUrl }}` de la misma ejecución.
 3. Continúa a **Wait → On Webhook Call** si `proposalStatus` es `PENDING`. Configura **POST** y respuesta **Immediately**. Usa un mensaje para revisión por ejecución de Wait. Prueba ejecutando el workflow completo para que la URL corresponda a esa ejecución.
 4. En **Conversaciones**, abre el hilo, edita **Respuesta propuesta** y pulsa **Enviar** o **Descartar**. Al reanudarse, envía por el proveedor solo si `$json.body.confirmed === true`. Usa `$json.body.message` como texto definitivo y `$json.body.proposalMessageId` como clave de deduplicación del envío.
@@ -26,7 +68,7 @@ Cada Canal necesita un `code` único. Define también `channelType`, `provider` 
 
 Si vas a clasificar conversaciones, crea las Categorías en Twenty con `code` y `enabled=true`. Las FAQs también se gestionan desde el workspace. Ninguna de estas configuraciones necesita guardar un token de proveedor en Twenty.
 
-En n8n crea la credencial **Omnichannel Support API** con la URL y API key del workspace. **Propose Reply** y **Append Message** usan también la **Integration Key**. Si configuras HTTP Request, usa la autenticación Bearer del workspace y comprueba la URL externa de la función.
+En la versión 2 del nodo, selecciona tu credencial **Twenty API**. La versión 1 admite la credencial original **Omnichannel Support API** con su **Integration Key**. Si configuras HTTP Request, usa la autenticación Bearer del workspace y comprueba la URL externa de la función.
 
 ```http
 POST https://TU_TWENTY/s/omnichannel/v1/ingest
@@ -34,7 +76,7 @@ Authorization: Bearer TOKEN_DEL_WORKSPACE
 Content-Type: application/json
 ```
 
-La app registra internamente la ruta `/omnichannel/v1/ingest`. Si Twenty publica las funciones en otra URL, indica la base completa de Omnichannel en **Functions Base URL**, por ejemplo `https://functions.example.com/omnichannel/v1`.
+El nodo v2 consulta la configuración pública de Twenty desde la URL de la credencial. Usa el dominio de funciones del workspace cuando Twenty lo anuncia y la ruta `/s/omnichannel/v2/ingest` en instalaciones que sirven las funciones bajo `/s`. El ejemplo HTTP anterior también sirve para los clientes que usan el contrato v1.
 
 ## Subworkflow común
 
@@ -211,7 +253,7 @@ En **Omnichannel → Resumen** los KPIs se consultan por REST, y puedes elegir l
 Documentación relacionada: [API Reference](API_REFERENCE.md), [Arquitectura](ARQUITECTURA.md), [Políticas por canal](POLITICAS_CONVERSACION.md), [Seguridad](SEGURIDAD.md) y [Checklist de pruebas](CHECKLIST_PILOTO.md).
 
 
-## Buscar FAQs aprobadas con un HTTP Request (beta.21)
+## Formato HTTP de la búsqueda de FAQs
 
 No hay que dar de alta bots ni generar claves adicionales. El endpoint acepta la **misma credencial Bearer del workspace** que ya utilizas con Twenty. El campo `scopeTags` delimita qué FAQs consultar, y siempre se suma `GENERAL`.
 

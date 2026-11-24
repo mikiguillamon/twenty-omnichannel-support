@@ -36,7 +36,7 @@ Si el Canal deja el proveedor o la cuenta sin configurar, añade `provider` o `a
 
 El resultado tiene la misma estructura que ingestión, con `201 created` o `200 duplicate`. Si ese identificador de mensaje ya pertenece a otra conversación o dirección, la API devuelve `409 MESSAGE_CASE_CONFLICT`. Si la conversación carece de un Canal compatible, devuelve `409 CASE_CHANNEL_MISSING`. Esta operación registra un mensaje en el historial y actualiza la fecha de última actividad.
 
-**Autenticación de integración.** Las rutas `proposals/create` y `messages/append` requieren el token Bearer del workspace y el secreto `OMNICHANNEL_N8N_PROPOSAL_SECRET` en la cabecera `X-Omnichannel-Proposal-Key`. Las escrituras se hacen con el rol de Omnichannel Support en el workspace.
+**Autenticación de integración.** Las rutas `proposals/create`, `messages/append` y la ingestión con `proposedReply` requieren el token Bearer del workspace y la cabecera `X-Omnichannel-Proposal-Key`. El nodo v2 envía una prueba derivada de la credencial **Twenty API**. Un administrador autoriza esa credencial guardando la salida de **Connection → Get Credential Fingerprint** en `OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT`. Los clientes existentes pueden seguir enviando el secreto `OMNICHANNEL_N8N_PROPOSAL_SECRET`. Las escrituras se hacen con el rol de la aplicación en el workspace.
 
 ## Búsqueda inteligente de FAQs (beta.21)
 
@@ -104,7 +104,11 @@ Confirma la URL real de la función y su resolución de workspace en la instalac
 
 El handler rechaza cuerpos `rawBody` de más de **256.000 bytes** con `413 PAYLOAD_TOO_LARGE`. Sus respuestas incluyen `Cache-Control: no-store`. El límite de ejecución es de 30 segundos.
 
-## POST /omnichannel/v1/ingest
+## Registro de mensajes
+
+Desde la app 1.4.0, `POST /s/omnichannel/v2/ingest` admite las opciones de chat del nodo v2. La ruta v1 sigue disponible con el mismo formato. Usar la ruta v2 permite detectar una instalación anterior antes de registrar el mensaje.
+
+### POST /omnichannel/v1/ingest
 
 La petición acepta un objeto JSON. Puedes enviar datos modernos dentro de `contact`, `message` y `conversation`; se conservan ciertos campos planos por compatibilidad con integraciones anteriores.
 
@@ -117,6 +121,8 @@ La petición acepta un objeto JSON. Puedes enviar datos modernos dentro de `cont
 | `provider` | string, opcional | Identificador del proveedor, convertido a minúsculas, máximo 120 caracteres. Si el Canal declara uno, debe coincidir. |
 | `accountId` | string, opcional | ID de cuenta, buzón o línea, convertido a minúsculas, máximo 300 caracteres. También admite `account`. Si se omite, se utiliza `channel.externalIdentifier`. |
 | `eventType` | enum, opcional | `message.received`, `message.sent`, `message.status`. Se infiere como recibido o enviado a partir de la dirección cuando se omite. |
+| `routingMode` | enum, opcional | `CHAT` mantiene un historial por interlocutor para mensajes de WhatsApp, Instagram y Telegram. Si se omite, se aplica la política de agrupación del canal. |
+| `createPersonFromChat` | boolean, opcional | Con `routingMode: "CHAT"`, activa la creación de una Persona a partir de `contact.firstName` o `contact.lastName` cuando se ha identificado al interlocutor y su conversación. |
 | `contact` | object, opcional | Identidad del interlocutor y vínculo opcional con Persona. |
 | `message` | object, opcional | Mensaje nuevo o notificación de entrega. Hay campos planos equivalentes para compatibilidad. |
 | `conversation` | object, opcional | Cambios a aplicar a la conversación al registrar un mensaje nuevo. No es un endpoint de edición independiente. |
@@ -130,12 +136,14 @@ El ámbito de las claves externas se deriva de `channelType:provider:accountId`.
 | `externalId` o `externalUserId` | string | ID estable del usuario en el proveedor. También se admite `externalUserId` en la raíz. Se normaliza a minúsculas, máximo 300 caracteres. |
 | `email` | string | Dirección de correo validada; se normaliza a minúsculas. Alternativa plana: `customerEmail`. Para email puede derivarse del remitente o destinatario según la dirección. |
 | `phone` | string | Número de origen, máximo 80 caracteres; alternativa `originPhone` en raíz. El endpoint no valida E.164 ni fusiona Personas por teléfono. |
-| `name` | string | Nombre visible, máximo 500 caracteres; alternativa `displayName` en raíz. No se divide automáticamente en nombre y apellidos. |\n| `firstName` | string | Nombre de pila explícito, máximo 255 caracteres. Alternativa plana: `firstName`. |\n| `lastName` | string | Apellidos explícitos, máximo 255 caracteres. Alternativa plana: `lastName`. Se guardan en `people.name.lastName` cuando la Persona se puede identificar de forma segura. |
+| `name` | string | Nombre visible, máximo 500 caracteres. La alternativa plana es `displayName`. |
+| `firstName` | string | Nombre de pila explícito, máximo 255 caracteres. También se admite `firstName` en la raíz. |
+| `lastName` | string | Apellidos explícitos, máximo 255 caracteres. También se admite `lastName` en la raíz. Se guardan en `people.name.lastName`. |
 | `personId` | string | UUID de Persona de Twenty. Solo se usa para vinculación directa cuando `verified: true`. |
 | `verified` | boolean | Señal explícita de comprobación del interlocutor; `true` habilita la búsqueda o vinculación segura de Persona para canales que no son email. |
 | `remoteJid`, `remoteJidAlt` | string | Direcciones de WhatsApp PN y LID. También se admiten en `message` y en raíz; se convierten en alias de identidad cuando son válidas. |
 
-Para `EMAIL`, la app puede encontrar o crear una Persona por correo electrónico. En los demás canales necesita `verified: true` y evidencia suficiente. Una identidad externa puede existir sin Persona. Ante coincidencias múltiples o alias incompatibles, la vinculación pasa a revisión.
+Para `EMAIL`, la app puede encontrar o crear una Persona por correo electrónico. En otros canales, la búsqueda por correo o la vinculación por `personId` requieren `contact.verified: true`. Con `createPersonFromChat: true` y una identidad de proveedor inequívoca, la app también puede crear una Persona sin correo y vincularla al chat. El UUID deriva de la identidad externa para que los reintentos reutilicen la misma Persona. Se conservan las vinculaciones existentes y los nombres editados en el CRM. Los alias incompatibles pasan a revisión.
 
 ### Mensaje (`message`)
 
@@ -305,6 +313,14 @@ Para añadir una respuesta al mismo hilo, mantén `threadId: "thread-120"` y usa
 En un Canal `THREAD`, el segundo mensaje puede compartir conversación con el primero si supera las comprobaciones de titularidad. El estado cambia al procesar el mensaje **nuevo**. Reenviar `msg-002` devuelve `duplicate` y no vuelve a sobrescribir el estado.
 
 ### Agrupación automática de chats por canal
+
+Con `routingMode: "CHAT"`, los mensajes entrantes y salientes de una identidad externa comparten conversación dentro del mismo canal, proveedor y cuenta. El historial continúa después de la ventana de actividad e incluso con la conversación cerrada. El estado se conserva salvo que el mensaje incluya `conversation.status`. Las referencias explícitas `message.caseId`, `replyToExternalId`, `issueKey` y `threadId` tienen prioridad para dirigir el mensaje a un asunto concreto.
+
+Envía el identificador del interlocutor en `contact.externalId` o los JID de WhatsApp en `remoteJid` y `remoteJidAlt`. Si el proveedor identifica al destinatario mediante su número de WhatsApp, puedes enviar el PN JID como `contact.externalId`. Un correo o teléfono de ficha sin verificar deja el chat pendiente de identificación.
+
+Si ya existe un único historial compatible con la misma identidad y ámbito, `CHAT` lo continúa y conserva su clave anterior. Esto incluye las conversaciones por mensaje, los avisos `standalone-auto:` y la clave histórica `wa-chat:<JID>` cuando el JID corresponde al interlocutor. Los asuntos con otra clave y los hilos explícitos mantienen sus conversaciones. Cuando varias conversaciones históricas son elegibles o la consulta alcanza el límite de 60 registros, el nuevo mensaje se registra para revisión. Una vez creada una conversación con clave `CHAT`, los mensajes directos posteriores la localizan por esa clave.
+
+En `CHAT`, la API comprueba los campos de catálogo y el ID verificado de Persona antes de reservar el mensaje. Puedes corregir esos campos y reenviar el mismo ID tras un error de validación. Si se interrumpe una ejecución después de la reserva, el registro puede quedar temporalmente pendiente de vinculación. Reenvía el mismo ID con los mismos datos de contacto, contenido, referencias y cambios de conversación. La API recupera la fecha de mensaje original. Una petición incompatible con un registro pendiente devuelve `409 MESSAGE_CONFLICT`. Los identificadores negativos de grupos y canales de Telegram se rechazan con `UNSUPPORTED_GROUP`.
 
 Con `groupingMode=HYBRID` o `SESSION`, la API busca automáticamente una única conversación reciente y compatible del interlocutor en el mismo canal. Para ello usa la identidad externa (PN JID/LID en WhatsApp), la Persona verificada y, cuando procede, correo **verificado junto al mismo teléfono** para recuperar conversaciones antiguas sin vínculo. No mezcla conversaciones de identidades incompatibles.
 

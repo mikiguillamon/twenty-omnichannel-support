@@ -2,20 +2,39 @@
 
 Community node for the Omnichannel Support app in Twenty CRM. It records conversations in Twenty and passes decisions back to an n8n Wait node. Use your provider's node to deliver the approved reply.
 
-| Operation | Main inputs |
+## Connect your workspace
+
+Install Omnichannel Support **1.4.0** on Twenty 2.50. Install the community package `@blackswampai/n8n-nodes-twentycrm` in n8n to provide the **Twenty API** credential type. Select your existing credential in **Omnichannel Support**. The node uses its workspace URL for REST and discovers the function endpoint from Twenty. The credential needs read access to channels and metadata for the selectors and the relevant record permissions for each record operation.
+
+Version 0.2.0 installs node v2 for new workflows and keeps v1 available in existing workflows. To switch an existing step, add a new Omnichannel Support step, select **Twenty API**, and map the inputs before replacing the old step.
+
+## Record a WhatsApp message
+
+Choose **Message → Register Incoming Message**, select the channel, and map the provider's contact identifier, message ID and text. For example, for one WhatsApp Cloud text message object:
+
+| Field | Expression |
 | --- | --- |
-| Register Incoming Message | Channel code, channel type and a provider message ID or stable idempotency key |
-| Propose Reply | Twenty message ID, proposed text and the current execution's Wait URL |
-| Append Message | Twenty conversation ID, new provider message ID or stable idempotency key, and message text |
-| Update Delivery Status | Channel code, provider message ID and delivery status |
+| Contact or Chat ID | `{{ $json.from }}` |
+| Message Identifier | `{{ $json.id }}` |
+| Message Text | `{{ $json.text.body }}` |
 
-## Credentials
+The channel identifies the account. Later messages from the same direct chat reuse its conversation across days. New incoming chat messages set the status to **In progress**. Add **Message Fields → Occurred At** to use the provider timestamp for activity. Add **Contact Fields → First Name / Last Name** to create a named Person for a new chat identity. With Baileys, provide the observed alternate JID when available.
 
-Install Omnichannel Support 1.3.0 or later in the target Twenty workspace. Configure **Omnichannel Support API** with the workspace HTTPS URL and its Twenty API key. For **Propose Reply** and **Append Message**, set **Integration Key** to the app's `OMNICHANNEL_N8N_PROPOSAL_SECRET`.
+## Operations
 
-If Twenty publishes functions on a separate domain, set **Functions Base URL** to the full Omnichannel API base shown there, for example `https://functions.example.com/omnichannel/v1`. Leave it empty to use `/s/omnichannel/v1` on the workspace URL.
+| Resource | Actions |
+| --- | --- |
+| Message | Register incoming or outgoing messages, update delivery, append by Twenty conversation ID, or propose a reply for review. For email, add **Routing Fields → Thread ID** from Gmail or Outlook. |
+| FAQ | Search published FAQs by question, scope and language. Get, list, create, update or delete FAQ records. |
+| Case, Case Type, Category, Channel, Conversation View, Dashboard, Evaluation, External Identity, Identity Alias, Setting | Get, list, create, update or delete records with the selected credential's Twenty permissions. Choose workspace fields in the mapper. |
+| Message Record | Get, list or update ordinary message details. The approval action belongs to the reviewer in Twenty. |
+| Connection | Get the credential fingerprint used to enable protected operations. |
 
-The integration guide covers Wait and the approved-text mapping. The API reference describes IDs, retries and error codes. [Integration guide](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/INTEGRACION_N8N.md) · [API reference](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/API_REFERENCE.md).
+**Conversation Fields** offers workspace status, tags, category, type and follow-up choices. **Additional Custom Tags** accepts new labels. **Get Many → Filter by Field** loads workspace status and tag choices. You can combine filters, set a limit or return all pages.
+
+For **Propose Reply**, **Include Proposed Reply** and **Append Message**, run **Connection → Get Credential Fingerprint** once and copy the result into the Twenty app setting `OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT`. The node computes the integration proof privately from **Twenty API**. Pair the credential again after rotating its API key. Existing v1 workflows can continue to use the legacy Integration Key.
+
+A proposed reply resumes an n8n **Wait** on **POST** after human review. Send the final text through the provider only when `{{ $json.body.confirmed === true }}`. The [Spanish integration guide](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/INTEGRACION_N8N.md) includes the full workflow, examples for each channel and the required Wait settings.
 
 ## Build and test
 
@@ -28,19 +47,7 @@ npm test
 npm pack
 ```
 
-Run `npm run dev` to try the node locally with the n8n CLI. To test a packed build on self-hosted n8n, make the tarball available to the n8n process, install it with `npm install /path/to/n8n-nodes-omnichannel-support-0.1.0.tgz` in the instance's `~/.n8n/nodes` directory, then restart the instance. In queue mode, install the same build wherever workflows execute. [Manual installation in n8n](https://docs.n8n.io/integrations/community-nodes/installation-and-management/manual-installation/).
-
-## First npm release
-
-The npm account that will own the package publishes the first version. Download and unzip the `n8n-nodes-omnichannel-support` artifact from a successful **Verify Omnichannel n8n node** run on `main`, or use the tarball from `npm pack`. [Builds on GitHub Actions](https://github.com/mikiguillamon/twenty-omnichannel-support/actions/workflows/n8n-node.yml)
-
-```sh
-npm login --registry=https://registry.npmjs.org
-npm publish ./n8n-nodes-omnichannel-support-0.1.0.tgz --registry=https://registry.npmjs.org --access public --tag latest --provenance=false
-npm view n8n-nodes-omnichannel-support dist-tags --json
-```
-
-Complete npm's two-factor prompt if requested. The command publishes the tested archive directly and should report `latest: 0.1.0` on verification. [Publishing a public package on npm](https://docs.npmjs.com/creating-and-publishing-unscoped-public-packages/)
+Run `npm run dev` to try the node locally. The n8n and Twenty packages have independent versions. [Source and releases](https://github.com/mikiguillamon/twenty-omnichannel-support).
 
 ## Install from n8n
 

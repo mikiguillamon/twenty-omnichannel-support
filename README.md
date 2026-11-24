@@ -20,7 +20,7 @@ WhatsApp integrations can associate number-based JIDs and LIDs with the same cus
 
 ## How it connects
 
-The app stores cases, messages, FAQs and channel settings in Twenty. To receive or send messages, connect your provider through **n8n**. Register incoming messages, propose replies, append messages to an existing conversation and record delivery status. [Community node](https://github.com/mikiguillamon/twenty-omnichannel-support/tree/main/integrations/n8n-nodes-omnichannel-support) · [Workspace API](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/API_REFERENCE.md)
+The app stores cases, messages, FAQs and channel settings in Twenty. To receive or send messages, connect your provider through **n8n**. Select your existing Twenty API credential to register incoming and outgoing messages, keep a direct chat together across days, create a named contact, search FAQs, review proposed replies and update workspace records. [Community node](https://github.com/mikiguillamon/twenty-omnichannel-support/tree/main/integrations/n8n-nodes-omnichannel-support) · [Workspace API](https://github.com/mikiguillamon/twenty-omnichannel-support/blob/main/docs/API_REFERENCE.md)
 
 Omnichannel Support does not include a messaging gateway or an AI service. If you use a bot or a classifier, you configure it in your automation tool.
 

@@ -10,7 +10,8 @@ export default defineLogicFunction({
   name: 'omnichannel-proposal-create',
   timeoutSeconds: 30,
   handler: request => integrationResponse(request, async () => {
-    requireProposalKey(process.env.OMNICHANNEL_N8N_PROPOSAL_SECRET, request.headers[proposalKeyHeader]);
+    requireProposalKey(process.env.OMNICHANNEL_N8N_PROPOSAL_SECRET, request.headers[proposalKeyHeader],
+      process.env.OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT);
     return proposeReply(request.body, new TwentyRestIngestionStore(), kv, process.env.OMNICHANNEL_N8N_ORIGIN);
   }, 'PROPOSAL_CREATION_FAILED'),
   httpRouteTriggerSettings: {

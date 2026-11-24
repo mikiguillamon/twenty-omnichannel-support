@@ -19,6 +19,12 @@ export default defineApplication({
       description: 'Valor opcional de la cabecera X-Omnichannel-Webhook-Secret configurada en Wait.',
       isSecret: true,
     },
+    OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT: {
+      universalIdentifier: IDS.N8N_CREDENTIAL_FINGERPRINT_VAR,
+      label: 'Huella de la credencial Twenty de n8n',
+      description: 'Copia la huella de Connection → Get Credential Fingerprint del nodo Omnichannel para autorizar propuestas y mensajes por ID.',
+      value: '',
+    },
     OMNICHANNEL_N8N_PROPOSAL_SECRET: {
       universalIdentifier: IDS.N8N_PROPOSAL_SECRET_VAR,
       label: 'Clave de integración de n8n',

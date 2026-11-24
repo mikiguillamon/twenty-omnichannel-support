@@ -33,11 +33,12 @@ class MemoryStore {
   }
   async get(type, id) { return this.rowsFor(type).find(row => row.id === id) ?? null; }
   async create(type, data) {
-    if (data.externalKey && this.rowsFor(type).some(r => r.externalKey === data.externalKey)) {
+    if (this.rowsFor(type).some(r => (data.externalKey && r.externalKey === data.externalKey) ||
+      (data.id && r.id === data.id))) {
       throw Object.assign(new Error('unique index conflict'), { status: 409 });
     }
     this.id++;
-    const row = { ...data, id: 'new-' + this.id };
+    const row = { ...data, id: data.id ?? 'new-' + this.id };
     this.rows.set(type, [...this.rowsFor(type), row]);
     this.writes.push(['create', type, row]);
     return row;
@@ -49,12 +50,22 @@ class MemoryStore {
     this.writes.push(['update', type, r]);
     return r;
   }
-  async advanceCaseActivity(caseId, occurredAt) {
+  async advanceCaseActivity(caseId, occurredAt, recoveredChanges) {
     const row = this.rowsFor('supportCases').find(record => record.id === caseId);
-    if (row && (!row.lastMessageAt || Date.parse(row.lastMessageAt) < Date.parse(occurredAt))) {
+    if (row && (!row.lastMessageAt || Date.parse(row.lastMessageAt) < Date.parse(occurredAt) ||
+        (recoveredChanges && row.lastMessageAt === occurredAt))) {
+      Object.assign(row, recoveredChanges);
       row.lastMessageAt = occurredAt;
       this.writes.push(['update', 'supportCases', row]);
     }
+  }
+  async linkPersonIfMissing(resource, id, personId) {
+    const record = this.rowsFor(resource).find(row => row.id === id);
+    if (record && !record.personId) record.personId = personId;
+  }
+  async linkMessageIfMissing(id, caseId) {
+    const message = this.rowsFor('supportMessages').find(row => row.id === id);
+    if (message && !message.supportCaseId) message.supportCaseId = caseId;
   }
 }
 
@@ -340,8 +351,7 @@ test('append uses the case channel and reuses provider delivery tracking without
   assert.equal(supportCase.lastMessageAt, '2026-11-17T12:00:00.000Z');
   assert.equal((await ingestion.appendMessage(input, store)).status, 'duplicate');
   const secondCaseId = 'cd0b72dc-0241-4c13-af3a-ca0e7803c194';
-  const secondCase = await store.create('supportCases', { ...supportCase, externalKey: 'other-case' });
-  secondCase.id = secondCaseId;
+  await store.create('supportCases', { ...supportCase, id: secondCaseId, externalKey: 'other-case' });
   await assert.rejects(ingestion.appendMessage({ ...input, caseId: secondCaseId }, store), { code: 'MESSAGE_CASE_CONFLICT' });
   await assert.rejects(ingestion.appendMessage({ caseId, message: { body: 'Sin ID' } }, store), { code: 'MISSING_MESSAGE_ID' });
   const delivered = await ingest(whatsapp({ eventType: 'message.status', messageId: 'sent-1', deliveryStatus: 'DELIVERED' }), store);
@@ -840,6 +850,372 @@ test('a malformed or unverified phone is not used as a WhatsApp identity', () =>
     contact:{phone:'600 111 222'},message:{externalId:'x',body:'Hola'}};
   const event = normalizeEvent(raw);
   assert.equal(event.externalUserId,'');
+});
+
+const personA = 'f00652fc-1ae5-47b2-82be-3d6cac124db1';
+const personB = 'c660b579-6847-448d-8cc5-578a925c71cf';
+const directChat = (messageId, extra = {}) => whatsapp({ routingMode: 'CHAT', messageId, ...extra });
+
+test('CHAT converges on one WhatsApp history for concurrent inbound/outbound and PN/LID aliases', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rowsFor('supportChannels')[0].groupingMode = 'MESSAGE';
+  const [sent, received] = await Promise.all([
+    ingest(directChat('outgoing', {
+      eventType: 'message.sent', externalUserId: undefined,
+      remoteJid: '34600111222@s.whatsapp.net', remoteJidAlt: '2323232323@lid',
+    }), store),
+    ingest(directChat('incoming', { externalUserId: undefined, occurredAt: '2027-01-01T12:00:00Z' }), store),
+  ]);
+  assert.equal(sent.reviewRequired, false);
+  assert.equal(received.reviewRequired, false);
+  assert.equal(sent.caseId, received.caseId);
+  assert.equal(sent.identityId, received.identityId);
+  const [history] = store.rowsFor('supportCases');
+  assert.equal(history.lastMessageAt, '2027-01-01T12:00:00.000Z');
+  history.status = 'CLOSED';
+  const lidOnly = directChat('after-close', {
+    externalUserId: '2323232323@lid', remoteJid: '', remoteJidAlt: '', occurredAt: '2027-06-01T00:00:00Z',
+  });
+  assert.equal((await ingest(lidOnly, store)).caseId, sent.caseId);
+  assert.equal(history.status, 'CLOSED');
+  assert.equal((await ingest(lidOnly, store)).reviewRequired, false);
+  assert.equal(store.rowsFor('supportMessages').length, 3);
+  assert.equal(store.rowsFor('supportCases').length, 1);
+});
+
+test('CHAT keeps Telegram and Instagram direct histories across closed cases and account changes', async () => {
+  for (const channelType of ['TELEGRAM', 'INSTAGRAM']) {
+    const store = new MemoryStore(channelType);
+    store.rowsFor('supportChannels')[0].externalIdentifier = '';
+    const event = (id, accountId, user) => normalizeEvent({ channelCode: 'wa-test', channelType,
+      accountId, routingMode: 'CHAT', messageId: id, contact: { externalId: user } });
+    const first = await ingest(event('message-1', 'account-a', 'customer'), store);
+    store.rowsFor('supportCases')[0].status = 'CLOSED';
+    assert.equal((await ingest(event('message-2', 'account-a', 'customer'), store)).caseId, first.caseId);
+    assert.notEqual((await ingest(event('message-1', 'account-b', 'customer'), store)).caseId, first.caseId);
+    assert.notEqual((await ingest(event('message-3', 'account-a', 'someone-else'), store)).caseId, first.caseId);
+  }
+});
+
+test('CHAT adopts a single scoped legacy case, including the historical wa-chat issue key', async () => {
+  for (const issueKey of ['', 'standalone-auto:old', 'wa-chat:34600111222@s.whatsapp.net']) {
+    const store = new MemoryStore('WHATSAPP');
+    const old = await ingest(chatEvent('old', { issueKey, status: 'CLOSED' }), store);
+    // The old integration sent only the PN as externalId. Now the LID arrives with that PN as its alternate.
+    const next = await ingest(directChat('new', { externalUserId: undefined, occurredAt: '2027-06-01T00:00:00Z' }), store);
+    assert.equal(next.reviewRequired, false);
+    assert.equal(next.caseId, old.caseId, issueKey);
+    assert.equal(next.identityId, old.identityId);
+    if (issueKey) {
+      assert.equal((await ingest(chatEvent('old-node', { issueKey }), store)).caseId, old.caseId);
+    }
+  }
+});
+
+test('CHAT preserves explicit topic, thread and reply routing and excludes them from automatic history', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const named = await ingest(directChat('topic', { issueKey: 'order-123' }), store);
+  const wrongJid = await ingest(directChat('other-topic', { issueKey: 'wa-chat:90000999@lid' }), store);
+  const thread = await ingest(directChat('thread', { threadId: 'thread-123' }), store);
+  assert.notEqual(thread.caseId, named.caseId);
+  assert.equal((await ingest(directChat('same-thread', { threadId: 'thread-123' }), store)).caseId, thread.caseId);
+  const normal = await ingest(directChat('direct'), store);
+  assert.equal(normal.reviewRequired, false);
+  for (const explicit of [named, wrongJid, thread]) assert.notEqual(explicit.caseId, normal.caseId);
+  assert.equal((await ingest(directChat('reply', { replyToMessageId: 'topic' }), store)).caseId, named.caseId);
+  assert.equal((await ingest(directChat('ref', { caseId: named.caseId }), store)).caseId, named.caseId);
+});
+
+test('CHAT sends ambiguous scoped legacy histories to review even when the channel prefers NEW', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  Object.assign(store.rowsFor('supportChannels')[0], { groupingMode: 'MESSAGE', ambiguousAction: 'NEW' });
+  const first = await ingest(whatsapp({ messageId: 'legacy-a' }), store);
+  const second = await ingest(whatsapp({ messageId: 'legacy-b' }), store);
+  const incoming = directChat('unassigned');
+  const result = await ingest(incoming, store);
+  assert.equal(result.reviewRequired, true);
+  assert(![first.caseId, second.caseId].includes(result.caseId));
+  assert.equal((await store.get('supportCases', result.caseId)).status, 'HUMAN_REQUIRED');
+  assert.equal((await ingest(incoming, store)).reviewRequired, true);
+});
+
+test('CHAT ignores unverified contact email and phone alone when identifying a WhatsApp chat', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const known = await ingest(directChat('known'), store);
+  const other = await ingest(directChat('anonymous', {
+    externalUserId: undefined, remoteJid: '', remoteJidAlt: '',
+    contact: { phone: '+34600111222', email: 'customer@example.com' },
+  }), store);
+  assert.equal(other.reviewRequired, true);
+  assert.equal(other.identityId, null);
+  assert.notEqual(other.caseId, known.caseId);
+});
+
+test('CHAT rejects delivery key collisions across identities or channels, including concurrent messages', async () => {
+  const otherPerson = { externalUserId: '777@lid', remoteJid: '777@lid', remoteJidAlt: '' };
+  const store = new MemoryStore('WHATSAPP');
+  const attempts = await Promise.allSettled([
+    ingest(directChat('collision'), store), ingest(directChat('collision', otherPerson), store),
+  ]);
+  assert.equal(attempts.filter(attempt => attempt.status === 'rejected' && attempt.reason.code === 'MESSAGE_CONFLICT').length, 1);
+  const winningCase = await store.get('supportCases', store.rowsFor('supportMessages')[0].supportCaseId);
+  const identity = await store.get('supportExternalIdentities', winningCase.externalIdentityId);
+  const loser = identity.externalUserId === '777@lid' ? {} : otherPerson;
+  await assert.rejects(ingest(directChat('collision', loser), store), { code: 'MESSAGE_CONFLICT' });
+  store.rowsFor('supportChannels').push({ ...store.rowsFor('supportChannels')[0], id: 'channel-2', code: 'other' });
+  await assert.rejects(ingest(directChat('collision', { channelCode: 'other' }), store), { code: 'MESSAGE_CONFLICT' });
+});
+
+test('concurrent CHAT ID collisions leave the losing existing case and its last activity intact', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const other = { externalUserId: '777@lid', remoteJid: '777@lid', remoteJidAlt: '' };
+  const histories = [await ingest(directChat('initial-a'), store), await ingest(directChat('initial-b', other), store)];
+  const update = { occurredAt: '2027-01-01T00:00:00Z', conversation: { status: 'CLOSED', comments: 'update' } };
+  const attempts = await Promise.allSettled([ingest(directChat('collide', update), store),
+    ingest(directChat('collide', { ...other, ...update }), store)]);
+  const loserIndex = attempts.findIndex(attempt => attempt.status === 'rejected');
+  assert.notEqual(loserIndex, -1);
+  assert.equal(attempts[loserIndex].reason.code, 'MESSAGE_CONFLICT');
+  const losingCase = await store.get('supportCases', histories[loserIndex].caseId);
+  assert.equal(losingCase.status, 'NEW');
+  assert.equal(losingCase.comments, undefined);
+  assert.equal(losingCase.lastMessageAt, '2026-11-16T12:00:00.000Z');
+});
+
+test('CHAT retries an interrupted case update and finishes the original stored message', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const initial = await ingest(directChat('first'), store);
+  const update = store.update.bind(store);
+  store.update = async (resource, id, data) => {
+    if (resource === 'supportCases') throw Error('interrupted case update');
+    return update(resource, id, data);
+  };
+  const event = directChat('update', { conversation: { status: 'CLOSED' } });
+  await assert.rejects(ingest(event, store), /interrupted case update/);
+  const stored = store.rowsFor('supportMessages').find(row => row.providerMessageId === 'update');
+  assert.ok(stored);
+  store.update = update;
+  const complete = await ingest(event, store);
+  assert.equal(complete.messageId, stored.id);
+  assert.equal(stored.supportCaseId, initial.caseId);
+  assert.equal((await store.get('supportCases', initial.caseId)).status, 'CLOSED');
+});
+
+test('simultaneous verified CHAT contacts never replace an existing Person link for an identity', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people', [{ id: personA }, { id: personB }]);
+  const events = [personA, personB].map(id => directChat('msg-' + id, { contact: { personId: id, verified: true } }));
+  const results = await Promise.all(events.map(event => ingest(event, store)));
+  assert.equal(results.filter(value => value.reviewRequired).length, 1);
+  const accepted = results.find(value => !value.reviewRequired);
+  assert.equal((await store.get('supportExternalIdentities', accepted.identityId)).personId, accepted.personId);
+  assert.equal((await store.get('supportCases', accepted.caseId)).personId, accepted.personId);
+});
+
+test('a pending CHAT message rejects changed routing and preserves newer metadata when finishing its original case link', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const base = await ingest(directChat('original'), store);
+  const linkMessage = store.linkMessageIfMissing.bind(store);
+  store.linkMessageIfMissing = async () => { throw Error('link failed'); };
+  const older = directChat('pending', { conversation: { status: 'IN_PROGRESS' }, occurredAt: '2027-01-01T12:00:00Z' });
+  await assert.rejects(ingest(older, store), /link failed/);
+  store.linkMessageIfMissing = linkMessage;
+  await assert.rejects(ingest(directChat('pending', { issueKey: 'other-case' }), store), { code: 'MESSAGE_CONFLICT' });
+  await ingest(directChat('newer', { occurredAt: '2027-01-02T12:00:00Z', conversation: { status: 'CLOSED' } }), store);
+  assert.equal((await ingest(older, store)).caseId, base.caseId);
+  assert.equal((await store.get('supportCases', base.caseId)).status, 'CLOSED');
+});
+
+test('a completed CHAT replay with a conflicting verified Person is flagged before it can repair or enrich a case', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people', [{ id: personA }, { id: personB }]);
+  const contact = personId => ({ verified: true, personId });
+  const first = await ingest(directChat('person', { contact: contact(personA) }), store);
+  const replay = await ingest(directChat('person', { contact: contact(personB) }), store);
+  assert.equal(replay.reviewRequired, true);
+  assert.equal((await store.get('supportCases', first.caseId)).personId, personA);
+  const history = await store.get('supportCases', first.caseId);
+  delete history.personId;
+  assert.equal((await ingest(directChat('person', { contact: contact(personB) }), store)).reviewRequired, true);
+  assert.equal(history.personId, undefined);
+});
+
+test('CHAT rejects unsupported routing modes and channel types', async () => {
+  assert.throws(() => whatsapp({ routingMode: 'CHTA' }), { code: 'INVALID_ROUTING_MODE' });
+  await assert.rejects(ingest(email({ routingMode: 'CHAT' }), new MemoryStore()), { code: 'INVALID_ROUTING_MODE' });
+  const group = normalizeEvent({ channelCode: 'wa-test', routingMode: 'CHAT', contact: { externalId: '-10012345' } });
+  await assert.rejects(ingest(group, new MemoryStore('TELEGRAM')), { code: 'UNSUPPORTED_GROUP' });
+});
+
+test('correctable CHAT catalog and verified Person errors leave the provider message ID available', async () => {
+  const missing = 'd96bd6c7-5135-45ec-8a88-e19e9223e7fd';
+  for (const [fields, code] of [
+    [{ conversation: { categoryId: missing } }, 'UNKNOWN_CATEGORY'],
+    [{ conversation: { typeId: missing } }, 'UNKNOWN_TYPE'],
+    [{ conversation: { categoryCode: 'RETIRED' } }, 'UNKNOWN_CATEGORY'],
+    [{ contact: { personId: missing, verified: true } }, 'UNKNOWN_PERSON'],
+    [{ contact: { personId: 'mistyped', verified: true } }, 'INVALID_PERSON'],
+  ]) {
+    const store = new MemoryStore('WHATSAPP');
+    store.rows.set('supportCategories', [{ id: 'disabled', code: 'RETIRED', enabled: false }]);
+    await assert.rejects(ingest(directChat('correct-me', fields), store), { code });
+    assert.equal(store.rowsFor('supportMessages').length, 0);
+    assert.equal(store.rowsFor('supportExternalIdentities').length, 0);
+    const fixed = await ingest(directChat('correct-me', { conversation: { categoryCode: 'ACTIVE' } }), store);
+    assert.equal(fixed.status, 'created');
+    assert.equal(store.rowsFor('supportMessages').length, 1);
+  }
+});
+
+test('CHAT checks conflicting alias evidence on both new messages and retries', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(directChat('pn'), store);
+  const bad = { externalUserId: '990000@s.whatsapp.net' };
+  const review = await ingest(directChat('new', bad), store);
+  assert.equal(review.reviewRequired, true);
+  assert.notEqual(review.caseId, first.caseId);
+  await assert.rejects(ingest(directChat('pn', bad), store), { code: 'MESSAGE_CONFLICT' });
+});
+
+test('CHAT retries a per-message review after a partial write with a verified Person and no provider ID', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people', [{ id: personA, emails: { primaryEmail: 'client@example.com' } }]);
+  const event = directChat('needs-review', { externalUserId: '', remoteJid: '', remoteJidAlt: '',
+    contact: { personId: personA, verified: true } });
+  const create = store.create.bind(store);
+  store.create = async (type, data) => {
+    if (type === 'supportMessages') throw Error('temporary write failure');
+    return create(type, data);
+  };
+  await assert.rejects(ingest(event, store), /temporary write failure/);
+  store.create = create;
+  const recovered = await ingest(event, store);
+  assert.equal(recovered.reviewRequired, true);
+  assert.equal(store.rowsFor('supportCases').length, 1);
+  assert.equal(store.rowsFor('supportMessages').length, 1);
+});
+
+test('CHAT honors the provider and account of explicit references and append to a canonical chat', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const first = await ingest(directChat('scoped'), store);
+  const row = await store.get('supportCases', first.caseId);
+  const otherScope = 'WHATSAPP:other-provider:wa-1';
+  assert.match(row.externalKey, /^WHATSAPP:evolution:wa-1:CHAT:/);
+  row.id = '01234567-0000-0000-0000-abcdefabcdef';
+  store.rowsFor('supportChannels')[0].provider = '';
+  await assert.rejects(ingestion.appendMessage({ caseId: row.id, provider: 'other-provider',
+    message: { externalId: 'other-scope' } }, store), { code: 'CASE_SCOPE_MISMATCH' });
+  row.externalKey = otherScope + ':CASE-MESSAGE:historical';
+  const explicit = await ingest(directChat('wrong-history', { caseId: row.id }), store);
+  assert.equal(explicit.reviewRequired, true);
+  assert.notEqual(explicit.caseId, row.id);
+});
+
+const namedChat = (id, contact = {}, extra = {}) => directChat(id, { createPersonFromChat: true,
+  contact: { firstName: 'Anna Maria', lastName: 'Soler Puig', ...contact }, ...extra });
+
+test('named CHAT creates one native Person per provider identity across simultaneous messages and aliases', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people', [{ id: 'unrelated', name: { firstName: 'Anna Maria', lastName: 'Soler Puig' },
+    emails: { primaryEmail: 'unconfirmed@example.com' } }]);
+  const [a, b] = await Promise.all([
+    ingest(namedChat('first', { email: 'unconfirmed@example.com' }), store),
+    ingest(namedChat('second', {}, { externalUserId: '2323232323@lid' }), store),
+  ]);
+  assert.match(a.personId ?? '', /^[\da-f]{8}-[\da-f]{4}-5[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
+  assert.equal(a.personId, b.personId);
+  assert.equal(store.rowsFor('people').length, 2);
+  const person = await store.get('people', a.personId);
+  assert.deepEqual(person.name, { firstName: 'Anna Maria', lastName: 'Soler Puig' });
+  assert.equal(person.emails, undefined);
+  assert.equal((await store.get('supportExternalIdentities', a.identityId)).personId, a.personId);
+  assert.equal((await store.get('supportCases', a.caseId)).personId, a.personId);
+  assert.equal((await ingest(namedChat('first', { email: 'unconfirmed@example.com' }), store)).personId, a.personId);
+});
+
+test('named CHAT can link a previously stored message on replay without replacing curated names', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const original = await ingest(directChat('existing'), store);
+  assert.equal(original.personId, null);
+  const updated = await ingest(namedChat('existing'), store);
+  assert.equal(updated.status, 'duplicate');
+  assert.ok(updated.personId);
+  assert.equal(updated.caseId, original.caseId);
+  const person = await store.get('people', updated.personId);
+  person.name = { firstName: 'Curated', lastName: 'CRM surname' };
+  assert.equal((await ingest(namedChat('later'), store)).personId, updated.personId);
+  assert.deepEqual(person.name, { firstName: 'Curated', lastName: 'CRM surname' });
+});
+
+test('named CHAT reuses the Person created before a failed identity link', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const link = store.linkPersonIfMissing.bind(store);
+  store.linkPersonIfMissing = async () => { throw Error('write interrupted'); };
+  const event = namedChat('partial');
+  await assert.rejects(ingest(event, store), /write interrupted/);
+  const [saved] = store.rowsFor('people');
+  assert.ok(saved);
+  store.linkPersonIfMissing = link;
+  assert.equal((await ingest(event, store)).personId, saved.id);
+  assert.equal(store.rowsFor('people').length, 1);
+});
+
+test('named CHAT stores a verified new email on the same deterministic Person across concurrent requests', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const contact = { email: 'verified@example.com', verified: true };
+  const [a, b] = await Promise.all([ingest(namedChat('one', contact), store), ingest(namedChat('two', contact), store)]);
+  assert.match(a.personId, /^[\da-f]{8}-[\da-f]{4}-5/);
+  assert.equal(a.personId, b.personId);
+  assert.equal(store.rowsFor('people').length, 1);
+  assert.equal((await store.get('people', a.personId)).emails.primaryEmail, contact.email);
+});
+
+test('named CHAT waits for a clear routing decision before creating a Person for a new verified email', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rowsFor('supportChannels')[0].groupingMode = 'MESSAGE';
+  await ingest(whatsapp({ messageId: 'old1' }), store);
+  await ingest(whatsapp({ messageId: 'old2' }), store);
+  const review = await ingest(namedChat('ambiguous', { email: 'verified@example.com', verified: true }), store);
+  assert.equal(review.reviewRequired, true);
+  assert.equal(store.rowsFor('people').length, 0);
+});
+
+test('named CHAT respects existing verified IDs, email matches, and a concurrently curated identity link', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  store.rows.set('people', [{ id: personA, emails: { primaryEmail: 'known@example.com' },
+    name: { firstName: 'Chosen', lastName: 'Surname' } }]);
+  const link = store.linkPersonIfMissing.bind(store);
+  store.linkPersonIfMissing = async (resource, id, personId) => {
+    if (resource === 'supportExternalIdentities') (await store.get(resource, id)).personId = personA;
+    await link(resource, id, personId);
+  };
+  assert.equal((await ingest(namedChat('race'), store)).personId, personA);
+  assert.equal((await ingest(namedChat('verified', { verified: true, email: 'known@example.com' }), store)).personId, personA);
+  assert.equal((await ingest(namedChat('verified-id', { verified: true, personId: personA }), store)).personId, personA);
+  assert.deepEqual(store.rowsFor('people')[0].name, { firstName: 'Chosen', lastName: 'Surname' });
+});
+
+test('named CHAT requires opt-in, structured names and unambiguous provider identity', async () => {
+  assert.throws(() => whatsapp({ createPersonFromChat: true }), { code: 'INVALID_CHAT_PERSON' });
+  assert.throws(() => directChat('flag', { createPersonFromChat: 'true' }), { code: 'INVALID_CHAT_PERSON' });
+  const store = new MemoryStore('WHATSAPP');
+  await ingest(directChat('no-opt-in', { contact: { firstName: 'Anna' } }), store);
+  await ingest(namedChat('nameless', { firstName: '', lastName: '', name: 'Display name' }), store);
+  await ingest(namedChat('no-provider', {}, { externalUserId: '', remoteJid: '', remoteJidAlt: '' }), store);
+  await ingest(namedChat('conflict', {}, { externalUserId: '777@s.whatsapp.net' }), store);
+  assert.equal(store.rowsFor('people').length, 0);
+});
+
+test('the Twenty REST chat Person link only writes when the same record still has a null personId', async () => {
+  const calls = [];
+  const store = new TwentyRestIngestionStore({ async patch(...args) { calls.push(args); } });
+  const id = '7bea301b-7409-4214-912e-a3e949ebd614';
+  const personId = '45461215-05ac-598e-b6cd-d9975c829a05';
+  for (const resource of ['supportExternalIdentities', 'supportCases']) {
+    await store.linkPersonIfMissing(resource, id, personId);
+    assert.deepEqual(calls.at(-1), ['/rest/' + resource, { personId },
+      { query: { filter: 'and(id[eq]:"' + id + '",personId[is]:NULL)' } }]);
+  }
 });
 
 

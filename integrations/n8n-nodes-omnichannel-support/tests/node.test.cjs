@@ -27,7 +27,7 @@ function fixture(
 			},
 		},
 	};
-	return { requests, execute: () => new OmnichannelSupport().execute.call(context) };
+	return { requests, execute: () => new OmnichannelSupport().getNodeType(1).execute.call(context) };
 }
 
 test('registers an incoming message and preserves the receipt and item pairing', async () => {

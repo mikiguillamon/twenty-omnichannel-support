@@ -57,6 +57,8 @@ export type IngestEvent = {
   eventType: 'message.received' | 'message.sent' | 'message.status';
   channelCode: string;
   channelType: ChannelType | null;
+  routingMode?: 'CHAT';
+  createPersonFromChat?: boolean;
   provider: string;
   accountId: string;
   externalId: string | null;
@@ -254,6 +256,13 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     throw new IngestError('INVALID_BODY', 'Expected a JSON object');
   }
   const top = object(raw);
+  if (top.routingMode !== undefined && top.routingMode !== 'CHAT') {
+    throw new IngestError('INVALID_ROUTING_MODE', 'Supported routingMode is CHAT');
+  }
+  if (top.createPersonFromChat !== undefined && (typeof top.createPersonFromChat !== 'boolean' ||
+      (top.createPersonFromChat && top.routingMode !== 'CHAT'))) {
+    throw new IngestError('INVALID_CHAT_PERSON', 'createPersonFromChat requires a boolean and CHAT routing when enabled');
+  }
   const contact = object(top.contact);
   const message = object(top.message);
   const code = max(lower(top.channelCode), 120, 'channelCode');
@@ -308,7 +317,7 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   const phoneForIdentity = string(contact.phone ?? top.originPhone);
   const phoneDigits = phoneForIdentity.startsWith('+') && /^\+[1-9]\d{7,14}$/.test(phoneForIdentity)
     ? phoneForIdentity.slice(1) : '';
-  const phoneJid = suppliedType === 'WHATSAPP' && phoneDigits
+  const phoneJid = suppliedType === 'WHATSAPP' && phoneDigits && (top.routingMode !== 'CHAT' || contact.verified === true)
     ? phoneDigits + '@s.whatsapp.net' : '';
   const userId = max(lower(contact.externalId ?? contact.externalUserId ?? top.externalUserId) ||
     (type === 'EMAIL' ? email : phoneJid), 300, 'externalUserId');
@@ -353,6 +362,8 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
     eventType,
     channelCode: code,
     channelType: type || null,
+    ...(top.routingMode === 'CHAT' ? { routingMode: 'CHAT' } : {}),
+    ...(top.createPersonFromChat === true ? { createPersonFromChat: true } : {}),
     provider: max(lower(top.provider), 120, 'provider'),
     accountId: max(lower(top.accountId ?? top.account), 300, 'accountId'),
     externalId,
@@ -397,6 +408,9 @@ export function keys(event: IngestEvent, channel: { channelType: string; provide
   if (event.channelType && event.channelType !== channelType) {
     throw new IngestError('CHANNEL_TYPE_MISMATCH', 'channelType does not match configured channel');
   }
+  if (event.routingMode === 'CHAT' && (!['WHATSAPP', 'TELEGRAM', 'INSTAGRAM'].includes(channelType) || event.kind !== 'message')) {
+    throw new IngestError('INVALID_ROUTING_MODE', 'CHAT requires a WhatsApp, Telegram or Instagram message');
+  }
   const configuredProvider = lower(channel.provider);
   if (configuredProvider && event.provider && configuredProvider !== event.provider) {
     throw new IngestError('PROVIDER_MISMATCH', 'Provider does not match the configured channel');
@@ -408,10 +422,22 @@ export function keys(event: IngestEvent, channel: { channelType: string; provide
     throw new IngestError('ACCOUNT_MISMATCH', 'accountId does not match the configured channel');
   }
   const ns = [channelType, provider, accountId].join(':');
-  const identityKey = event.externalUserId ? ns + ':USER:' + event.externalUserId : '';
+  const chatJid = event.routingMode === 'CHAT' && channelType === 'WHATSAPP' ? jid(event.externalUserId) : '';
+  if (event.routingMode === 'CHAT' && channelType === 'WHATSAPP' && event.externalUserId.endsWith('@g.us')) {
+    throw new IngestError('UNSUPPORTED_GROUP', 'WhatsApp groups are not supported by the person ingestion endpoint');
+  }
+  if (event.routingMode === 'CHAT' && channelType === 'TELEGRAM' && /^-\d+$/.test(event.externalUserId)) {
+    throw new IngestError('UNSUPPORTED_GROUP', 'Telegram group and channel IDs cannot identify a direct chat');
+  }
+  const userId = chatJid || event.externalUserId;
+  const identityKey = userId ? ns + ':USER:' + userId : '';
   const messageKey = ns + ':MESSAGE:' + event.messageKey;
   const aliases = channelType === 'WHATSAPP'
     ? event.aliases.map(a => ({ ...a, externalKey: ns + ':' + a.aliasValue }))
     : [];
+  if (chatJid && !aliases.some(alias => alias.aliasValue === chatJid)) {
+    aliases.push({ aliasValue: chatJid, aliasType: chatJid.endsWith('@lid') ? 'WHATSAPP_LID' : 'WHATSAPP_PN',
+      externalKey: ns + ':' + chatJid });
+  }
   return { channelType, provider, accountId, ns, identityKey, messageKey, aliases };
 }

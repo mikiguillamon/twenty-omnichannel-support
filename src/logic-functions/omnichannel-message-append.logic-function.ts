@@ -11,7 +11,8 @@ export default defineLogicFunction({
   timeoutSeconds: 30,
   handler: request => integrationResponse(request, () => {
     // API-key invocations in Twenty 2.50 run with the application token.
-    requireProposalKey(process.env.OMNICHANNEL_N8N_PROPOSAL_SECRET, request.headers[proposalKeyHeader]);
+    requireProposalKey(process.env.OMNICHANNEL_N8N_PROPOSAL_SECRET, request.headers[proposalKeyHeader],
+      process.env.OMNICHANNEL_N8N_CREDENTIAL_FINGERPRINT);
     return appendMessage(request.body, new TwentyRestIngestionStore());
   }, 'MESSAGE_APPEND_FAILED'),
   httpRouteTriggerSettings: {

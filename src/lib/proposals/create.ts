@@ -18,14 +18,19 @@ export interface PrivateProposalStorage {
 export const proposalStorageKey = (token: string) => `omnichannel:proposal:${token}`;
 export const proposalKeyHeader = 'x-omnichannel-proposal-key';
 
-export function requireProposalKey(expected: string | undefined, received: string | undefined): void {
-  if (!expected?.trim()) {
-    throw new IngestError('N8N_PROPOSAL_KEY_NOT_CONFIGURED', 'Configure the n8n integration key in application settings', 503);
+export function requireProposalKey(legacyKey: string | undefined, received: string | undefined, fingerprint?: string): void {
+  const paired = fingerprint?.trim().toLowerCase() ?? '';
+  if (!legacyKey?.trim() && !/^[a-f0-9]{64}$/.test(paired)) {
+    throw new IngestError('N8N_PROPOSAL_KEY_NOT_CONFIGURED', 'Pair the Twenty credential in Omnichannel application settings', 503);
   }
-  const digest = (value: string) => createHash('sha256').update(value).digest();
-  if (!received || !timingSafeEqual(digest(expected), digest(received))) {
-    throw new IngestError('N8N_PROPOSAL_KEY_FORBIDDEN', 'The n8n integration credential is invalid', 403);
+  if (received) {
+    const digest = (value: string) => createHash('sha256').update(value).digest();
+    const actual = digest(received);
+    if (legacyKey?.trim() && timingSafeEqual(digest(legacyKey), actual)) return;
+    if (/^twenty-v2\.[a-f0-9]{64}$/.test(received) && /^[a-f0-9]{64}$/.test(paired) &&
+        timingSafeEqual(Buffer.from(paired, 'hex'), actual)) return;
   }
+  throw new IngestError('N8N_PROPOSAL_KEY_FORBIDDEN', 'The n8n integration credential is invalid', 403);
 }
 
 export async function proposeReply(

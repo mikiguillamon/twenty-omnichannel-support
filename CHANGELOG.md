@@ -1,3 +1,9 @@
+## 1.4.0 — Chat por contacto y nodo n8n v2
+
+- Los mensajes directos pueden continuar la conversación de la misma identidad después de cerrar el caso o de varios días de inactividad. El nodo de n8n 0.2.0 activa esta agrupación al registrar WhatsApp, Instagram o Telegram.
+- El nodo puede crear una Persona a partir del nombre y los apellidos de una identidad de chat nueva. Permite configurar los metadatos de conversación durante el registro, buscar FAQs y trabajar con los registros del plugin.
+- La credencial compartida **Twenty API** admite la autorización de propuestas y mensajes por ID mediante su huella. Los flujos guardados con el nodo v1 siguen disponibles.
+
 ## 1.3.0 — Revisión de respuestas y registro por conversación
 
 - Añade propuestas de respuesta para correo, WhatsApp y los demás canales a partir de un mensaje entrante ya registrado.
