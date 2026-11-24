@@ -1,3 +1,9 @@
+## 1.3.0 — Revisión de respuestas y registro por conversación
+
+- Añade propuestas de respuesta para correo, WhatsApp y los demás canales a partir de un mensaje entrante ya registrado.
+- Permite editar y enviar la propuesta desde el historial. n8n recibe el texto aprobado al reanudar Wait.
+- Registra mensajes en una conversación existente con su `caseId` y un identificador estable del mensaje. Los reintentos conservan el historial y la fecha de última actividad.
+
 ## 1.2.3 — Ventana de conversación y mensajes diferenciados
 
 - Abre el historial en una ventana sobre la bandeja y conserva los filtros y la posición de la lista al cerrarla.
