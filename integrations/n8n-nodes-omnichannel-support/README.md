@@ -59,4 +59,6 @@ The node has its own version and lockfile. When preparing the next release, set 
 | Environment name | Leave blank |
 | Allowed action | `npm publish` |
 
-Update the node version and lockfile on `main`, then run **Publish Omnichannel n8n node to npm** on `main` with that version. The workflow validates and packs the node, then publishes with OIDC and provenance. Run the next publish within two days of setting up the Trusted Publisher. [Publish workflow](https://github.com/mikiguillamon/twenty-omnichannel-support/actions/workflows/publish-n8n-node.yml) · [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+From the node directory, use `npm version patch --no-git-tag-version` for a patch release, or select `minor` or `major` as appropriate. Commit the resulting `package.json` and `package-lock.json` changes and merge or push them to `main`.
+
+**Publish Omnichannel n8n node to npm** runs when the node's `package.json` lands on `main`. The workflow skips versions already in npm, validates and packages each new version, then publishes it to `latest` using OIDC and provenance. For a retry, run the same workflow manually on `main` and enter the version in `package.json`. Complete the next publish within two days of setting up the Trusted Publisher to activate the connection. [Publish workflow](https://github.com/mikiguillamon/twenty-omnichannel-support/actions/workflows/publish-n8n-node.yml) · [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
