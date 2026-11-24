@@ -4,9 +4,7 @@ import { IDS } from '../constants/ids.ts';
 import { IngestError, normalizeEvent } from '../lib/ingestion/contract.ts';
 import { ingest } from '../lib/ingestion/processor.ts';
 import { TwentyRestIngestionStore } from '../lib/ingestion/twenty-rest-store.ts';
-import { requireProposalKey } from '../lib/proposals/create.ts';
-
-const proposalKeyHeader = 'x-omnichannel-proposal-key';
+import { proposalKeyHeader, requireProposalKey } from '../lib/proposals/create.ts';
 
 const handler = async (request: RoutePayload) => {
   // Do not log request bodies: they contain customer email addresses and messages.

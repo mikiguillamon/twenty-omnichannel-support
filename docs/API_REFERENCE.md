@@ -4,13 +4,39 @@ Contrato de integración de Omnichannel Support para Twenty CRM 2.50. Los ejempl
 
 El servicio de ingestión recibe eventos normalizados de proveedores de correo, mensajería y telefonía. Los adaptadores de n8n, Make o un servicio propio preparan esos eventos, mientras Twenty guarda la conversación y los mensajes. La API de registros de Twenty sigue disponible para consultar y editar las entidades.
 
-## Propuestas de respuesta por correo
+## Propuestas de respuesta
 
-- En `POST /s/omnichannel/v1/ingest`, añade `proposedReply: { "body": "…", "callbackUrl": "…" }` a un correo entrante con ID estable. Envía `X-Omnichannel-Proposal-Key` con el secreto de propuestas del workspace. El cuerpo admite hasta 50.000 caracteres. El destino debe ser una URL HTTPS de Wait bajo la base configurada del workspace. El resultado añade `proposalMessageId` y `proposalStatus`. El caso comienza en `IN_PROGRESS` por defecto, sujeto a las reglas de revisión de identidad. Si el mismo correo pendiente se registra con otra URL de Wait, la ruta devuelve `409`.
+- `POST /s/omnichannel/v1/proposals/create` recibe `{ "messageId": "UUID", "body": "…", "callbackUrl": "…" }`. Usa el `messageId` de Twenty que devolvió la ingestión. La propuesta hereda la conversación del mensaje entrante. El resultado incluye `ok`, `caseId`, `proposalMessageId` y `proposalStatus`.
+- También puedes añadir `proposedReply: { "body": "…", "callbackUrl": "…" }` a `POST /s/omnichannel/v1/ingest` al registrar un mensaje entrante con ID estable. En ese modo la conversación se inicia en `IN_PROGRESS` por defecto, sujeto a la política de agrupación y revisión. Ambas rutas exigen `X-Omnichannel-Proposal-Key`, admiten borradores de hasta 50.000 caracteres y validan que la URL HTTPS pertenece a Wait en la base configurada. Una URL diferente para una propuesta pendiente devuelve `409 PROPOSAL_CALLBACK_CONFLICT`.
 - `POST /s/omnichannel/v1/proposals/decide` recibe `messageId`, `confirmed` y `message` al confirmar. El descarte requiere `confirmed: false` y omite `message`. La ruta exige un usuario de Twenty con acceso de escritura al mensaje.
 - La llamada de Twenty a Wait incluye `confirmed`, `proposalMessageId`, `caseId` y, si hay confirmación, `message`. La cabecera `Idempotency-Key` contiene el ID de la propuesta. Una decisión aceptada devuelve `proposalStatus: "CONFIRMED"` o `"DISCARDED"`. El envío real se registra con un evento posterior del proveedor.
 
-Consulta la [configuración del workflow de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-de-correo-en-twenty).
+Consulta la [configuración del workflow de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-en-twenty).
+
+## Añadir un mensaje por ID de conversación
+
+```http
+POST /s/omnichannel/v1/messages/append
+Authorization: Bearer TWENTY_WORKSPACE_TOKEN
+X-Omnichannel-Proposal-Key: OMNICHANNEL_INTEGRATION_KEY
+Content-Type: application/json
+
+{
+  "caseId": "d3f4ecaf-a899-4e04-9aa7-48c2a2997680",
+  "message": {
+    "externalId": "id-del-proveedor",
+    "body": "Texto aprobado y enviado"
+  }
+}
+```
+
+Usa el `caseId` de Twenty y un `externalId` o `idempotencyKey` estable para el mensaje nuevo. Se toma el proveedor y la cuenta del Canal configurado en la conversación. `direction` admite `INBOUND` y `OUTBOUND` (por defecto, `OUTBOUND`). También puedes enviar `senderType`, `subject`, `occurredAt`, `fromAddress`, `toAddress`, `replyToExternalId`, `callTranscription` y `callRecordingUrl`.
+
+Si el Canal deja el proveedor o la cuenta sin configurar, añade `provider` o `accountId` al nivel de `caseId`, con los valores que usó la ingestión original. Un ámbito que no coincide con la conversación devuelve `409 CASE_SCOPE_MISMATCH`.
+
+El resultado tiene la misma estructura que ingestión, con `201 created` o `200 duplicate`. Si ese identificador de mensaje ya pertenece a otra conversación o dirección, la API devuelve `409 MESSAGE_CASE_CONFLICT`. Si la conversación carece de un Canal compatible, devuelve `409 CASE_CHANNEL_MISSING`. Esta operación registra un mensaje en el historial y actualiza la fecha de última actividad.
+
+**Autenticación de integración.** Las rutas `proposals/create` y `messages/append` requieren el token Bearer del workspace y el secreto `OMNICHANNEL_N8N_PROPOSAL_SECRET` en la cabecera `X-Omnichannel-Proposal-Key`. Las escrituras se hacen con el rol de Omnichannel Support en el workspace.
 
 ## Búsqueda inteligente de FAQs (beta.21)
 

@@ -17,7 +17,7 @@ Omnichannel Support reúne en Twenty los casos y mensajes de correo, WhatsApp, I
 ## Capabilities and Constraints
 
 - Los datos y permisos de cada workspace se resuelven en Twenty. Las vistas guardadas abren la bandeja con su configuración y se pueden añadir al menú del workspace.
-- Quien tenga permiso para editar mensajes puede aprobar o descartar propuestas de correo. La aprobación envía el texto revisado a la URL de reanudación de la ejecución de n8n que creó la propuesta. El descarte envía la decisión sin texto.
+- Quien tenga permiso para editar mensajes puede aprobar o descartar propuestas de respuesta de cualquier canal. La aprobación envía el texto revisado a la URL de reanudación de la ejecución de n8n que creó la propuesta. El descarte envía la decisión sin texto.
 - Las capturas de referencia documentan la facilidad de búsqueda, filtros y revisión de contenido en una tabla de operaciones. Los campos de Omnichannel y la interfaz de Twenty determinan la implementación.
 
 ## Product Principles

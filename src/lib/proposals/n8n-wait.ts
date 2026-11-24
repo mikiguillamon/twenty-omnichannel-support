@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { request } from 'node:https';
+import type { IncomingMessage } from 'node:http';
 import { BlockList, isIP } from 'node:net';
 import { addAbortListener } from 'node:events';
 import { IngestError } from '../ingestion/contract.ts';
@@ -65,13 +66,44 @@ async function resolveWaitAddress(hostname: string, signal: AbortSignal) {
   }
 }
 
+export function waitResponseOutcome(status: number, url: URL, body = ''): WaitOutcome {
+  if (status >= 200 && status < 300) return 'accepted';
+  if ([401, 403, 404, 405, 410, 429].includes(status)) return 'retryable';
+  if (status === 409) {
+    const executionId = url.pathname.split('/webhook-waiting/').at(-1)?.split('/')[0];
+    try {
+      // n8n reports a still-running execution before it invokes the webhook.
+      // Other 409 responses can mean the execution already finished.
+      if (executionId && JSON.parse(body)?.message === `The execution "${executionId}" is running already.`) {
+        return 'retryable';
+      }
+    } catch { /* An unrecognized 409 does not establish that Wait rejected the decision. */ }
+  }
+  return 'uncertain';
+}
+
+async function readWaitOutcome(response: IncomingMessage, url: URL): Promise<WaitOutcome> {
+  const status = response.statusCode ?? 0;
+  try {
+    if (status !== 409) return waitResponseOutcome(status, url);
+    let body = '';
+    for await (const chunk of response) {
+      body += String(chunk);
+      if (body.length > 4096) return 'uncertain';
+    }
+    return waitResponseOutcome(status, url, body);
+  } finally {
+    response.destroy();
+  }
+}
+
 /** Resolves and pins a public address without giving up hostname verification. */
 export async function notifyN8nWait(url: URL, payload: WaitPayload, key: string, secret?: string): Promise<WaitOutcome> {
   const signal = AbortSignal.timeout(10000);
   const address = await resolveWaitAddress(url.hostname, signal);
   if (!address || signal.aborted) return 'retryable';
   const body = JSON.stringify(payload);
-  const status = await new Promise<number>((resolve, reject) => {
+  return new Promise<WaitOutcome>((resolve, reject) => {
     const outgoing = request(url, {
       method: 'POST', agent: false, signal, family: address.family, servername: url.hostname, rejectUnauthorized: true,
       lookup: (_hostname, options, next) => {
@@ -84,14 +116,8 @@ export async function notifyN8nWait(url: URL, payload: WaitPayload, key: string,
         'Idempotency-Key': key,
         ...(secret ? { 'X-Omnichannel-Webhook-Secret': secret } : {}),
       },
-    }, response => {
-      resolve(response.statusCode ?? 0);
-      response.destroy();
-    });
+    }, response => { void readWaitOutcome(response, url).then(resolve, reject); });
     outgoing.on('error', reject);
     outgoing.end(body);
-  }).catch(() => 0);
-  if (status >= 200 && status < 300) return 'accepted';
-  if ([401, 403, 404, 405, 410, 429].includes(status)) return 'retryable';
-  return 'uncertain';
+  }).catch(() => 'uncertain');
 }

@@ -21,8 +21,8 @@ export default defineApplication({
     },
     OMNICHANNEL_N8N_PROPOSAL_SECRET: {
       universalIdentifier: IDS.N8N_PROPOSAL_SECRET_VAR,
-      label: 'Clave de entrada de propuestas',
-      description: 'Secreto que n8n envía en la cabecera X-Omnichannel-Proposal-Key al registrar un email con propuesta.',
+      label: 'Clave de integración de n8n',
+      description: 'Secreto de la cabecera X-Omnichannel-Proposal-Key para registrar propuestas o añadir mensajes por ID de conversación.',
       isSecret: true,
     },
   },

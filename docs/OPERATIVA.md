@@ -14,7 +14,7 @@ Combina la búsqueda por asunto o contacto con los filtros de canal, cuenta, est
 
 Guarda la búsqueda, los filtros y el orden como una vista con nombre. **Añadir al menú** te permite elegir el nombre visible del acceso. Para cambiarlo después, entra en **Administración Omnichannel → Accesos**. Gestionar accesos compartidos requiere el permiso de diseños (`LAYOUTS`). El acceso a las conversaciones y a las vistas guardadas se rige por los permisos de sus objetos de Twenty.
 
-Si n8n registra una propuesta de correo, encontrarás la respuesta editable en el historial. **Confirmar en n8n** reanuda la ejecución con el texto revisado. **Descartar** envía únicamente la decisión. El historial distingue la propuesta aprobada del correo enviado por el proveedor. [Configuración de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-de-correo-en-twenty).
+Si n8n registra una propuesta de respuesta, encontrarás un borrador **Por revisar** en el historial. Edita el texto y pulsa **Enviar** para reanudar n8n con la versión revisada. **Descartar** envía la decisión de descarte. La etiqueta **Aceptada por n8n** confirma la reanudación. El envío aparece en el historial cuando n8n registra el mensaje del proveedor. [Configuración de n8n](INTEGRACION_N8N.md#revisar-una-respuesta-en-twenty).
 
 Para comunicaciones automatizadas, marca `AUTOMATED` o `INFORMATIONAL` cuando no hagan falta personas. Reserva `HUMAN_REQUIRED` para casos que requieren atención humana. Los otros estados son `NEW`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `WAITING_INTERNAL`, `RESOLVED` y `CLOSED`.
 

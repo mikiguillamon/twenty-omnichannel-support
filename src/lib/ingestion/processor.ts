@@ -1,4 +1,4 @@
-import { type IngestEvent, IngestError, keys, type GroupingMode, type ConversationPatch } from './contract.ts';
+import { type IngestEvent, IngestError, isRecordId, keys, normalizeEvent, type GroupingMode, type ConversationPatch } from './contract.ts';
 import { createProposal, type PrivateProposalStorage, type ProposalReceipt } from '../proposals/create.ts';
 import { n8nWaitUrl } from '../proposals/n8n-wait.ts';
 
@@ -10,6 +10,7 @@ export interface IngestionStore {
   get(resource: string, id: string): Promise<DbRecord | null>;
   create(resource: string, data: Record<string, unknown>): Promise<DbRecord>;
   update(resource: string, id: string, data: Record<string, unknown>): Promise<DbRecord>;
+  advanceCaseActivity(caseId: string, occurredAt: string): Promise<void>;
 }
 export type IngestResult = Partial<ProposalReceipt> & {
   ok: true;
@@ -411,9 +412,12 @@ async function caseFor(
     const updates: Record<string, unknown> = { ...metadata };
     if (safePerson && !candidate.personId) updates.personId = safePerson;
     if (safeIdentity && !candidate.externalIdentityId) updates.externalIdentityId = safeIdentity;
-    if (Date.parse(ref.occurredAt) > Date.parse(string(candidate.lastMessageAt) || '')) updates.lastMessageAt = ref.occurredAt;
     if (review) delete updates.status;
     if (Object.keys(updates).length) await store.update('supportCases', candidate.id, updates);
+    const lastActivity = text(candidate.lastMessageAt);
+    if (!lastActivity || Date.parse(ref.occurredAt) > Date.parse(lastActivity)) {
+      await store.advanceCaseActivity(candidate.id, ref.occurredAt);
+    }
   }
   return { caseId: candidate.id, review };
 }
@@ -432,17 +436,102 @@ async function statusChange(store: IngestionStore, existing: DbRecord, newStatus
 
 type ProposalContext = { storage: PrivateProposalStorage; allowedOrigin?: string };
 
-export async function ingest(event: IngestEvent, store: IngestionStore, proposals?: ProposalContext): Promise<IngestResult> {
-  const channel = await first(store, 'supportChannels', { code: event.channelCode });
-  if (!channel) throw new IngestError('UNKNOWN_CHANNEL', 'Unknown channelCode', 404);
-  const scope = keys(event, {
+function configuredScope(event: IngestEvent, channel: DbRecord) {
+  return keys(event, {
     channelType: text(channel.channelType),
     provider: text(channel.provider),
     externalIdentifier: text(channel.externalIdentifier),
   });
-  if (event.proposedReply && scope.channelType !== 'EMAIL') {
-    throw new IngestError('INVALID_PROPOSAL_EVENT', 'Only incoming email events can include a proposed reply');
+}
+
+function messageData(event: IngestEvent, scope: ReturnType<typeof keys>, caseId: string) {
+  const ref = event.message;
+  return {
+    externalKey: scope.messageKey,
+    supportCaseId: caseId,
+    direction: ref.direction,
+    senderType: ref.senderType,
+    body: ref.body,
+    subject: ref.subject,
+    occurredAt: ref.occurredAt,
+    deliveryStatus: ref.deliveryStatus,
+    provider: scope.provider,
+    ...(event.externalId ? { providerMessageId: event.externalId } : {}),
+    ...(ref.fromAddress ? { fromAddress: ref.fromAddress } : {}),
+    ...(ref.toAddress ? { toAddress: ref.toAddress } : {}),
+    ...(ref.providerChatId ? { providerChatId: ref.providerChatId } : {}),
+    ...(ref.providerChatIdAlt ? { providerChatIdAlt: ref.providerChatIdAlt } : {}),
+    ...(ref.providerAddressingMode ? { providerAddressingMode: ref.providerAddressingMode } : {}),
+    ...(ref.replyToExternalId ? { replyToExternalKey: scope.ns + ':MESSAGE:' + ref.replyToExternalId } : {}),
+    ...(ref.callTranscription ? { callTranscription: ref.callTranscription } : {}),
+    ...(ref.callRecordingUrl ? { callRecording: { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' } } : {}),
+  };
+}
+
+const appendFields = new Set([
+  'externalId', 'idempotencyKey', 'direction', 'senderType', 'body', 'text', 'subject',
+  'occurredAt', 'fromAddress', 'toAddress', 'replyToExternalId', 'callTranscription', 'callRecordingUrl',
+]);
+const caseKeySeparators = [':THREAD:', ':ISSUE:', ':CASE-MESSAGE:', ':REVIEW-MESSAGE:'];
+
+/** Attach directly to a conversation, using its configured delivery scope. */
+export async function appendMessage(value: unknown, store: IngestionStore): Promise<IngestResult> {
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const { caseId, message, provider, accountId } = input;
+  if (!isRecordId(caseId) || !message || typeof message !== 'object' || Array.isArray(message) ||
+      Object.keys(input).some(key => !['caseId', 'message', 'provider', 'accountId'].includes(key)) ||
+      Object.keys(message).some(key => !appendFields.has(key))) {
+    throw new IngestError('INVALID_APPEND', 'Expected the Twenty caseId and supported message fields');
   }
+  const conversation = await store.get('supportCases', caseId);
+  if (!conversation) throw new IngestError('UNKNOWN_CASE', 'The conversation could not be found', 404);
+  const channelId = recordId(conversation.channelInstanceId);
+  const channel = channelId ? await store.get('supportChannels', channelId) : null;
+  if (!channel || channel.channelType !== conversation.channel) {
+    throw new IngestError('CASE_CHANNEL_MISSING', 'The conversation needs a matching configured support channel', 409);
+  }
+  const event = normalizeEvent({
+    channelCode: channel.code,
+    channelType: channel.channelType,
+    provider,
+    accountId,
+    message: { direction: 'OUTBOUND', ...message },
+  });
+  if (!event.stableId) throw new IngestError('MISSING_MESSAGE_ID', 'Provide a stable externalId or idempotencyKey');
+  const scope = configuredScope(event, channel);
+  const caseKey = text(conversation.externalKey);
+  if ((event.provider || event.accountId) && caseKey.startsWith(scope.channelType + ':') &&
+      caseKeySeparators.some(separator => caseKey.includes(separator)) &&
+      !caseKeySeparators.some(separator => caseKey.startsWith(scope.ns + separator))) {
+    throw new IngestError('CASE_SCOPE_MISMATCH', 'The provider and account must match the conversation', 409);
+  }
+  const existing = await first(store, 'supportMessages', { externalKey: scope.messageKey });
+  const { record, created } = existing
+    ? { record: existing, created: false }
+    : await insertUnique(store, 'supportMessages', scope.messageKey, messageData(event, scope, caseId));
+  if (record.supportCaseId !== caseId || record.direction !== event.message.direction) {
+    throw new IngestError('MESSAGE_CASE_CONFLICT', 'This message ID already belongs to a different conversation or direction', 409);
+  }
+  // Recover activity after a partial failure, using the saved message timestamp on retries.
+  const occurredAt = text(record.occurredAt);
+  if (Number.isFinite(Date.parse(occurredAt))) await store.advanceCaseActivity(caseId, occurredAt);
+  return {
+    ok: true,
+    status: created ? 'created' : 'duplicate',
+    channelId,
+    identityId: recordId(conversation.externalIdentityId) || null,
+    personId: recordId(conversation.personId) || null,
+    caseId,
+    messageId: record.id,
+    reviewRequired: conversation.status === 'HUMAN_REQUIRED',
+    stableId: true,
+  };
+}
+
+export async function ingest(event: IngestEvent, store: IngestionStore, proposals?: ProposalContext): Promise<IngestResult> {
+  const channel = await first(store, 'supportChannels', { code: event.channelCode });
+  if (!channel) throw new IngestError('UNKNOWN_CHANNEL', 'Unknown channelCode', 404);
+  const scope = configuredScope(event, channel);
   const proposedReply = event.proposedReply && {
     body: event.proposedReply.body,
     callbackUrl: n8nWaitUrl(event.proposedReply.callbackUrl, proposals?.allowedOrigin).href,
@@ -450,7 +539,7 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
   async function attachProposal(inbound: DbRecord): Promise<Partial<ProposalReceipt>> {
     if (!proposedReply || !proposals) return {};
     if (inbound.direction !== 'INBOUND') {
-      throw new IngestError('PROPOSAL_CONFLICT', 'The source message is not an incoming email', 409);
+      throw new IngestError('PROPOSAL_CONFLICT', 'The source message must be incoming', 409);
     }
     return createProposal(store, proposals.storage, inbound, proposedReply);
   }
@@ -544,28 +633,9 @@ export async function ingest(event: IngestEvent, store: IngestionStore, proposal
   const selectedCase = await caseFor(withIdentity, store, scoped, channel,
     identity.identityId, link.personId, review);
 
-  const ref = event.message;
-  const messageData: Record<string, unknown> = {
-    externalKey: scope.messageKey,
-    supportCaseId: selectedCase.caseId,
-    direction: ref.direction,
-    senderType: ref.senderType,
-    body: ref.body,
-    subject: ref.subject,
-    occurredAt: ref.occurredAt,
-    deliveryStatus: ref.deliveryStatus,
-    provider: scope.provider,
-    ...(event.externalId ? { providerMessageId: event.externalId } : {}),
-    ...(ref.fromAddress ? { fromAddress: ref.fromAddress } : {}),
-    ...(ref.toAddress ? { toAddress: ref.toAddress } : {}),
-    ...(ref.providerChatId ? { providerChatId: ref.providerChatId } : {}),
-    ...(ref.providerChatIdAlt ? { providerChatIdAlt: ref.providerChatIdAlt } : {}),
-    ...(ref.providerAddressingMode ? { providerAddressingMode: ref.providerAddressingMode } : {}),
-    ...(ref.replyToExternalId ? { replyToExternalKey: scope.ns + ':MESSAGE:' + ref.replyToExternalId } : {}),
-    ...(ref.callTranscription ? { callTranscription: ref.callTranscription } : {}),
-    ...(ref.callRecordingUrl ? { callRecording: { primaryLinkUrl: ref.callRecordingUrl, primaryLinkLabel: 'Audio de la llamada' } } : {}),
-  };
-  const { record: created, created: didCreate } = await insertUnique(store, 'supportMessages', scope.messageKey, messageData);
+  const { record: created, created: didCreate } = await insertUnique(
+    store, 'supportMessages', scope.messageKey, messageData(event, scope, selectedCase.caseId),
+  );
   return {
     ok: true,
     status: didCreate ? 'created' : 'duplicate',

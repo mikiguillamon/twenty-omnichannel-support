@@ -1,4 +1,5 @@
 import { RestApiClient } from 'twenty-client-sdk/rest';
+import { isRecordId } from './contract.ts';
 import { type DbRecord, type Filter, type IngestionStore } from './processor.ts';
 
 type ApiResponse = { data?: Record<string, unknown> };
@@ -75,5 +76,12 @@ export class TwentyRestIngestionStore implements IngestionStore {
   async update(resource: string, id: string, data: Record<string, unknown>): Promise<DbRecord> {
     if (!/^[a-zA-Z0-9-]+$/.test(id)) throw Error('Invalid record ID');
     return responseObject(await this.api.patch<ApiResponse>('/rest/' + resource + '/' + id, data), resource, 'update');
+  }
+  async advanceCaseActivity(caseId: string, occurredAt: string): Promise<void> {
+    if (!isRecordId(caseId) || !Number.isFinite(Date.parse(occurredAt))) throw Error('Invalid case activity');
+    const id = serializeFilter({ id: caseId });
+    const older = 'lastMessageAt[lt]:' + JSON.stringify(occurredAt);
+    const filter = `and(${id},or(${older},lastMessageAt[is]:NULL))`;
+    await this.api.patch('/rest/supportCases', { lastMessageAt: occurredAt }, { query: { filter } });
   }
 }

@@ -4,33 +4,19 @@ Omnichannel Support recibe eventos normalizados de email, WhatsApp, Instagram, T
 
 La [referencia de API](API_REFERENCE.md) contiene los parámetros y códigos de error.
 
-## Revisar una respuesta de correo en Twenty
+<a id="revisar-una-respuesta-de-correo-en-twenty"></a>
 
-1. En Ajustes de Omnichannel Support, configura `OMNICHANNEL_N8N_ORIGIN` con la URL HTTPS pública que sirve Wait. Guarda un valor aleatorio en `OMNICHANNEL_N8N_PROPOSAL_SECRET` y en la credencial que n8n usa para registrar propuestas. Si Wait usa Header Auth, configura `X-Omnichannel-Webhook-Secret` en su credencial de n8n y guarda el mismo valor en `OMNICHANNEL_N8N_WAIT_SECRET` de Twenty.
-2. Cuando el flujo clasifique un correo como automatizable, prepara el borrador y registra el mensaje entrante mediante `POST /s/omnichannel/v1/ingest`. Envía la credencial Bearer habitual de Twenty y el valor de `OMNICHANNEL_N8N_PROPOSAL_SECRET` en `X-Omnichannel-Proposal-Key`. Incluye un ID de mensaje estable y añade `proposedReply` al cuerpo JSON. Usa la expresión `{{ $execution.resumeUrl }}` como valor de `callbackUrl` en la misma ejecución que entrará en Wait.
-3. Después del HTTP Request, entra en **Wait → On Webhook Call** solo si la respuesta indica `proposalStatus: "PENDING"`. Usa el método **POST** con respuesta inmediata. Al reanudarse, continúa por la rama de envío solo cuando `body.confirmed === true`. Envía `body.message` y usa `body.proposalMessageId` para deduplicar los envíos. La rama de descarte recibe `confirmed: false` sin `message`.
-4. Registra el envío del proveedor en Twenty como `message.sent` con su propio ID y el `caseId` recibido, o con el mismo identificador de hilo. Así el mensaje enviado aparece junto a la propuesta aprobada.
+## Revisar una respuesta en Twenty
 
-```json
-{
-  "channelCode": "email-support",
-  "channelType": "EMAIL",
-  "eventType": "message.received",
-  "message": {
-    "externalId": "m-2816",
-    "threadId": "thread-320",
-    "fromAddress": "cliente@example.com",
-    "subject": "Cambio de dirección",
-    "body": "¿Puedo cambiar la dirección del pedido?"
-  },
-  "proposedReply": {
-    "body": "Hola, podemos revisar el cambio de dirección.",
-    "callbackUrl": "https://n8n.example.com/webhook-waiting/286"
-  }
-}
-```
+1. Configura `OMNICHANNEL_N8N_ORIGIN` con la URL HTTPS pública que sirve Wait. Usa el mismo secreto aleatorio en `OMNICHANNEL_N8N_PROPOSAL_SECRET` de Twenty y en **Integration Key** de la credencial del nodo. Configura **Header Auth** en Wait con la cabecera `X-Omnichannel-Webhook-Secret` y guarda el valor de esa cabecera en `OMNICHANNEL_N8N_WAIT_SECRET` de Twenty.
+2. Guarda el mensaje con **Register Incoming Message** y conserva el `messageId` que devuelve. Cuando el agente genere un borrador que requiere revisión, pásalo a **Propose Reply** junto con ese `messageId`. El campo **Wait URL** toma por defecto `{{ $execution.resumeUrl }}` de la misma ejecución.
+3. Continúa a **Wait → On Webhook Call** si `proposalStatus` es `PENDING`. Configura **POST** y respuesta **Immediately**. Usa un mensaje para revisión por ejecución de Wait. Prueba ejecutando el workflow completo para que la URL corresponda a esa ejecución.
+4. En **Conversaciones**, abre el hilo, edita **Respuesta propuesta** y pulsa **Enviar** o **Descartar**. Al reanudarse, envía por el proveedor solo si `$json.body.confirmed === true`. Usa `$json.body.message` como texto definitivo y `$json.body.proposalMessageId` como clave de deduplicación del envío.
+5. Tras confirmar el envío con el proveedor, usa **Append Message**. Pasa el `caseId` de Wait, el ID que devolvió el proveedor y el texto que se envió. El historial mostrará la propuesta aceptada y el mensaje saliente.
 
-Conserva la misma URL y el mismo ID al reintentar el registro. Si el mismo correo llega a otra ejecución mientras la propuesta está pendiente, la API devuelve un conflicto y la primera ejecución conserva su Wait. Si Twenty indica que n8n no confirmó la decisión, verifica la ejecución antes de volver a enviar. La URL de reanudación queda guardada en el almacenamiento privado de la app. Evita incluirla en logs o notificaciones. [Nodo Wait de n8n](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/).
+Conserva la misma URL de Wait y el mismo `messageId` al reintentar **Propose Reply**. Si otra ejecución ya tiene una propuesta pendiente para ese mensaje, verás `PROPOSAL_CALLBACK_CONFLICT`. La URL de Wait se guarda en el almacenamiento privado de la app. Si la decisión sigue pendiente porque el nodo Wait todavía se está activando, comprueba la ejecución y reintenta desde el historial. [Nodo Wait de n8n](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/).
+
+El paquete y su proceso de instalación local están en el [directorio del nodo comunitario](../integrations/n8n-nodes-omnichannel-support/README.md). Si utilizas HTTP Request, los mismos pasos están en la [referencia de API](API_REFERENCE.md#propuestas-de-respuesta).
 
 ## Preparar el workspace
 
@@ -40,7 +26,7 @@ Cada Canal necesita un `code` único. Define también `channelType`, `provider` 
 
 Si vas a clasificar conversaciones, crea las Categorías en Twenty con `code` y `enabled=true`. Las FAQs también se gestionan desde el workspace. Ninguna de estas configuraciones necesita guardar un token de proveedor en Twenty.
 
-En n8n crea una credencial de tipo Bearer para el workspace, con los permisos adecuados. Comprueba la URL externa de la función antes de construir el flujo:
+En n8n crea la credencial **Omnichannel Support API** con la URL y API key del workspace. **Propose Reply** y **Append Message** usan también la **Integration Key**. Si configuras HTTP Request, usa la autenticación Bearer del workspace y comprueba la URL externa de la función.
 
 ```http
 POST https://TU_TWENTY/s/omnichannel/v1/ingest
@@ -48,19 +34,18 @@ Authorization: Bearer TOKEN_DEL_WORKSPACE
 Content-Type: application/json
 ```
 
-La app registra internamente la ruta `/omnichannel/v1/ingest`. La URL pública puede variar con el dominio de funciones de Twenty y el routing del workspace.
+La app registra internamente la ruta `/omnichannel/v1/ingest`. Si Twenty publica las funciones en otra URL, indica la base completa de Omnichannel en **Functions Base URL**, por ejemplo `https://functions.example.com/omnichannel/v1`.
 
 ## Subworkflow común
 
 ```text
 Trigger de proveedor (email / chat / VoIP)
   → Validar firma, autenticación y tipo de evento
-  → Normalizar datos en Edit Fields / Code
-  → HTTP Request a Omnichannel /ingest
+  → Omnichannel Support: Register Incoming Message
   → Comprobar status y reviewRequired
   → Si procede, buscar FAQs y ejecutar bot
   → Enviar la respuesta mediante el proveedor
-  → Registrar un evento message.sent o message.status
+  → Omnichannel Support: Append Message o Update Delivery Status
 ```
 
 El subworkflow no necesita llamar por separado a las operaciones de creación de Personas, identidades, conversaciones y mensajes. Esas búsquedas y relaciones se resuelven desde la aplicación en el contexto del workspace.
@@ -99,7 +84,7 @@ Un campo omitido mantiene el valor anterior. Los reintentos con el mismo identif
 
 ### Actualizar una conversación al añadir un mensaje
 
-Mantén la referencia a la misma conversación, pero utiliza otro `externalId` para el mensaje. El correo puede usar `threadId`; los chats pueden indicar `issueKey`, `caseId` o `replyToExternalId`. La función valida que la conversación pertenece al Canal y al interlocutor correcto.
+Si ya tienes el `caseId`, usa **Append Message** con el ID del nuevo mensaje y su texto. Twenty toma el canal de la conversación. Cuando también necesites cambiar sus metadatos, usa el contrato de ingestión con `conversation` y una referencia de agrupación. El correo puede usar `threadId` y los chats pueden indicar `issueKey`, `caseId` o `replyToExternalId`.
 
 ```json
 {

@@ -117,15 +117,11 @@ En una creación, el endpoint responde `201` con `status: "created"`. Un mensaje
 
 Los campos de relaciones pueden ser `null` cuando aún no existe una asociación fiable. Los errores de validación tienen un campo `error.code`; fallos inesperados se comunican con `INGESTION_FAILED` sin exponer credenciales ni contenido del mensaje.
 
-## Nodo n8n recomendado
+## Registrar mensajes desde n8n
 
-1. Recibe el correo o mensaje en el nodo propio del proveedor.
-2. Usa **Edit Fields** para establecer únicamente `channelCode`, datos básicos de contacto y mensaje.
-3. Envía un único **HTTP Request** con método POST, cuerpo JSON y credencial Bearer de Twenty del workspace correspondiente.
-4. Activa **Retry on Fail** solo si puedes reenviar el mismo `externalId` o `idempotencyKey`; interpreta `duplicate` como éxito.
-5. Registra el resultado técnico en n8n y deriva `reviewRequired` al circuito de revisión, si lo utilizas.
+Recibe el mensaje en el nodo del proveedor y pásalo a **Register Incoming Message** de Omnichannel Support, o usa un único **HTTP Request** al endpoint de ingestión. La aplicación resuelve la Persona, la identidad, la conversación y el mensaje.
 
-No encadenes nodos de búsqueda/creación de Persona, identidad, Consulta y Mensaje en n8n: esa lógica pertenece al endpoint.
+Al reintentar, conserva el mismo `externalId` o `idempotencyKey` e interpreta `duplicate` como éxito. Guarda `messageId` para proponer una respuesta y `caseId` para añadir mensajes a la conversación. [Configurar el workflow de n8n](INTEGRACION_N8N.md).
 
 ## Publicación y migración
 

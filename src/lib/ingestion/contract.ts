@@ -112,7 +112,7 @@ const object = (value: unknown): Dict =>
 const string = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 const lower = (value: unknown): string => string(value).toLowerCase();
 
-function normalizeProposedReply(raw: unknown): ProposedReply {
+export function normalizeProposedReply(raw: unknown): ProposedReply {
   const proposal = object(raw);
   const body = messageText(proposal.body);
   if (Object.keys(proposal).some(key => key !== 'body' && key !== 'callbackUrl') ||
@@ -130,6 +130,7 @@ function max(value: string, limit: number, name: string): string {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const JID = /^[0-9]+@(s\.whatsapp\.net|lid)$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isRecordId = (value: unknown): value is string => typeof value === 'string' && UUID.test(value);
 const LANGUAGE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -285,8 +286,8 @@ export function normalizeEvent(raw: unknown, now = new Date(), makeId = randomUU
   }
   let proposedReply: ProposedReply | undefined;
   if (top.proposedReply !== undefined) {
-    if (eventType !== 'message.received' || direction !== 'INBOUND' || (suppliedType && suppliedType !== 'EMAIL')) {
-      throw new IngestError('INVALID_PROPOSAL_EVENT', 'Only incoming email events can include a proposed reply');
+    if (eventType !== 'message.received' || direction !== 'INBOUND') {
+      throw new IngestError('INVALID_PROPOSAL_EVENT', 'Only incoming message events can include a proposed reply');
     }
     if (!externalId && !fallbackId) {
       throw new IngestError('PROPOSAL_REQUIRES_MESSAGE_ID', 'A proposed reply requires a stable message ID');

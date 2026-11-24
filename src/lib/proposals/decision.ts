@@ -63,8 +63,8 @@ export async function decideProposal(decision: ProposalDecision, dependencies: D
   }
   const caseId = proposal.supportCaseId;
   const supportCase = await caller.get('supportCases', caseId);
-  if (!supportCase || supportCase.channel !== 'EMAIL') {
-    throw new IngestError('PROPOSAL_NOT_FOUND', 'The email conversation could not be found', 404);
+  if (!supportCase) {
+    throw new IngestError('PROPOSAL_NOT_FOUND', 'The conversation could not be found', 404);
   }
   const proposalStatus = confirmed ? 'CONFIRMED' : 'DISCARDED';
   const result: ProposalDecisionResult = { ok: true, messageId, proposalStatus };
@@ -73,7 +73,7 @@ export async function decideProposal(decision: ProposalDecision, dependencies: D
     if (!message || message.id !== messageId || message.supportCaseId !== caseId ||
         message.externalKey !== proposal?.externalKey || message.proposalUpdateToken !== proposal?.proposalUpdateToken ||
         message.direction !== 'OUTBOUND' || message.senderType !== 'BOT') {
-      throw new IngestError('PROPOSAL_BINDING_CHANGED', 'The message no longer matches the original email proposal', 409);
+      throw new IngestError('PROPOSAL_BINDING_CHANGED', 'The message no longer matches the original proposal', 409);
     }
   }
   function isFinal(message: DbRecord): boolean {

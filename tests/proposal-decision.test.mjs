@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { decideProposal, parseProposalDecision } from '../src/lib/proposals/decision.ts';
-import { isPublicWaitAddress, n8nWaitUrl } from '../src/lib/proposals/n8n-wait.ts';
+import * as wait from '../src/lib/proposals/n8n-wait.ts';
 import { proposalStorageKey } from '../src/lib/proposals/create.ts';
 
 const messageId = 'd4e03365-c14b-4bf8-a6da-186c40cfa6a5';
+const { isPublicWaitAddress, n8nWaitUrl } = wait;
 const caseId = 'd3f4ecaf-a899-4e04-9aa7-48c2a2997680';
 const token = 'cea9b4d9-580d-4e11-8c95-20677da385ee';
 const allowedOrigin = 'https://automation.example.com/n8n';
@@ -13,7 +14,7 @@ const message = 'Puedes cambiar la cita al miércoles.';
 const confirmed = { messageId, confirmed: true, message };
 const discarded = { messageId, confirmed: false };
 
-function fixture() {
+function fixture(channel = 'EMAIL') {
   const record = {
     id: messageId,
     direction: 'OUTBOUND',
@@ -46,7 +47,7 @@ function fixture() {
   const caller = {
     async get(resource, id) {
       if (resource === 'supportMessages' && id === messageId) return { ...record };
-      if (resource === 'supportCases' && id === caseId) return { id, channel: 'EMAIL' };
+      if (resource === 'supportCases' && id === caseId) return { id, channel };
       return null;
     },
     async update(resource, id, patch) {
@@ -88,6 +89,26 @@ test('discard notifies Wait without a message and leaves the original draft in t
   assert.equal(record.draftBody, 'Borrador inicial.');
   assert.throws(() => parseProposalDecision({ ...discarded, message: 'unsent' }), { code: 'INVALID_PROPOSAL_DECISION' });
   await assert.rejects(decideProposal(parseProposalDecision(confirmed), options), { code: 'PROPOSAL_ALREADY_DECIDED' });
+});
+
+test('an agent can send an edited WhatsApp proposal to Wait', async () => {
+  const { calls, options } = fixture('WHATSAPP');
+  const result = await decideProposal(parseProposalDecision(confirmed), options);
+  assert.equal(result.proposalStatus, 'CONFIRMED');
+  assert.equal(calls[0].payload.message, message);
+});
+
+test('a Wait conflict is retryable when n8n explicitly says the execution is still running', () => {
+  const url = new URL(callbackUrl);
+  for (const [message, expected] of [
+    ['The execution "737" is running already.', 'retryable'],
+    ['The execution "738" is running already.', 'uncertain'],
+    ['The execution "737" has finished already.', 'uncertain'],
+    ['The execution "737" has finished with error.', 'uncertain'],
+  ]) {
+    assert.equal(wait.waitResponseOutcome(409, url, JSON.stringify({ message })), expected);
+  }
+  assert.equal(wait.waitResponseOutcome(409, url, 'invalid json'), 'uncertain');
 });
 
 test('an agent with no write permission cannot resume Wait', async () => {

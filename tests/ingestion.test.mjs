@@ -2,9 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeEvent, keys, IngestError } from '../src/lib/ingestion/contract.ts';
 import { readTotalCount } from '../src/lib/overview.ts';
-import { ingest } from '../src/lib/ingestion/processor.ts';
-import { serializeFilter } from '../src/lib/ingestion/twenty-rest-store.ts';
+import * as ingestion from '../src/lib/ingestion/processor.ts';
+import { serializeFilter, TwentyRestIngestionStore } from '../src/lib/ingestion/twenty-rest-store.ts';
 import * as proposalCreate from '../src/lib/proposals/create.ts';
+import messageAppendRoute from '../src/logic-functions/omnichannel-message-append.logic-function.ts';
+import proposalCreateRoute from '../src/logic-functions/omnichannel-proposal-create.logic-function.ts';
+
+const { ingest } = ingestion;
 
 class MemoryStore {
   constructor(channelType = 'EMAIL') {
@@ -44,6 +48,13 @@ class MemoryStore {
     Object.assign(r, data);
     this.writes.push(['update', type, r]);
     return r;
+  }
+  async advanceCaseActivity(caseId, occurredAt) {
+    const row = this.rowsFor('supportCases').find(record => record.id === caseId);
+    if (row && (!row.lastMessageAt || Date.parse(row.lastMessageAt) < Date.parse(occurredAt))) {
+      row.lastMessageAt = occurredAt;
+      this.writes.push(['update', 'supportCases', row]);
+    }
   }
 }
 
@@ -160,6 +171,27 @@ test('proposal intake requires its own configured integration credential', () =>
   assert.doesNotThrow(() => proposalCreate.requireProposalKey('synthetic', 'synthetic'));
 });
 
+test('the case append and proposal routes reject an invalid integration key before reaching Twenty REST', async t => {
+  const key = 'OMNICHANNEL_N8N_PROPOSAL_SECRET';
+  const previous = process.env[key];
+  process.env[key] = 'unit-test-only-key';
+  t.after(() => {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  });
+  const fetch = t.mock.method(globalThis, 'fetch', () => { throw Error('Unexpected Twenty REST request'); });
+  for (const route of [messageAppendRoute.config, proposalCreateRoute.config]) {
+    assert.equal(route.httpRouteTriggerSettings.isAuthRequired, true);
+    assert.deepEqual(route.httpRouteTriggerSettings.forwardedRequestHeaders, ['x-omnichannel-proposal-key']);
+    for (const headers of [{}, { 'x-omnichannel-proposal-key': 'wrong-key' }]) {
+      const response = await route.handler({ headers, body: {} });
+      assert.equal(response.status, 403);
+      assert.equal(response.body.error.code, 'N8N_PROPOSAL_KEY_FORBIDDEN');
+    }
+  }
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
 test('an incoming email with a proposal adds a pending outbound draft to the same case', async () => {
   const store = new MemoryStore();
   const values = new Map();
@@ -247,6 +279,125 @@ test('proposals require a stable inbound email and a configured Wait origin befo
   await assert.rejects(ingest(email(options), store, { storage }), { code: 'N8N_WAIT_NOT_CONFIGURED' });
   await assert.rejects(ingest(email(options), store, { allowedOrigin: 'https://unrelated.example.com', storage }), { code: 'INVALID_PROPOSAL_CALLBACK' });
   assert.equal(store.writes.length, 0);
+});
+
+test('an inline WhatsApp proposal uses the same history as the incoming message', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const result = await ingest(whatsapp({ proposedReply: { body: 'Gracias.', callbackUrl: waitUrl } }), store, {
+    allowedOrigin: n8nOrigin, storage: { async get() { return null; }, async set() {} },
+  });
+  assert.equal(result.proposalStatus, 'PENDING');
+  assert.equal(store.rowsFor('supportMessages')[1].supportCaseId, result.caseId);
+});
+
+test('a proposal can be added to a previously ingested message using its Twenty ID alone', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const source = await ingest(whatsapp(), store);
+  const id = '25ae1525-5bb0-4f44-929f-baf3f5509cb2';
+  store.rowsFor('supportMessages')[0].id = id;
+  const privateData = new Map();
+  const storage = {
+    async get(key) { return privateData.get(key) ?? null; },
+    async set(key, value) { privateData.set(key, value); },
+  };
+  const input = { messageId: id, body: '<p>Hola<br>Gracias.</p>', callbackUrl: waitUrl };
+  const result = await proposalCreate.proposeReply(input, store, storage, n8nOrigin);
+  const draft = store.rowsFor('supportMessages')[1];
+  assert.deepEqual(result, { proposalMessageId: draft.id, proposalStatus: 'PENDING', caseId: source.caseId });
+  assert.equal(draft.draftBody, 'Hola\nGracias.');
+  assert.equal(draft.supportCaseId, source.caseId);
+  assert.equal(store.rowsFor('supportCases')[0].status, 'NEW');
+  assert(!JSON.stringify(result).includes(waitUrl));
+  assert(!JSON.stringify(draft).includes(waitUrl));
+  assert.deepEqual(await proposalCreate.proposeReply(input, store, storage, n8nOrigin), result);
+  await assert.rejects(proposalCreate.proposeReply({ ...input, callbackUrl: waitUrl + '/other' }, store, storage, n8nOrigin),
+    { code: 'PROPOSAL_CALLBACK_CONFLICT' });
+  await assert.rejects(proposalCreate.proposeReply({ ...input, caseId: source.caseId }, store, storage, n8nOrigin),
+    { code: 'INVALID_PROPOSAL' });
+  store.rowsFor('supportMessages')[0].direction = 'OUTBOUND';
+  await assert.rejects(proposalCreate.proposeReply(input, store, storage, n8nOrigin), { code: 'PROPOSAL_SOURCE_NOT_FOUND' });
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+});
+
+test('append uses the case channel and reuses provider delivery tracking without looking up the contact', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  await ingest(whatsapp(), store);
+  const supportCase = store.rowsFor('supportCases')[0];
+  const caseId = '12d9f648-84f1-4c4d-852b-f2e7019796d7';
+  supportCase.id = caseId;
+  const input = { caseId, message: {
+    externalId: 'sent-1', body: 'Texto aprobado', occurredAt: '2026-11-17T12:00:00Z',
+  } };
+  const result = await ingestion.appendMessage(input, store);
+  assert.equal(result.caseId, caseId);
+  assert.equal(result.status, 'created');
+  assert.equal(result.identityId, supportCase.externalIdentityId);
+  assert.equal(store.rowsFor('supportCases').length, 1);
+  const sent = store.rowsFor('supportMessages').find(row => row.id === result.messageId);
+  assert.equal(sent.body, 'Texto aprobado');
+  assert.equal(sent.direction, 'OUTBOUND');
+  assert.equal(sent.deliveryStatus, 'SENT');
+  assert.equal(supportCase.lastMessageAt, '2026-11-17T12:00:00.000Z');
+  assert.equal((await ingestion.appendMessage(input, store)).status, 'duplicate');
+  const secondCaseId = 'cd0b72dc-0241-4c13-af3a-ca0e7803c194';
+  const secondCase = await store.create('supportCases', { ...supportCase, externalKey: 'other-case' });
+  secondCase.id = secondCaseId;
+  await assert.rejects(ingestion.appendMessage({ ...input, caseId: secondCaseId }, store), { code: 'MESSAGE_CASE_CONFLICT' });
+  await assert.rejects(ingestion.appendMessage({ caseId, message: { body: 'Sin ID' } }, store), { code: 'MISSING_MESSAGE_ID' });
+  const delivered = await ingest(whatsapp({ eventType: 'message.status', messageId: 'sent-1', deliveryStatus: 'DELIVERED' }), store);
+  assert.equal(delivered.messageId, result.messageId);
+  assert.equal(sent.deliveryStatus, 'DELIVERED');
+});
+
+test('append accepts legacy provider and account overrides if the channel leaves them unset', async () => {
+  const store = new MemoryStore('WHATSAPP');
+  const channel = store.rowsFor('supportChannels')[0];
+  channel.provider = null;
+  channel.externalIdentifier = null;
+  await ingest(whatsapp(), store);
+  const caseId = '2ac9d9e3-b1f1-4d11-a413-1cd6eeffa7b7';
+  store.rowsFor('supportCases')[0].id = caseId;
+  const response = await ingestion.appendMessage({
+    caseId, provider: 'evolution', accountId: 'wa-1', message: { externalId: 'sent-legacy', body: 'Enviado' },
+  }, store);
+  const status = await ingest(whatsapp({ eventType: 'message.status', messageId: 'sent-legacy', deliveryStatus: 'DELIVERED' }), store);
+  assert.equal(status.messageId, response.messageId);
+  await assert.rejects(ingestion.appendMessage({
+    caseId, provider: 'evolution', accountId: 'other-wa', message: { externalId: 'wrong-account', body: 'Enviado' },
+  }, store), { code: 'CASE_SCOPE_MISMATCH' });
+});
+
+test('append retries repair case activity without moving it backwards', async () => {
+  const store = new MemoryStore();
+  await ingest(email(), store);
+  const supportCase = store.rowsFor('supportCases')[0];
+  const caseId = 'd95fd502-35f5-489e-8cb7-20dd5b4827eb';
+  supportCase.id = caseId;
+  const older = { caseId, message: { externalId: 'older', occurredAt: '2026-11-17T12:00:00.000Z' } };
+  const newer = { caseId, message: { externalId: 'newer', occurredAt: '2026-11-18T12:00:00.000Z' } };
+  const advance = store.advanceCaseActivity.bind(store);
+  store.advanceCaseActivity = async () => { throw Error('case activity unavailable'); };
+  await assert.rejects(ingestion.appendMessage(older, store), /case activity unavailable/);
+  assert.equal(store.rowsFor('supportMessages').length, 2);
+  store.advanceCaseActivity = advance;
+  assert.equal((await ingestion.appendMessage(older, store)).status, 'duplicate');
+  assert.equal(supportCase.lastMessageAt, older.message.occurredAt);
+  await ingestion.appendMessage(newer, store);
+  await ingestion.appendMessage(older, store);
+  assert.equal(supportCase.lastMessageAt, newer.message.occurredAt);
+});
+
+test('the Twenty REST activity write filters on case ID and old or missing dates in the same request', async () => {
+  const caseId = 'd95fd502-35f5-489e-8cb7-20dd5b4827eb';
+  const occurredAt = '2026-11-17T12:00:00.000Z';
+  const calls = [];
+  const store = new TwentyRestIngestionStore({ async patch(...args) { calls.push(args); } });
+  await store.advanceCaseActivity(caseId, occurredAt);
+  assert.deepEqual(calls, [[
+    '/rest/supportCases',
+    { lastMessageAt: occurredAt },
+    { query: { filter: `and(id[eq]:"${caseId}",or(lastMessageAt[lt]:"${occurredAt}",lastMessageAt[is]:NULL))` } },
+  ]]);
 });
 
 test('an existing Person is reused by verified matching email, never duplicated', async () => {

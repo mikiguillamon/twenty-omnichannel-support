@@ -1,6 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { IngestError, type ProposedReply } from '../ingestion/contract.ts';
+import { IngestError, isRecordId, normalizeProposedReply, type ProposedReply } from '../ingestion/contract.ts';
 import type { DbRecord, IngestionStore } from '../ingestion/processor.ts';
+import { n8nWaitUrl } from './n8n-wait.ts';
 
 export type StoredProposalCallback = { externalKey: string; caseId: string; callbackUrl: string };
 export type ProposalReceipt = {
@@ -15,15 +16,39 @@ export interface PrivateProposalStorage {
 }
 
 export const proposalStorageKey = (token: string) => `omnichannel:proposal:${token}`;
+export const proposalKeyHeader = 'x-omnichannel-proposal-key';
 
 export function requireProposalKey(expected: string | undefined, received: string | undefined): void {
   if (!expected?.trim()) {
-    throw new IngestError('N8N_PROPOSAL_KEY_NOT_CONFIGURED', 'Configure the n8n proposal key in application settings', 503);
+    throw new IngestError('N8N_PROPOSAL_KEY_NOT_CONFIGURED', 'Configure the n8n integration key in application settings', 503);
   }
   const digest = (value: string) => createHash('sha256').update(value).digest();
   if (!received || !timingSafeEqual(digest(expected), digest(received))) {
-    throw new IngestError('N8N_PROPOSAL_KEY_FORBIDDEN', 'The proposal integration credential is invalid', 403);
+    throw new IngestError('N8N_PROPOSAL_KEY_FORBIDDEN', 'The n8n integration credential is invalid', 403);
   }
+}
+
+export async function proposeReply(
+  value: unknown, store: IngestionStore, storage: PrivateProposalStorage, allowedOrigin?: string,
+): Promise<ProposalReceipt & { caseId: string }> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new IngestError('INVALID_PROPOSAL', 'Expected messageId, body and callbackUrl');
+  }
+  const { messageId, ...fields } = value as Record<string, unknown>;
+  if (!isRecordId(messageId)) {
+    throw new IngestError('INVALID_PROPOSAL', 'messageId must be the Twenty ID of an incoming message');
+  }
+  const proposal = normalizeProposedReply(fields);
+  proposal.callbackUrl = n8nWaitUrl(proposal.callbackUrl, allowedOrigin).href;
+  const source = await store.get('supportMessages', messageId);
+  if (!source || source.direction !== 'INBOUND') {
+    throw new IngestError('PROPOSAL_SOURCE_NOT_FOUND', 'The incoming message could not be found', 404);
+  }
+  const caseId = source.supportCaseId;
+  if (typeof caseId !== 'string' || !caseId || !await store.get('supportCases', caseId)) {
+    throw new IngestError('PROPOSAL_CASE_MISSING', 'The incoming message has no accessible conversation', 409);
+  }
+  return { ...await createProposal(store, storage, source, proposal), caseId };
 }
 
 export async function createProposal(
@@ -34,7 +59,7 @@ export async function createProposal(
 ): Promise<ProposalReceipt> {
   const caseId = inbound.supportCaseId;
   if (typeof caseId !== 'string' || !caseId) {
-    throw new IngestError('PROPOSAL_CASE_MISSING', 'The incoming email has no conversation', 409);
+    throw new IngestError('PROPOSAL_CASE_MISSING', 'The incoming message has no conversation', 409);
   }
   const externalKey = 'omnichannel:proposal:v1:' + createHash('sha256').update(inbound.id).digest('hex');
   const existing = async () => {
@@ -50,7 +75,7 @@ export async function createProposal(
       return { proposalMessageId: record.id, proposalStatus };
     }
     if (proposalStatus !== 'PENDING' || typeof proposalUpdateToken !== 'string') {
-      throw new IngestError('PROPOSAL_CONFLICT', 'The email proposal is unavailable', 409);
+      throw new IngestError('PROPOSAL_CONFLICT', 'The proposed reply is unavailable', 409);
     }
     const callback = await storage.get<StoredProposalCallback>(proposalStorageKey(proposalUpdateToken));
     if (!callback || callback.caseId !== caseId || callback.externalKey !== externalKey) {

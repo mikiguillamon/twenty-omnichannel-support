@@ -66,7 +66,7 @@ function ProposalEditor({ message, onDecide }: DecisionProps) {
         <button type="button" className="omni-thread-button" disabled={busy} onClick={() => { setDiscard(false); setError(''); }}>Volver</button>
       </div>
     </> : <div className="omni-thread-actions">
-      <button type="button" className="omni-thread-button" data-tone="primary" disabled={busy || !value.trim()} onClick={() => void submit(true)}>Confirmar en n8n</button>
+      <button type="button" className="omni-thread-button" data-tone="primary" disabled={busy || !value.trim()} onClick={() => void submit(true)}>Enviar</button>
       <button type="button" className="omni-thread-button" disabled={busy} onClick={() => { setDiscard(true); setError(''); }}>Descartar</button>
     </div>}
     {busy && <p className="omni-thread-hint" role="status">Registrando decisión…</p>}
@@ -91,7 +91,7 @@ function ThreadMessage({ message, onDecide }: DecisionProps) {
     <header className="omni-thread-meta">
       <strong>{sender}</strong>
       {proposal === 'PENDING' && <span className="omni-thread-tag">Por revisar</span>}
-      {proposal === 'CONFIRMED' && <span className="omni-thread-tag">Aprobada en n8n</span>}
+      {proposal === 'CONFIRMED' && <span className="omni-thread-tag">Aceptada por n8n</span>}
       {proposal === 'DISCARDED' && <span className="omni-thread-tag">Descartada</span>}
       {kind === 'draft' && <span className="omni-thread-tag">Borrador</span>}
       {!proposal && kind !== 'draft' && <span className="omni-thread-direction" data-failed={delivery === 'FAILED' ? 'true' : undefined}>
